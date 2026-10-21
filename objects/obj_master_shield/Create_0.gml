@@ -1,0 +1,99 @@
+image_xscale = 1.6;
+image_yscale = 1.6;
+image_speed = 0;
+parent_player = -4;
+grid_col = 0;
+grid_row = 0;
+timer = 0;
+state = 0;
+weapon_id = "master_shield";
+divine_blessing_gem = false;
+divine_protect_gem = false;
+divine_holy_gem = false;
+divine_shenji_gem = false;
+hp_modified_card_list = [];
+atk_modified_card_list = [];
+origin_x = x;
+origin_y = y;
+t = 0;
+t_speed = 0.5;
+t_dir = 1;
+anim_timer = 0;
+
+if (get_gem_index("divine_blessing_gem") != -1)
+{
+    var gem_info = get_gem_info("divine_blessing_gem");
+    var gem_level = get_gem_level("divine_blessing_gem");
+    cycle = gem_info.cycle[gem_level] * 60;
+    flame_produce = gem_info.flame_value[gem_level];
+    first_produce_delay = gem_info.first_produce_delay * 60;
+    first_produce = false;
+    divine_blessing_gem = true;
+}
+
+if (get_gem_index("divine_protect_gem") != -1)
+{
+    divine_protect_gem = true;
+    var gem_info = get_gem_info("divine_protect_gem");
+    var gem_level = get_gem_level("divine_protect_gem");
+    
+    if (gem_level > 15)
+        gem_level = 15;
+    
+    buff_value = gem_info.atk_ratio[gem_level];
+}
+
+if (get_gem_index("divine_holy_gem") != -1)
+{
+    divine_holy_gem = true;
+    var gem_info = get_gem_info("divine_holy_gem");
+    var gem_level = get_gem_level("divine_holy_gem");
+    
+    if (gem_level > 15)
+        gem_level = 15;
+    
+    reflect_damage = gem_info.atk[gem_level];
+    ice_timer = gem_info.ice_timer[gem_level];
+}
+
+if (get_gem_index("divine_shenji_gem") != -1)
+{
+    divine_shenji_gem = true;
+    var gem_info = get_gem_info("divine_shenji_gem");
+    var gem_level = clamp(get_gem_level("divine_shenji_gem"), 0, 15);
+    shenji_reflect_ratio = gem_info.reflect_ratio[gem_level];
+    shenji_bleed_damage = gem_info.bleed_damage[gem_level];
+    shenji_max_damage = gem_info.max_damage;
+}
+
+rebuild_shield_grid();
+
+if (divine_protect_gem)
+{
+    buff_cells = [];
+    buff_cells_refreshed = false;
+}
+
+var aura_defs = [[spr_master_shield_effect_4, 0, 535 / 305, 580 / 320]];
+
+if (divine_blessing_gem)
+    array_push(aura_defs, [spr_master_shield_effect_1, -42, 1, 1]);
+
+if (divine_protect_gem)
+    array_push(aura_defs, [spr_master_shield_effect_2, 0, 1, 1]);
+
+if (divine_holy_gem)
+    array_push(aura_defs, [spr_master_shield_effect_3, 0, 1, 1]);
+
+for (var i = 0; i < array_length(aura_defs); i++)
+{
+    var e = instance_create_depth(x, y + aura_defs[i][1], depth - 1, obj_master_shield_effect);
+    e.sprite_index = aura_defs[i][0];
+    e.image_index = 0;
+    e.image_xscale = aura_defs[i][2];
+    e.image_yscale = aura_defs[i][3];
+    e.shield_owner = id;
+    e.y_offset = aura_defs[i][1];
+}
+
+show_debug_message("主宰之盾初始化完毕");

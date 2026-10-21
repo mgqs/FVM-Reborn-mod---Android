@@ -1,0 +1,19 @@
+draw_self()
+draw_set_font(font_yuan)
+draw_set_colour(c_white)
+draw_set_halign(fa_left)
+draw_set_valign(fa_middle)
+ui_anim_text_alpha(id)
+draw_text(x-250,y,btn_text)
+draw_set_alpha(1)
+if obj_task_bg.button_select == btn_index{
+	image_index = 2
+}
+else{
+	if on_click{
+		image_index = 1
+	}
+	else{
+		image_index = 0
+	}
+}

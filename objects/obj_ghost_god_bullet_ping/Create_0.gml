@@ -1,0 +1,12 @@
+damage = 0;
+move_speed = 0;
+row = 0;
+damage_type = "normal";
+target_type = "normal";
+burnt = 0;
+bounced = false;
+brazier_list = ds_list_create();
+image_xscale = 1.8;
+image_yscale = 1.8;
+hittable_types = get_hittable_enemy_types(target_type);
+hit_tick = 0;

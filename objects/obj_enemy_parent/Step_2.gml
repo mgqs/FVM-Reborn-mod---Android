@@ -1,0 +1,79 @@
+damage_amount = 0
+damage_type = ""
+damage_source_object = noone
+damage_source_card_shape = -1
+
+if not hp_modified{
+	if global.difficulty == 0{
+		maxhp *= 0.8
+		hp *= 0.8
+		helmet_hp *= 0.8
+		helmet_max_hp *= 0.8
+		shield_hp *= 0.8
+		shield_max_hp *= 0.8
+	}
+	if global.difficulty >= 3{
+		if global.map_id != "tower_cake"{
+			maxhp *= 1.2
+			hp *= 1.2
+			helmet_hp *= 1.2
+			helmet_max_hp *= 1.2
+			shield_hp *= 1.2
+			shield_max_hp *= 1.2
+		}
+		else{
+			maxhp *= 1.2
+			hp *= 1.2
+			helmet_hp *= 1.2
+			helmet_max_hp *= 1.2
+			shield_hp *= 1.2
+			shield_max_hp *= 1.2
+		}
+	}
+	if global.difficulty >= 4{
+		maxhp *= 2
+		hp *= 2
+		helmet_hp *= 2
+		helmet_max_hp *= 2
+		shield_hp *= 2
+		shield_max_hp *= 2
+	}
+	if global.difficulty == 5{
+		maxhp *= 1.5
+		hp *= 1.5
+		helmet_hp *= 1.5
+		helmet_max_hp *= 1.5
+		shield_hp *= 1.5
+		shield_max_hp *= 1.5
+	}
+	if is_real(global.level_file.version) && !is_boss{
+		maxhp *= global.level_file.hp_modify
+		hp *= global.level_file.hp_modify
+		helmet_hp *= global.level_file.hp_modify
+		helmet_max_hp *= global.level_file.hp_modify
+		shield_hp *= global.level_file.hp_modify
+		shield_max_hp *= global.level_file.hp_modify
+	}
+	
+	hp_modified = true
+}
+with obj_lava{
+	if other.grid_row == row && other.grid_col == col &&
+	(other.target_type == "normal" || other.target_type == "dance" || other.target_type == "air" || other.target_type == "obstacle"){
+		other.move_speed_modify = 2
+		break
+	}
+	else{
+		other.move_speed_modify = 1
+	}
+}
+with obj_mucus{
+	if other.grid_row == row && other.grid_col == col &&
+	(other.target_type == "normal" || other.target_type == "dance"){
+		other.move_speed_modify = 2
+		break
+	}
+	else{
+		other.move_speed_modify = 1
+	}
+}

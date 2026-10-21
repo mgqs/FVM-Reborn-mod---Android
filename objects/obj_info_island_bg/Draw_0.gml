@@ -1,0 +1,598 @@
+// 绘制事件
+panel_anim_step(id, false)
+if (!instance_exists(id)) { exit }
+draw_set_alpha(0.5 * pnl_o);
+// 绘制半透明遮罩
+draw_rectangle_color(0, 0, room_width, room_height, c_black, c_black, c_black, c_black, false);
+draw_set_alpha(1);
+if (!surface_exists(anim_surf)) anim_surf = surface_create(room_width, room_height)
+surface_set_target(anim_surf)
+draw_clear_alpha(c_black, 0)
+draw_self()
+
+// 绘制背包格子背景
+draw_sprite_ext(spr_info_island_bg_1, 0, 530, room_height/2, 0.45, 0.45, 0, c_white, 1)
+
+// 绘制玩家金币数量
+draw_set_font(font_yuan); // 假设有一个字体font_main
+draw_set_color(c_yellow);
+draw_set_halign(fa_right);
+draw_set_valign(fa_bottom);
+
+draw_set_color(c_white);
+draw_set_halign(fa_left);
+draw_set_valign(fa_bottom);
+draw_set_font(font_yuan)
+
+if (!variable_instance_exists(id, "tab_fade")) { tab_fade = 1; tab_fade_t = -1; tab_shown = info_button_select }
+if (tab_shown != info_button_select) {
+	tab_shown = info_button_select
+	tab_fade = 0
+	tab_fade_t = 0
+	y_offset = y_offset_target
+	if (variable_instance_exists(id, "sr_rowv")) {
+		for (var _k = 0; _k < array_length(sr_rowv); _k++) sr_rowv[_k] = -1
+	}
+}
+if (tab_fade_t >= 0) {
+	if (!ui_anim_on(1)) { tab_fade = 1; tab_fade_t = -1 }
+	else {
+		tab_fade_t += ui_anim_dt()
+		tab_fade = ui_anim_ease(clamp(tab_fade_t / 0.20, 0, 1), 2)
+		if (tab_fade_t >= 0.55) { tab_fade = 1; tab_fade_t = -1 }
+	}
+}
+if (!variable_instance_exists(id, "sr_rowv") || array_length(sr_rowv) < info_rows + 2) sr_rowv = array_create(info_rows + 2, -1)
+var _sr_i0 = max(0, floor((y_offset - 39.5) / 213))
+var _sr_i1 = min(info_rows - 1, floor((y_offset + 700) / 213))
+for (var _sr_i = _sr_i0; _sr_i <= _sr_i1; _sr_i++) {
+	if (sr_rowv[_sr_i] < 0) sr_rowv[_sr_i] = 0
+	else if (sr_rowv[_sr_i] < 5) sr_rowv[_sr_i] += ui_anim_dt()
+}
+
+// 根据当前页签的实际条目数量计算行数，避免固定 40 行导致后续卡片不绘制。
+var _info_item_count = 0
+if (info_button_select == 1) {
+    if (ds_exists(global.player_deck, ds_type_list)) {
+        for (var _si = 0; _si < ds_list_size(global.player_deck); _si += 2) {
+            if (global.player_deck[| _si] == "lihe" && !is_random_gift_mode()) continue
+            _info_item_count++
+        }
+    }
+} else if (info_button_select == 2) {
+    _info_item_count = array_length(global.enemy_id_list)
+} else if (info_button_select == 3) {
+    _info_item_count = array_length(global.level_id_list)
+}
+info_rows = max(1, ceil(_info_item_count / info_cols))
+var _max_scroll = max(0, 142 * 1.5 * info_rows - surface_height)
+y_offset_target = clamp(y_offset_target, 0, _max_scroll)
+y_offset = clamp(y_offset, 0, _max_scroll)
+
+if info_button_select == 1 {
+	if surface_exists(info_surface){
+		surface_set_target(info_surface)
+		draw_clear_alpha(c_black,0)
+    for(var i = 0 ; i < info_rows ; i++){
+        for(var j = 0 ; j < info_cols ; j++){
+            var _cell_alpha = cell_reveal_alpha(i, j)
+            if j + i * info_cols == select_card_index{
+                draw_sprite_ext(spr_info_island_info_bg, 1, x-1154+j*128*1.5, y - 435 + 142*1.5 * i-y_offset, 0.75, 0.75, 0, c_white, _cell_alpha)
+			}
+			else{
+                draw_sprite_ext(spr_info_island_info_bg, 0, x-1154+j*128*1.5, y - 435 + 142*1.5 * i-y_offset, 0.75, 0.75, 0, c_white, _cell_alpha)
+			}
+        }
+    }
+    
+    // 绘制所有已注册的植物卡片
+    var card_index = 0;
+    hover_card_index = -1; // 重置悬停卡片索引
+
+    // 计算排序索引：普通卡在前 → 融合卡居中 → 金卡集中放最后
+    deck_sort_order = []
+    var _fusion_order = []
+    var _gold_order = []
+    for(var si = 0; si < ds_list_size(global.player_deck); si += 2) {
+        if (global.player_deck[| si] == "lihe" && !is_random_gift_mode()) continue;
+        var _entry = global.player_deck[| si+1]
+        var _shapes = _entry[? "shapes"]
+        var _data = _shapes[| 0]
+        if (is_fusion_card(global.player_deck[| si])) {
+            array_push(_fusion_order, si)
+        } else if (ds_map_find_value(_data, "is_gold") == 1) {
+            array_push(_gold_order, si)
+        } else {
+            array_push(deck_sort_order, si)
+        }
+    }
+    for(var si = 0; si < array_length(_fusion_order); si++) {
+        array_push(deck_sort_order, _fusion_order[si])
+    }
+    for(var si = 0; si < array_length(_gold_order); si++) {
+        array_push(deck_sort_order, _gold_order[si])
+    }
+
+    for(var di = 0; di < array_length(deck_sort_order); di++) {
+        var i = deck_sort_order[di]
+        var card_id = global.player_deck[| i];
+        var deck_entry = global.player_deck[| i+1];
+		var card_data_shapes = deck_entry[? "shapes"]
+		var card_data = card_data_shapes[| 0]
+		var info = get_plant_shape_data(card_id,0)
+		var card_shape = 0
+		var card_name = ""
+		if info != undefined{
+			card_name = info[? "name"]
+		}
+        
+        // 计算卡片位置
+        var row = card_index div info_cols;
+        var col = card_index mod info_cols;
+        
+        if (row < info_rows) {
+            var card_x = x - 1154 + col * 128*1.5;
+            var card_y = y - 435 + row * 142*1.5-y_offset;
+            
+            var _cell_alpha = cell_reveal_alpha(row, col)
+            // 绘制卡片
+				var _slot_spr = is_fusion_card(card_id) ? spr_slot_2 : ((ds_map_find_value(card_data, "is_gold") == 1) ? spr_slot_1 : spr_slot);
+                draw_sprite_ext(_slot_spr, 0, card_x, card_y-3, 0.30, 0.30, 0, c_white, _cell_alpha);
+                draw_sprite_ext(card_data[? "sprite"], 0, card_x, card_y+15, 0.8, 0.8, 0, c_white, _cell_alpha);
+				draw_set_color(c_white);
+				draw_set_halign(fa_center);
+				draw_set_valign(fa_middle);
+				draw_set_font(font_yuan)
+                draw_set_alpha(_cell_alpha)
+                draw_text(card_x,card_y+87,card_name)
+                draw_set_alpha(1)
+				draw_set_font(font_yuan)
+                // 检查鼠标是否悬停在卡片上
+                var spr_width = 128*1.5;
+                var spr_height = 142*1.5;
+                if (point_in_rectangle(mouse_x, mouse_y, 
+                                      card_x - spr_width/2, card_y + 45,
+                                      card_x + spr_width/2, card_y + 45+spr_height)) 
+				&& mouse_y >= y - 375 && mouse_y <= y - 375 + surface_height {
+                    hover_card_index = card_index;
+                }
+				if card_index == hover_card_index{
+					draw_set_alpha(1)
+					draw_sprite_ext(spr_info_island_select_box, 0, card_x, card_y, 1, 1, 0, c_white, 0.5)
+				}
+                        
+            card_index++;
+        }
+    }
+	
+	surface_reset_target()
+	}
+	draw_surface_ext(info_surface,x-1380,y-368,1,1,0,c_white,tab_fade)
+    // 绘制悬停提示
+    if (hover_card_index != -1) {
+        // 获取鼠标位置
+        var tooltip_x = mouse_x + 15;
+        var tooltip_y = mouse_y - 15;
+		var row = hover_card_index div info_cols;
+        var col = hover_card_index mod info_cols;
+        
+        if (row < info_rows) {
+            var card_x = x - 1154 + col * 128*1.5;
+            var card_y = y - 265 + row * 142*1.5-y_offset;
+			//draw_sprite_ext(spr_info_island_select_box, 0, card_x, card_y, 1, 1, 0, c_white, 0.5)
+		}
+		
+        
+        // 绘制提示背景
+        draw_set_color(c_black);
+        draw_set_alpha(0.7);
+        draw_rectangle(tooltip_x - 5, tooltip_y - 5, 
+                      tooltip_x + 150, tooltip_y + 30, false);
+        
+        // 绘制提示文本
+		draw_set_halign(fa_left);
+		draw_set_valign(fa_top);
+        draw_set_alpha(1);
+        draw_set_color(c_white);
+        draw_text(tooltip_x, tooltip_y, "点击查看情报");
+    }
+	if select_card_index != -1{
+		//绘制右侧信息栏
+		var card_id = global.player_deck[| deck_sort_order[select_card_index]];
+	    var deck_entry = global.player_deck[| deck_sort_order[select_card_index]+1];
+		var card_data_shapes = deck_entry[? "shapes"]
+		
+		
+		var card_shape = view_card_shape
+	
+		var max_shape = ds_list_size(card_data_shapes)-1
+		// 同时检查植物注册表中的最大形态数，取较小值
+		var _plant_data = get_plant_data(card_id)
+		if _plant_data != undefined{
+			var _shapes_map = _plant_data[? "shapes"]
+			var _plant_max = 0
+			for(var _si = 0; _si <= 10; _si++){
+				if ds_map_exists(_shapes_map, string(_si)){
+					_plant_max = _si
+				}
+			}
+			if _plant_max < max_shape{
+				max_shape = _plant_max
+			}
+		}
+		var current_view_shape = 0
+		
+		if view_card_shape >= max_shape{
+			current_view_shape = max_shape
+		}
+		else{
+			current_view_shape = view_card_shape
+		}
+		var card_data = card_data_shapes[| current_view_shape]
+		var info = get_plant_data_with_skill(card_id, current_view_shape,view_card_level,view_card_skill);
+		var _shape_data = get_plant_shape_data(card_id,current_view_shape)
+		var name = ""
+		if _shape_data != undefined{
+			name = _shape_data[? "name"]
+		}
+		var info_text = global.info_island[? card_id]
+		
+		//绘制文本
+		draw_set_font(font_yuan)
+		draw_sprite_ext(card_data[? "sprite"], 0, x-320, y-210, 1.5, 1.5, 0, c_white, 1);
+		draw_set_halign(fa_left);
+		draw_set_valign(fa_top);
+		draw_text(x-360,y-350,"当前查看数值：星级："+string(view_card_level)+"，转职："+string(current_view_shape)+"，技能："+string(view_card_skill))
+		draw_set_color(c_white);
+		draw_set_halign(fa_center);
+		draw_set_valign(fa_middle);
+		// 卡片名称使用与列表/提示一致的元圆字体，确保扩展汉字有对应字形
+		draw_set_font(font_yuan)
+		draw_text(x-320,y-190,name)
+		draw_set_font(font_yuan)
+		draw_set_halign(fa_left);
+		draw_set_valign(fa_top);
+		if info != undefined{
+			var sun = string(info[? "flame_produce"])
+			if sun == "undefined"{
+				sun = "无"
+			}
+			draw_text_ext_transformed(x-200,y-290,"攻击力："+string(info[? "atk"])+"\n"+"生命值："+string(info[? "hp"])+"\n"+"能量消耗："+string(info[? "cost"]),40,1920,1,1,0)
+			draw_text_ext_transformed(x,y-290,"攻击间隔："+string(info[? "cycle"]/60)+"\n"+"冷却时间："+string(info[? "cooldown"]/60)+"\n"+"火苗产量："+sun,40,1920,1,1,0)
+		}
+		draw_text_ext(x-390,y-100,info_text,30,300)
+		draw_set_font(font_yuan)
+	}
+}
+else if info_button_select == 2 {
+	if surface_exists(info_surface){
+		surface_set_target(info_surface)
+		draw_clear_alpha(c_black,0)
+    for(var i = 0 ; i < info_rows ; i++){
+        for(var j = 0 ; j < info_cols ; j++){
+			if j + i * info_cols == select_card_index{
+                draw_sprite_ext(spr_info_island_info_bg, 1, x-1154+j*128*1.5, y - 435 + 142*1.5 * i-y_offset, 0.75, 0.75, 0, c_white, cell_reveal_alpha(i,j))
+			}
+			else{
+                draw_sprite_ext(spr_info_island_info_bg, 0, x-1154+j*128*1.5, y - 435 + 142*1.5 * i-y_offset, 0.75, 0.75, 0, c_white, cell_reveal_alpha(i,j))
+			}
+        }
+    }
+    
+    // 绘制所有已注册的敌人
+    var enemy_index = 0;
+    hover_card_index = -1; // 重置悬停卡片索引
+    
+	var enemy_id_array = global.enemy_id_list
+    for(var i = 0; i < array_length(enemy_id_array); i += 1) {
+        var enemy_id = enemy_id_array[i]
+		var enemy_data = global.enemy_map[? enemy_id];
+		var info = global.enemy_info_island[? enemy_id]
+        
+        // 计算敌人位置
+        var row = enemy_index div info_cols;
+        var col = enemy_index mod info_cols;
+        
+        if (row < info_rows) {
+            var card_x = x - 1154 + col * 128*1.5;
+            var card_y = y - 435 + row * 142*1.5-y_offset;
+            var _cell_alpha = cell_reveal_alpha(row,col)
+            
+            // 绘制敌人
+				
+                draw_sprite_ext(enemy_data.spr, 0, card_x, card_y+65, 1, 1, 0, c_white, _cell_alpha);
+				draw_set_color(c_white);
+				draw_set_halign(fa_center);
+				draw_set_valign(fa_middle);
+				draw_set_font(font_yuan)
+                draw_set_alpha(_cell_alpha)
+                draw_text(card_x,card_y+87,enemy_data.name)
+                draw_set_alpha(1)
+				draw_set_font(font_yuan)
+                // 检查鼠标是否悬停在敌人上
+                var spr_width = 128*1.5;
+                var spr_height = 142*1.5;
+                if (point_in_rectangle(mouse_x, mouse_y, 
+                                      card_x - spr_width/2, card_y + 45,
+                                      card_x + spr_width/2, card_y + 45+spr_height)) 
+				&& mouse_y >= y - 375 && mouse_y <= y - 375 + surface_height {
+                    hover_card_index = enemy_index;
+                }
+				if enemy_index == hover_card_index{
+					draw_set_alpha(1)
+					draw_sprite_ext(spr_info_island_select_box, 0, card_x, card_y, 1, 1, 0, c_white, 0.5)
+				}
+                        
+            enemy_index++;
+        }
+    }
+	
+	surface_reset_target()
+	}
+	draw_surface_ext(info_surface,x-1380,y-368,1,1,0,c_white,tab_fade)
+    // 绘制悬停提示
+    if (hover_card_index != -1) {
+        // 获取鼠标位置
+        var tooltip_x = mouse_x + 15;
+        var tooltip_y = mouse_y - 15;
+		var row = hover_card_index div info_cols;
+        var col = hover_card_index mod info_cols;
+        
+        if (row < info_rows) {
+            var card_x = x - 1154 + col * 128*1.5;
+            var card_y = y - 265 + row * 142*1.5-y_offset;
+			//draw_sprite_ext(spr_info_island_select_box, 0, card_x, card_y, 1, 1, 0, c_white, 0.5)
+		}
+		
+        
+        // 绘制提示背景
+        draw_set_color(c_black);
+        draw_set_alpha(0.7);
+        draw_rectangle(tooltip_x - 5, tooltip_y - 5, 
+                      tooltip_x + 150, tooltip_y + 30, false);
+        
+        // 绘制提示文本
+		draw_set_halign(fa_left);
+		draw_set_valign(fa_top);
+        draw_set_alpha(1);
+        draw_set_color(c_white);
+        draw_text(tooltip_x, tooltip_y, "点击查看情报");
+    }
+	if select_card_index != -1{
+		//绘制右侧信息栏
+		var enemy_id_array = global.enemy_id_list
+        var enemy_id = enemy_id_array[select_card_index]
+		var enemy_data = global.enemy_map[? enemy_id];
+		var info = global.enemy_info_island[? enemy_id]
+		var name = enemy_data.name
+		
+		
+		//绘制文本
+		draw_set_font(font_yuan)
+		draw_sprite_ext(enemy_data.spr, 0, x-320, y-180, 1.5, 1.5, 0, c_white, 1);
+		draw_set_halign(fa_left);
+		draw_set_valign(fa_top);
+		//draw_text(x-360,y-350,"当前查看数值：星级："+string(view_card_level)+"，转职："+string(current_view_shape)+"，技能："+string(view_card_skill))
+		draw_set_color(c_white);
+		draw_set_halign(fa_center);
+		draw_set_valign(fa_middle);
+		draw_text(x-320,y-160,name)
+		draw_set_halign(fa_left);
+		draw_set_valign(fa_top);
+		var ash = "否"
+		if enemy_data.ash_proof{
+			ash = "是"
+		}
+		draw_text_ext_transformed(x-200,y-310,"攻击力："+string(enemy_data.atk)+"\n"+"生命值："+string(enemy_data.hp)+"\n"+"移动速度："+string(enemy_data.speed),40,1920,1,1,0)
+		draw_text_ext_transformed(x,y-310,"攻击间隔："+string(enemy_data.cycle/60)+"\n"+"盾牌血量："+string(enemy_data.shield)+"\n"+"防爆："+ash,40,1920,1,1,0)
+		draw_text_ext(x-390,y-100,info,30,300)
+		draw_set_font(font_yuan)
+	}
+}
+else if info_button_select == 3 {
+	if surface_exists(info_surface){
+		surface_set_target(info_surface)
+		draw_clear_alpha(c_black,0)
+    for(var i = 0 ; i < info_rows ; i++){
+        for(var j = 0 ; j < info_cols ; j++){
+			if j + i * info_cols == select_card_index{
+                draw_sprite_ext(spr_info_island_info_bg, 1, x-1154+j*128*1.5, y - 435 + 142*1.5 * i-y_offset, 0.75, 0.75, 0, c_white, cell_reveal_alpha(i,j))
+			}
+			else{
+                draw_sprite_ext(spr_info_island_info_bg, 0, x-1154+j*128*1.5, y - 435 + 142*1.5 * i-y_offset, 0.75, 0.75, 0, c_white, cell_reveal_alpha(i,j))
+			}
+        }
+    }
+    
+    // 绘制所有已注册的关卡
+    var enemy_index = 0;
+    hover_card_index = -1; // 重置悬停卡片索引
+    
+	var enemy_id_array = global.level_id_list
+    for(var i = 0; i < array_length(enemy_id_array); i += 1) {
+        var enemy_id = enemy_id_array[i]
+		var enemy_data = global.level_info_island_map[? enemy_id];
+		var info = enemy_data.description
+        
+        // 计算敌人位置
+        var row = enemy_index div info_cols;
+        var col = enemy_index mod info_cols;
+        
+        if (row < info_rows) {
+            var card_x = x - 1154 + col * 128*1.5;
+            var card_y = y - 435 + row * 142*1.5-y_offset;
+            var _cell_alpha = cell_reveal_alpha(row,col)
+            
+            // 绘制敌人
+			if struct_exists(enemy_data,"spr_index"){
+                draw_sprite_ext(enemy_data.icon, enemy_data.spr_index, card_x, card_y, 0.2, 0.2, 0, c_white, _cell_alpha);
+			}
+			else{
+                draw_sprite_ext(enemy_data.icon, enemy_index, card_x, card_y, 0.2, 0.2, 0, c_white, _cell_alpha);
+			}
+			draw_set_color(c_white);
+			draw_set_halign(fa_center);
+			draw_set_valign(fa_middle);
+			draw_set_font(font_yuan)
+            draw_set_alpha(_cell_alpha)
+            draw_text(card_x,card_y+87,enemy_data.name)
+            draw_set_alpha(1)
+			draw_set_font(font_yuan)
+            // 检查鼠标是否悬停在敌人上
+            var spr_width = 128*1.5;
+            var spr_height = 142*1.5;
+            if (point_in_rectangle(mouse_x, mouse_y, 
+                                    card_x - spr_width/2, card_y + 45,
+                                    card_x + spr_width/2, card_y + 45+spr_height)) 
+			&& mouse_y >= y - 375 && mouse_y <= y - 375 + surface_height {
+                hover_card_index = enemy_index;
+            }
+			if enemy_index == hover_card_index{
+				draw_set_alpha(1)
+				draw_sprite_ext(spr_info_island_select_box, 0, card_x, card_y, 1, 1, 0, c_white, 0.5)
+			}
+                        
+            enemy_index++;
+        }
+    }
+	
+	surface_reset_target()
+	}
+	draw_surface_ext(info_surface,x-1380,y-368,1,1,0,c_white,tab_fade)
+    // 绘制悬停提示
+    if (hover_card_index != -1) {
+        // 获取鼠标位置
+        var tooltip_x = mouse_x + 15;
+        var tooltip_y = mouse_y - 15;
+		var row = hover_card_index div info_cols;
+        var col = hover_card_index mod info_cols;
+        
+        if (row < info_rows) {
+            var card_x = x - 1154 + col * 128*1.5;
+            var card_y = y - 265 + row * 142*1.5-y_offset;
+			//draw_sprite_ext(spr_info_island_select_box, 0, card_x, card_y, 1, 1, 0, c_white, 0.5)
+		}
+		
+        
+        // 绘制提示背景
+        draw_set_color(c_black);
+        draw_set_alpha(0.7);
+        draw_rectangle(tooltip_x - 5, tooltip_y - 5, 
+                      tooltip_x + 150, tooltip_y + 30, false);
+        
+        // 绘制提示文本
+		draw_set_halign(fa_left);
+		draw_set_valign(fa_top);
+        draw_set_alpha(1);
+        draw_set_color(c_white);
+        draw_text(tooltip_x, tooltip_y, "点击查看情报");
+    }
+	if select_card_index != -1{
+		//绘制右侧信息栏
+		var enemy_id_array = global.level_id_list
+        var enemy_id = enemy_id_array[select_card_index]
+		var enemy_data = global.level_info_island_map[? enemy_id];
+		var info = enemy_data.description
+		var name = enemy_data.name
+		
+		
+		//绘制文本
+		draw_set_font(font_yuan)
+		draw_sprite_ext(enemy_data.spr, 0, x-390, y-355, 0.2, 0.2, 0, c_white, 1);
+		draw_set_halign(fa_left);
+		draw_set_valign(fa_top);
+		//draw_text(x-360,y-350,"当前查看数值：星级："+string(view_card_level)+"，转职："+string(current_view_shape)+"，技能："+string(view_card_skill))
+		draw_set_color(c_white);
+		draw_set_halign(fa_center);
+		draw_set_valign(fa_middle);
+		//draw_text(x-320,y-160,name)
+		draw_set_halign(fa_left);
+		draw_set_valign(fa_top);
+		draw_text_ext(x-390,y-100,info,30,300)
+		draw_set_font(font_yuan)
+	}
+}
+
+
+// ===== 滚动条参数 =====
+if (ui_anim_on(1)) {
+    y_offset += (y_offset_target - y_offset) * 0.28
+    if (abs(y_offset_target - y_offset) < 0.5) y_offset = y_offset_target
+} else {
+    y_offset = y_offset_target
+}
+var sb_x       = x - 1388 + surface_width + 10;  // 起始位置 x（左边界）
+var sb_y_start = y - 352;                          // 起始位置 y（顶部）
+var sb_y_end   = y - 384 + surface_height;         // 结束位置 y（底部）
+var sb_w       = 2.2;                              // 宽度缩放
+var sb_h       = 2.2;                              // 长度缩放
+// ====================
+
+// 绘制滚动条
+var content_height = 142 * 1.5 * info_rows;
+var scroll_max = content_height - surface_height;
+
+var _two_touches = device_mouse_check_button(0, mb_left) && device_mouse_check_button(1, mb_left);
+if (_two_touches) {
+    var _tx0 = device_mouse_x(0);
+    var _ty0 = device_mouse_y(0);
+    var _tx1 = device_mouse_x(1);
+    var _ty1 = device_mouse_y(1);
+    var _touch_inside = point_in_rectangle(_tx0, _ty0, x - surface_width * 0.5, y - surface_height * 0.5, x + surface_width * 0.5, y + surface_height * 0.5)
+        && point_in_rectangle(_tx1, _ty1, x - surface_width * 0.5, y - surface_height * 0.5, x + surface_width * 0.5, y + surface_height * 0.5);
+    if (_touch_inside) {
+        var _touch_y = (_ty0 + _ty1) * 0.5;
+        if (two_touch_scroll_active) y_offset_target = clamp(y_offset_target - (_touch_y - two_touch_scroll_y), 0, max(0, scroll_max));
+        two_touch_scroll_y = _touch_y;
+        two_touch_scroll_active = true;
+    } else two_touch_scroll_active = false;
+} else two_touch_scroll_active = false;
+
+if (scroll_max > 0) {
+    var track_h = sb_y_end - sb_y_start;
+    var spr_w = sprite_get_width(spr_info_island_scroll_bar);
+    var spr_h = sprite_get_height(spr_info_island_scroll_bar);
+
+    var bar_height = spr_h * sb_h;
+    var bar_y = sb_y_start + (y_offset / scroll_max) * (track_h - bar_height);
+
+    draw_sprite_ext(spr_info_island_scroll_bar, 0, sb_x, bar_y, sb_w, sb_h, 0, c_white, 1);
+
+    // 记录滑块区域
+    scrollbar_x = sb_x;
+    scrollbar_y = bar_y;
+    scrollbar_w = spr_w * sb_w;
+    scrollbar_h = bar_height;
+
+    // 拖拽逻辑
+    if (mouse_check_button_pressed(mb_left)) {
+        if (point_in_rectangle(mouse_x, mouse_y, scrollbar_x, scrollbar_y,
+                               scrollbar_x + scrollbar_w, scrollbar_y + scrollbar_h)) {
+            scrollbar_dragging = true;
+            scrollbar_drag_start_y = mouse_y;
+            scrollbar_drag_start_offset = y_offset;
+        }
+    }
+
+    if (scrollbar_dragging && mouse_check_button(mb_left)) {
+        var dy = mouse_y - scrollbar_drag_start_y;
+        y_offset = scrollbar_drag_start_offset + dy * (scroll_max / (track_h - bar_height));
+        y_offset = clamp(y_offset, 0, scroll_max);
+        // 拖动时同步目标值：否则下一帧被上面的平滑公式拽回旧目标（表现为「强行回弹」）
+        y_offset_target = y_offset;
+    }
+
+    if (mouse_check_button_released(mb_left)) {
+        scrollbar_dragging = false;
+    }
+}
+
+// 重置绘制设置
+draw_set_halign(fa_left);
+draw_set_valign(fa_top);
+draw_set_alpha(1);
+surface_reset_target()
+var _split = 951
+var _shift = (1 - pnl_o) * anim_slide
+draw_surface_part_ext(anim_surf, 0, 0, _split, room_height, -_shift, 0, 1, 1, c_white, pnl_o)
+draw_surface_part_ext(anim_surf, _split, 0, room_width - _split, room_height, _split + _shift, 0, 1, 1, c_white, pnl_o)

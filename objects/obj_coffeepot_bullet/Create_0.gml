@@ -1,0 +1,10 @@
+damage = 0
+move_speed = 0
+row = 0
+shape = 0
+damage_type = "pierce"
+target_type = "pierce"
+attack_timer = 0
+image_yscale = 1.8
+image_xscale = 1.8
+image_yscale = 1.8

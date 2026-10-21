@@ -1,0 +1,14 @@
+damage = 0;
+move_speed = 0;
+cvspeed = 0;
+cgravity = 0;
+row = 0;
+hitted_enemy = -4;
+hit_enemy = false;
+damage_type = "throw";
+target_type = "throw";
+image_angle = -45;
+image_xscale = 2;
+image_yscale = 2;
+hittable_types = get_hittable_enemy_types(target_type);
+hit_tick = 0;
