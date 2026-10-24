@@ -16,6 +16,7 @@
 | `objects/obj_mobile_buttons/Step_1.gml` | 整个文件 | Begin Step：触摸命中判定 → `keyboard_key_press/release` 模拟按键；Shift 仅对局内、Esc 全局 |
 | `objects/obj_mobile_buttons/Draw_64.gml` | 整个文件 | Draw GUI：左下角绘制圆角按钮（Esc 下 / Shift 上），非对局不画 Shift |
 | `objects/obj_game_init/Create_0.gml` | L72–76 | 启动时 `instance_create_depth(0,0,-9999, obj_mobile_buttons)`（持久化跨房间存活） |
+| `objects/obj_battle/Step_0.gml` | L233–243 | Shift 加速消费端：检测 `global.mobile_shift_pressed` 锁存标志 → 切换 `speed_up` / `game_set_speed` → 清除标志。与虚拟按键配套，同步/合并覆盖此文件后必须重新嫁接此段（`keyboard_key_press` 模拟按键实测无法触发 `keyboard_check_pressed`，勿用） |
 
 ---
 

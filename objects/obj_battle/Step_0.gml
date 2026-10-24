@@ -230,7 +230,9 @@ if time_limit > 0{
 }
 
 
-if keyboard_check_pressed(vk_shift) || keyboard_check_pressed(vk_lshift){
+var _mobile_shift_pressed = variable_global_exists("mobile_shift_pressed") && global.mobile_shift_pressed;
+if keyboard_check_pressed(vk_shift) || keyboard_check_pressed(vk_lshift) || _mobile_shift_pressed{
+	if (_mobile_shift_pressed) global.mobile_shift_pressed = false;
 	speed_up = not speed_up
 	if speed_up{
 		game_set_speed(120,gamespeed_fps)
