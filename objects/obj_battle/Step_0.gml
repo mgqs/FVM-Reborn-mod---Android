@@ -65,6 +65,19 @@ if (global.level_id == "test_level")
                 var orig_inst = instance_create_depth(place_world.x, place_world.y + 38, 0, enemy_data._obj);
                 orig_inst.grid_row = place_pos.row;
                 orig_inst.grid_col = place_pos.col;
+                // 连体 BOSS（哼哈将军）：同一 ID 的副体同时生成并共享血量
+                if (variable_struct_exists(enemy_data, "_peer_obj")) {
+                    var _peer_row = irandom_range(0, global.grid_rows - 1);
+                    var _peer_pos = get_world_position_from_grid(place_pos.col, _peer_row);
+                    var _peer_inst = instance_create_depth(_peer_pos.x, _peer_pos.y + 38, 0, enemy_data._peer_obj);
+                    _peer_inst.grid_row = _peer_row;
+                    _peer_inst.grid_col = place_pos.col;
+                    _peer_inst.hp = orig_inst.hp;
+                    _peer_inst.maxhp = orig_inst.maxhp;
+                    _peer_inst.ly_boss_is_peer = true;
+                    _peer_inst.ly_shared_boss_peer = orig_inst;
+                    orig_inst.ly_shared_boss_peer = _peer_inst;
+                }
             }
             else
             {
@@ -217,9 +230,7 @@ if time_limit > 0{
 }
 
 
-var _mobile_shift_pressed = variable_global_exists("mobile_shift_pressed") && global.mobile_shift_pressed;
-if keyboard_check_pressed(vk_shift) || keyboard_check_pressed(vk_lshift) || _mobile_shift_pressed{
-	if (_mobile_shift_pressed) global.mobile_shift_pressed = false;
+if keyboard_check_pressed(vk_shift) || keyboard_check_pressed(vk_lshift){
 	speed_up = not speed_up
 	if speed_up{
 		game_set_speed(120,gamespeed_fps)

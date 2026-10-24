@@ -1,4 +1,4 @@
-if (!bounced && row == other.grid_row)
+if (!bounced && col == other.grid_col)
 {
     move_speed *= -1;
     damage += other.atk;

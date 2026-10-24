@@ -79,6 +79,7 @@ function mod_skill_init()
     register_card_skill("chongsheng_god", "chongsheng_reduction", [0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.7, 0.8]);
     register_card_skill("hufa_god", "cycle", [108, 105, 102, 99, 96, 93, 90, 84, 78]);
     register_card_skill("zhanqima", "cycle", [1200, 1260, 1380, 1500, 1620, 1740, 1920, 2100, 2700]);
+    register_card_skill("starrabbit", "cycle", [78,75,72,69,66,63,60,54,48]);
     register_card_skill("hongliukaochuan", "cycle", [90, 87, 84, 81, 78, 75, 72, 69, 60]);
     register_card_skill("yeziguo", "atk", [1000, 1125, 1250, 1375, 1500, 1625, 1750, 1875, 2000]);
     register_card_skill("ronghehaixing", "cycle", [78, 75, 72, 69, 66, 63, 60, 54, 48]);
@@ -88,4 +89,8 @@ function mod_skill_init()
     register_card_skill("shuanggu", "cycle", [150, 144, 138, 132, 126, 120, 114, 108, 90]);
     register_card_skill("rongheshuanggu", "cycle", [150, 144, 138, 132, 126, 120, 114, 108, 90]);
     register_card_skill("chunsun", "prepare_time", [390, 378, 366, 354, 342, 330, 318, 300, 210]);
+    register_card_skill("niuyouguo", "cycle", [90, 87, 84, 81, 78, 75, 72, 66, 60]);
+    register_card_skill("ronghedapao", "cooldown", [1500, 1410, 1320, 1230, 1140, 1050, 960, 870, 780]);
+    register_card_skill("ronghekafei", "cycle", [78, 75, 72, 69, 66, 63, 60, 57, 54]);
+
 }

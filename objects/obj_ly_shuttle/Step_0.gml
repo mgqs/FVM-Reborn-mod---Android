@@ -15,12 +15,15 @@ var _col0 = clamp(floor((min(x, _old_x) - 15 - global.grid_offset_x) / global.gr
 var _col1 = clamp(floor((max(x, _old_x) + 15 - global.grid_offset_x) / global.grid_cell_size_x), 0, global.grid_cols - 1);
 for (var _c = _col0; _c <= _col1; ++_c) {
     var _list = ds_grid_get(global.grid_plants, _c, lane);
+    if (!ds_exists(_list, ds_type_list)) continue;
     for (var _i = 0; _i < ds_list_size(_list); ++_i) {
         var _card = _list[| _i];
         if (!instance_exists(_card) || _card.hp <= 0) continue;
         if (_card.plant_id == "player" || _card.plant_type == "coffee") continue;
-        // 阻挡者（火盆等）优先判定：碰到即销毁梭子，同格其他卡不受伤
+        // 阻挡者（火盆、金牛、火神等）优先判定：碰到即销毁梭子，同格其他卡不受伤
         if (_card.plant_id == "brazier"
+            || _card.plant_id == "jinniu"
+            || _card.plant_id == "fire_god"
             || (variable_instance_exists(_card, "blocks_longyuan_shuttle") && _card.blocks_longyuan_shuttle)) {
             instance_destroy();
             exit;

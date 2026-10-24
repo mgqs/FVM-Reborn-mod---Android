@@ -12,6 +12,8 @@ ly_soul = false;
 is_soul = false;
 invincible = false;
 is_vehicle = false;
+// 防爆：炸弹等秒杀效果只造成伤害。
+immune_to_ash = true;
 can_use_ladder = false;
 ly_dodge_cooldown = 0;
 ly_night = false;
@@ -207,7 +209,7 @@ ly_spider_night = function() {
 };
 
 longyuan_change_soul = function() {
-    ly_soul = true; is_soul = true; target_type = "invisible";
+    ly_soul = true; is_soul = true; target_type = "normal";
     ly_kind = "zhizhujing_soul"; ly_anims = longyuan_animation_table(ly_kind);
     hp = maxhp; ash_death = false; image_alpha = 1; ly_action = "";
     ly_target = noone; ly_tcol = -1; ly_trow = -1; ly_timer = 0; ly_wrap_done = false;

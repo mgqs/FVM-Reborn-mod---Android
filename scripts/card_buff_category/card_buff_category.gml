@@ -89,6 +89,7 @@ function card_category_data()
         ["starrabbit", "多向类", "类海星类", ""],
         ["rig", "多向类", "类海星类", ""],
         ["youyu_god", "多向类", "类海星类", ""],
+        ["niuyouguo", "多向类", "三向类", ""],
         ["brazier", "增幅类", "子弹增幅", "平射增幅"],
         ["ronghehuopen", "增幅类", "子弹增幅", "平射增幅"],
         ["ronghesanxian", "直射类", "三线类", ""],
@@ -104,6 +105,7 @@ function card_category_data()
         ["mozhang", "增幅类", "名单类增幅", "喷壶增幅"],
         ["haiyang_god", "增幅类", "名单类增幅", "喷壶增幅"],
         ["yinhema", "增幅类", "名单类增幅", "固定轨迹增幅"],
+        ["mixian", "增幅类", "名单类增幅", "固定轨迹增幅"],
         ["yanyantu", "增幅类", "名单类增幅", "产能增幅"],
         ["zhanqima", "增幅类", "全能增幅", ""],
         ["small_fire", "产能类", "主职产火", "常规型"],
@@ -150,10 +152,10 @@ function card_category_data()
         ["power_god", "专业防空类", "纯对空类", ""],
         ["sausage", "专业防空类", "陆空兼备类", ""],
         ["hotdog_cannon", "专业防空类", "陆空兼备类", ""],
-        ["shuanggu", "专业防空类", "陆空兼备类", ""],
-        ["rongheshuanggu", "专业防空类", "陆空兼备类", ""],
         ["donut", "专业防空类", "陆空兼备类", ""],
         ["joker", "专业防空类", "陆空兼备类", ""],
+        ["shuanggu", "专业防空类", "陆空兼备类", ""],
+        ["rongheshuanggu", "专业防空类", "陆空兼备类", ""],
         ["coffee_pot", "喷壶类", "直线喷壶类", ""],
         ["oden_pot", "喷壶类", "直线喷壶类", ""],
         ["beef_hotpot", "喷壶类", "直线喷壶类", ""],
@@ -182,6 +184,8 @@ function card_category_data()
         ["iron_fishbone", "非远程类", "鱼刺类", ""],
         ["fishbone", "非远程类", "鱼刺类", ""],
         ["chocolate_cannon", "灰烬类", "轰炸类", ""],
+        ["ronghedapao", "灰烬类", "轰炸类", ""],
+        ["ronghekafei", "直射类", "传统直线类", ""],
         ["gaia", "灰烬类", "轰炸类", ""],
         ["durian", "灰烬类", "持续类", ""],
         ["dragon_fruit", "灰烬类", "持续类", ""],
@@ -332,7 +336,8 @@ function mod_apply_category_buff_map()
             {
                 case "thrower": _allowed = card_in_category(_card_id, "投掷类") || _card_id == "gaia"; break;
                 case "tracker": _allowed = _card_id == "guiyuanma" || _card_id == "takoyaki" || _card_id == "juxie" || _card_id == "moon_god" || _card_id == "yufengma" || _card_id == "gaia"; break;
-                case "five_dir": _allowed = card_in_category(_card_id, "多向类"); break;
+                // niuyouguo（邪恶牛油果）：分类上是多向类，但不吃多向类拐 —— 只吃战旗马这类全体增幅
+                case "five_dir": _allowed = card_in_category(_card_id, "多向类") && _card_id != "niuyouguo"; break;
                 case "sprayer": _allowed = card_in_category(_card_id, "旋转喷壶类") || card_in_category(_card_id, "直线喷壶类") || _card_id == "hongliukaochuan" || _card_id == "hufa_god"; break;
             }
             if (_allowed)
@@ -345,13 +350,20 @@ function mod_apply_category_buff_map()
 
     // Cross-category targets named explicitly by the buff rules.
     ds_map_set(global.plant_buff_map, "yufengma", "tracker");
-    ds_map_set(global.plant_buff_map, "cold_drew", "tracker_berry");
     var _advanced_tracker = get_cards_in_category("群轰追踪");
     for (var i = 0; i < ds_list_size(_advanced_tracker); i++)
         ds_map_set(global.plant_buff_map, ds_list_find_value(_advanced_tracker, i), "tracker_advanced");
     _advanced_tracker = get_cards_in_category("散点追踪");
     for (var i = 0; i < ds_list_size(_advanced_tracker); i++)
         ds_map_set(global.plant_buff_map, ds_list_find_value(_advanced_tracker, i), "tracker_advanced");
+
+    // 冷萃机（散点追踪）同时吃两档追踪增幅：
+    //   主类型 tracker_berry    = 莓果点心（apply_buff 里按 plant_id 单独写的那一格）
+    //   次类型 tracker_advanced = 宴飨女神（散点追踪整体那一档），两者取较高倍率
+    // ⚠️ 必须写在上面「散点追踪」循环之后：那条循环会把 cold_drew 覆盖成 tracker_advanced，
+    //    导致莓果点心的格子写了却没人读（2026-10-22 修复）
+    ds_map_set(global.plant_buff_map, "cold_drew", "tracker_berry");
+    ds_map_set(global.plant_buff_map_2, "cold_drew", "tracker_advanced");
     ds_map_set(global.plant_buff_map, "power_god", "tracker_advanced");
     ds_map_set(global.plant_buff_map, "joker", "tracker_advanced");
     ds_map_set(global.plant_buff_map, "hongliukaochuan", "sprayer");

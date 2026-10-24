@@ -35,7 +35,8 @@ for (var i = 0; i < 5; i++) {
     }
     // Shift（上）：仅对局内生效
     if (_in_battle && _mx >= _x && _mx <= _x + _btn_w && _my >= _shift_y && _my <= _shift_y + btn_size) {
-        global.mobile_shift_pressed = true;
+        keyboard_key_press(vk_shift);
+        shift_pulse = 1;
         shift_flash = 10;
     }
 }

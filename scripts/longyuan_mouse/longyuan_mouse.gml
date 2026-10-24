@@ -3,7 +3,8 @@
 // ============================================================
 
 // 1. 东风鼠
-#macro LY_DONGFENG_TRIGGER_COL 7   // 到达第8列（0-based=7）时释放一次
+#macro LY_DONGFENG_TRIGGER_COL 7   // 到达第8列（0-based=7）时释放一次全屏加速 wind
+#macro LY_DONGFENG_DROP_COL 1      // 到达第2列（0-based=1）时强制落地（掉扇）
 #macro LY_DONGFENG_SPEED_MULT 2    // 全场空中单位速度倍率（多只东风为赋值取定值，不累乘）
 
 // 3. 开路鼠
@@ -29,8 +30,8 @@
 #macro LY_GAOQIAO_DANCE_HURT_START 55 // 破损形态舞步起始 image_index（0-based，对应1-based 56-75）
 
 // 6. 执念鼠
-#macro LY_ZHINIAN_SOUL_REDUCTION 0.4 // 夜魂体受伤系数（减伤60%）
-#macro LY_ZHINIAN_SOUL_ATK 400       // 魂体普通攻击伤害
+#macro LY_ZHINIAN_SOUL_REDUCTION 0.1 // 夜魂体受伤系数（减伤90%）
+#macro LY_ZHINIAN_SOUL_ATK 50        // 魂体普通攻击伤害（用户要求 50）
 #macro LY_ZHINIAN_SOUL_ATK_COUNT 3   // 几次普攻后放大
 #macro LY_ZHINIAN_RUSH_DIST 2        // 大招前移格数（销毁途经卡片）
 
@@ -91,12 +92,24 @@ function longyuan_variant(_normal, _hurt) {
 }
 
 function longyuan_is_night() {
-    if (variable_global_exists("level_file") && variable_struct_exists(global.level_file, "level_time_feature")) {
-        return global.level_file.level_time_feature == "night";
+    // 优先级：level_file.level_time_feature → level_file.map_sprite 后缀 → level_id 后缀
+    if (variable_global_exists("level_file")) {
+        var _lf = global.level_file;
+        if (variable_struct_exists(_lf, "level_time_feature")) {
+            var _tf = string(_lf.level_time_feature);
+            if (_tf == "night" || string_pos("night", _tf) > 0 || string_pos("_ye", _tf) > 0) return true;
+            if (_tf == "daytime" || string_pos("day", _tf) > 0) return false;
+        }
+        if (variable_struct_exists(_lf, "map_sprite")) {
+            var _ms = string(_lf.map_sprite);
+            if (string_pos("_ye", _ms) > 0) return true;
+            if (string_pos("_ri", _ms) > 0) return false;
+        }
     }
     if (variable_global_exists("level_id")) {
         var _level = string(global.level_id);
-        return string_pos("night", _level) > 0 || string_pos("_ye", _level) > 0;
+        if (string_pos("night", _level) > 0 || string_pos("_ye", _level) > 0) return true;
+        if (string_pos("_ri", _level) > 0) return false;
     }
     return false;
 }
@@ -326,6 +339,16 @@ function longyuan_damage_plant(_plant, _damage) {
     with (_plant) {
         hp -= _damage;
         event_user(2);
+    }
+    // 龙渊鼠啃咬音效：仅老鼠本体触发（BOSS 技能、梭子等不吃卡片音）。
+    if (variable_instance_exists(id, "mouse_id") && mouse_id != ""
+        && !(variable_instance_exists(id, "is_boss") && is_boss)) {
+        if (!variable_global_exists("ly_last_chomp_time")) global.ly_last_chomp_time = 0;
+        // 80ms 节流，避免冲刺/多卡同时命中时音效叠爆。
+        if (current_time - global.ly_last_chomp_time > 80) {
+            global.ly_last_chomp_time = current_time;
+            global.audio.play(ds_list_find_value(obj_battle.chomp_sound_list, irandom_range(0, 2)), 0, 0);
+        }
     }
 }
 

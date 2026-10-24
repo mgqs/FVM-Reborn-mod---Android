@@ -47,7 +47,7 @@ global.level_data = {}
 global.ui_anim = 1
 global.debug = 0
 global.laboretory_room = false
-global.game_version = "3.0.0.2"
+global.game_version = "3.0.1.5"
 global.tower_level_click = false
 global.tower_cake_page = 1
 global.cross_server_return_page = -1
@@ -183,11 +183,6 @@ if (ini_read_string("settings", "ime_block", "") == "") {
 global.craft_rate_enabled = ini_read_bool("settings", "craft_rate_enabled", true);
 if (ini_read_string("settings", "craft_rate_enabled", "") == "") {
     ini_write_bool("settings", "craft_rate_enabled", true);
-}
-// 合成屋「失败掉星」开关（只影响卡片强化；键缺失时补写）
-global.craft_dropstar_enabled = ini_read_bool("settings", "craft_dropstar_enabled", true);
-if (ini_read_string("settings", "craft_dropstar_enabled", "") == "") {
-    ini_write_bool("settings", "craft_dropstar_enabled", true);
 }
 // 合成屋「保险金」开关（默认关；键缺失时补写）
 global.craft_assure_enabled = ini_read_bool("settings", "craft_assure_enabled", false);

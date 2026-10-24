@@ -19,7 +19,16 @@ if (ly_mode == "dead") {
 if (hp <= 0) { longyuan_begin_death(); exit; }
 if (is_frozen || is_stun || is_scare) exit;
 
-if (ly_fan && hp <= maxhp - helmet_hp) {
+// 东风鼠一生只施法一次：到达第8列时触发全屏加速。
+// wind 必须在 drop 之前检查——否则 ly_fan 掉了就永远触发不了。
+if (!ly_wind_active && grid_col <= LY_DONGFENG_TRIGGER_COL) {
+    ly_wind_active = true;
+    ly_mode = "wind";
+    longyuan_play(ly_fan ? "持扇攻击" : longyuan_variant("正常啃咬", "破损啃咬"), true);
+}
+
+// 到达第2列强制落地（飞行终点）；或被打掉 helmet；或被电风扇吹落——三者任一触发。
+if (ly_fan && (grid_col <= LY_DONGFENG_DROP_COL || hp <= maxhp - helmet_hp)) {
     ly_mode = "drop";
     longyuan_play("下落", true);
 }
@@ -35,7 +44,19 @@ if (ly_fan) {
     with (obj_card_parent) {
         if (hp > 0 && grid_row == other.grid_row && plant_id == "ventilation_fan" && abs(x - other.x) < global.grid_cell_size_x * 4) _fan_near = true;
     }
-    if (_fan_near && ly_mode != "drop") { ly_mode = "drop"; longyuan_play("下落", true); }
+    // 换气扇对东风鼠直接秒杀（不再只是吹落）
+    if (_fan_near) {
+        var _blow = instance_create_depth(x, y, depth - 10, obj_mouse_blow_effect);
+        _blow.sprite_index = sprite_index;
+        _blow.image_index = image_index;
+        is_blown_away = true;
+        hp = 0;
+        shield_hp = 0;
+        helmet_hp = 0;
+        state = ENEMY_STATE.DEAD;
+        instance_destroy();
+        exit;
+    }
 }
 
 if (ly_mode == "spawn" || ly_mode == "appear" || ly_mode == "drop") {
@@ -52,19 +73,13 @@ if (ly_mode == "spawn" || ly_mode == "appear" || ly_mode == "drop") {
 
 target_plant = longyuan_find_plant(false);
 
-// 到达第8列（0-based=7）且仍持扇时，一生只施法一次：ly_wind_active 锁存，之后不再重复。
-if (ly_fan && !ly_wind_active && grid_col <= LY_DONGFENG_TRIGGER_COL) {
-    ly_wind_active = true;
-    ly_mode = "wind";
-    longyuan_play("持扇攻击", true);
-}
-
 if (ly_mode == "wind") {
     longyuan_animate();
     if (ly_done) { ly_mode = "walk"; ly_action = ""; }
     exit;
 }
-if (instance_exists(target_plant)) {
+// 东风鼠在空中态（持扇飞行）只在第8列触发一次全屏加速，其余帧完全不攻击卡片；落地后才正常啃咬。
+if (target_type != "air" && instance_exists(target_plant)) {
     ly_mode = "attack";
     longyuan_play(longyuan_attack_action());
     longyuan_animate();

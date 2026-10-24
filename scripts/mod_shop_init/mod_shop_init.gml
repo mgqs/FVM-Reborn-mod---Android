@@ -144,6 +144,14 @@ function mod_shop_init()
         description: "亡灵裁决：冥王战镰所有子弹命中后减速4秒",
         display_name: "亡灵裁决"
     });
+    register_goods("poseidon_dart_gun", 
+    {
+        type: "weapon",
+        cost: "80000",
+        unlock_item_id: "poseidon_dart_gun",
+        description: "海神镖枪：发射两个追踪飞镖攻击敌人",
+        display_name: "海神镖枪"
+    });
     register_goods("zeus_bolt", 
     {
         type: "weapon",
@@ -191,6 +199,14 @@ function mod_shop_init()
         unlock_item_id: "shuangzi",
         description: "双子座精灵：一次性产出4朵火苗",
         display_name: "双子座精灵"
+    });
+    register_goods("sheshou", 
+    {
+        type: "card",
+        cost: "10000",
+        unlock_item_id: "sheshou",
+        description: "射手座精灵：向前方三行射出4发强力子弹",
+        display_name: "射手座精灵"
     });
     register_goods("tiancheng", 
     {
@@ -551,10 +567,13 @@ function mod_shop_init()
         display_name: "爆辣河豚"
     });
 
-    register_goods("shuanggu", { type: "card", cost: "40000", unlock_item_id: "shuanggu", description: "耗油双菇：同时向前方发射对陆与对空子弹", display_name: "耗油双菇" });
+    register_goods("shuanggu", { type: "card", cost: "40000", unlock_item_id: "shuanggu", description: "蚝油双菇：同时向前方发射对陆与对空子弹", display_name: "蚝油双菇" });
 
     register_goods("yeziguo", { type: "card", cost: "1130", unlock_item_id: "yeziguo", description: "椰子果：跳起碾压前方鼠军", display_name: "椰子果" });
     register_goods("yeziguo_1", { type: "card", card_id: "yeziguo", card_shape: 1, cost: "260", unlock_item_id: "yeziguo", required_card_shape: 0, description: "浓香椰子果：解锁一转", display_name: "浓香椰子果" });
     register_goods("yeziguo_2", { type: "card", card_id: "yeziguo", card_shape: 2, cost: "530", unlock_item_id: "yeziguo", required_card_shape: 1, description: "金丝椰子果：解锁二转", display_name: "金丝椰子果" });
 
+    register_goods("niuyouguo", { type: "card", cost: "2030", unlock_item_id: "niuyouguo", description: "邪恶牛油果：向前方三个方向各发射1发穿透飞镖", display_name: "邪恶牛油果" });
+    register_goods("niuyouguo_1", { type: "card", card_id: "niuyouguo", card_shape: 1, cost: "480", unlock_item_id: "niuyouguo", required_card_shape: 0, description: "沙沙牛油果：解锁一转", display_name: "沙沙牛油果" });
+    register_goods("niuyouguo_2", { type: "card", card_id: "niuyouguo", card_shape: 2, cost: "970", unlock_item_id: "niuyouguo", required_card_shape: 1, description: "桑巴牛油果：解锁二转", display_name: "桑巴牛油果" });
 }
