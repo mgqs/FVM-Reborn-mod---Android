@@ -532,16 +532,19 @@ var sb_h       = 2.2;                              // 长度缩放
 var content_height = 142 * 1.5 * info_rows;
 var scroll_max = content_height - surface_height;
 
-var _two_touches = device_mouse_check_button(0, mb_left) && device_mouse_check_button(1, mb_left);
-if (_two_touches) {
-    var _tx0 = device_mouse_x(0);
-    var _ty0 = device_mouse_y(0);
-    var _tx1 = device_mouse_x(1);
-    var _ty1 = device_mouse_y(1);
-    var _touch_inside = point_in_rectangle(_tx0, _ty0, x - surface_width * 0.5, y - surface_height * 0.5, x + surface_width * 0.5, y + surface_height * 0.5)
-        && point_in_rectangle(_tx1, _ty1, x - surface_width * 0.5, y - surface_height * 0.5, x + surface_width * 0.5, y + surface_height * 0.5);
+var _two_n = 0;
+var _two_x1 = 0, _two_y1 = 0, _two_x2 = 0, _two_y2 = 0;
+for (var _d = 0; _d < 10; _d++) {
+    if (!device_mouse_check_button(_d, mb_left)) continue;
+    _two_n++;
+    if (_two_n == 1) { _two_x1 = device_mouse_x(_d); _two_y1 = device_mouse_y(_d); }
+    else if (_two_n == 2) { _two_x2 = device_mouse_x(_d); _two_y2 = device_mouse_y(_d); }
+}
+if (_two_n >= 2) {
+    var _touch_x = (_two_x1 + _two_x2) * 0.5;
+    var _touch_y = (_two_y1 + _two_y2) * 0.5;
+    var _touch_inside = point_in_rectangle(_touch_x, _touch_y, x - surface_width * 0.5, y - surface_height * 0.5, x + surface_width * 0.5, y + surface_height * 0.5);
     if (_touch_inside) {
-        var _touch_y = (_ty0 + _ty1) * 0.5;
         if (two_touch_scroll_active) y_offset_target = clamp(y_offset_target - (_touch_y - two_touch_scroll_y), 0, max(0, scroll_max));
         two_touch_scroll_y = _touch_y;
         two_touch_scroll_active = true;

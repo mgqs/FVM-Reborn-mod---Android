@@ -508,16 +508,19 @@ else if button_select == 1{
     var _sb_x   = _sb_l + 600 - _sb_w + 28 + _sb_w * 0.5
     var _sb_vh  = 815                                    // 视口高 = card_surface 高度
     var _sb_max = craft_max_y_offset                     // 与 Mouse_61 同一上限（按解锁卡数动态算）
-    var _two_touches = device_mouse_check_button(0, mb_left) && device_mouse_check_button(1, mb_left)
-    if (_two_touches) {
-        var _tx0 = device_mouse_x(0)
-        var _ty0 = device_mouse_y(0)
-        var _tx1 = device_mouse_x(1)
-        var _ty1 = device_mouse_y(1)
-        var _touch_inside = point_in_rectangle(_tx0, _ty0, _sb_l, _sb_t, _sb_l + 600, _sb_t + _sb_vh)
-            && point_in_rectangle(_tx1, _ty1, _sb_l, _sb_t, _sb_l + 600, _sb_t + _sb_vh)
+    var _two_n = 0
+    var _two_x1 = 0, _two_y1 = 0, _two_x2 = 0, _two_y2 = 0
+    for (var _d = 0; _d < 10; _d++) {
+        if (!device_mouse_check_button(_d, mb_left)) continue
+        _two_n++
+        if (_two_n == 1) { _two_x1 = device_mouse_x(_d); _two_y1 = device_mouse_y(_d) }
+        else if (_two_n == 2) { _two_x2 = device_mouse_x(_d); _two_y2 = device_mouse_y(_d) }
+    }
+    if (_two_n >= 2) {
+        var _touch_x = (_two_x1 + _two_x2) * 0.5
+        var _touch_y = (_two_y1 + _two_y2) * 0.5
+        var _touch_inside = point_in_rectangle(_touch_x, _touch_y, _sb_l, _sb_t, _sb_l + 600, _sb_t + _sb_vh)
         if (_touch_inside) {
-            var _touch_y = (_ty0 + _ty1) * 0.5
             if (two_touch_scroll_active) y_offset_target = clamp(y_offset_target - (_touch_y - two_touch_scroll_y), 0, _sb_max)
             two_touch_scroll_y = _touch_y
             two_touch_scroll_active = true

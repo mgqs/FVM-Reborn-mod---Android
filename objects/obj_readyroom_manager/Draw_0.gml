@@ -189,6 +189,26 @@ for(var i = 0 ; i < slot_rows ; i++){
 }
 draw_surface(slot_surface,x-25+803-42,y+ 375-48)
 {
+	// 双指滑动：遍历所有触点索引（Android 触点索引不保证 0/1 连续）
+	var _two_n = 0
+	var _two_x1 = 0, _two_y1 = 0, _two_x2 = 0, _two_y2 = 0
+	for (var _d = 0; _d < 10; _d++) {
+		if (!device_mouse_check_button(_d, mb_left)) continue
+		_two_n++
+		if (_two_n == 1) { _two_x1 = device_mouse_x(_d); _two_y1 = device_mouse_y(_d) }
+		else if (_two_n == 2) { _two_x2 = device_mouse_x(_d); _two_y2 = device_mouse_y(_d) }
+	}
+	if (_two_n >= 2) {
+		var _two_mx = (_two_x1 + _two_x2) * 0.5
+		var _two_my = (_two_y1 + _two_y2) * 0.5
+		var _two_l = x - 25 + 803 - 42
+		var _two_t = y + 375 - 48
+		if (point_in_rectangle(_two_mx, _two_my, _two_l, _two_t, _two_l + slot_rows * 84, _two_t + 420)) {
+			if (two_touch_scroll_active) y_offset_target = clamp(y_offset_target - (_two_my - two_touch_scroll_y), 0, ready_max_y_offset)
+			two_touch_scroll_y = _two_my
+			two_touch_scroll_active = true
+		} else two_touch_scroll_active = false
+	} else two_touch_scroll_active = false
 	var _sb_scl = 2.2
 	var _sb_w = sprite_get_width(spr_info_island_scroll_bar) * _sb_scl
 	var _sb_h = sprite_get_height(spr_info_island_scroll_bar) * _sb_scl

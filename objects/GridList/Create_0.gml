@@ -314,16 +314,20 @@ function apply_wheel() {
     if (mouse_wheel_down()) {
         self.state.scroll_target_y += self.state.wheel_step
     }
-    var _two_touches = device_mouse_check_button(0, mb_left) && device_mouse_check_button(1, mb_left)
-    if (_two_touches) {
-        var _x0 = device_mouse_x_to_gui(0)
-        var _y0 = device_mouse_y_to_gui(0)
-        var _x1 = device_mouse_x_to_gui(1)
-        var _y1 = device_mouse_y_to_gui(1)
-        var _inside0 = point_in_rectangle(_x0, _y0, self.state.viewport_left, self.state.viewport_top, self.state.viewport_left + self.state.viewport_width, self.state.viewport_top + self.state.viewport_height)
-        var _inside1 = point_in_rectangle(_x1, _y1, self.state.viewport_left, self.state.viewport_top, self.state.viewport_left + self.state.viewport_width, self.state.viewport_top + self.state.viewport_height)
-        if (_inside0 && _inside1) {
-            var _touch_y = (_y0 + _y1) * 0.5
+    var _two_n = 0
+    var _y1 = 0, _y2 = 0, _x1 = 0, _x2 = 0
+    for (var _d = 0; _d < 10; _d++) {
+        if (!device_mouse_check_button(_d, mb_left)) continue
+        _two_n++
+        if (_two_n == 1) { _x1 = device_mouse_x(_d); _y1 = device_mouse_y(_d) }
+        else if (_two_n == 2) { _x2 = device_mouse_x(_d); _y2 = device_mouse_y(_d) }
+    }
+    if (_two_n >= 2) {
+        var _mx = (_x1 + _x2) * 0.5
+        var _my = (_y1 + _y2) * 0.5
+        var _inside = point_in_rectangle(_mx, _my, self.state.viewport_left, self.state.viewport_top, self.state.viewport_left + self.state.viewport_width, self.state.viewport_top + self.state.viewport_height)
+        if (_inside) {
+            var _touch_y = _my
             if (self.state.touch_scroll_active) self.state.scroll_target_y -= _touch_y - self.state.touch_scroll_y
             self.state.touch_scroll_y = _touch_y
             self.state.touch_scroll_active = true

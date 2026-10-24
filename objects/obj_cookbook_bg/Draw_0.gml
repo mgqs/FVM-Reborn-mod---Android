@@ -6,6 +6,24 @@ draw_rectangle_color(0, 0, room_width, room_height, c_black, c_black, c_black, c
 draw_set_alpha(1);
 panel_anim_begin(id)
 draw_self()
+// 双指滑动：遍历所有触点索引（Android 触点索引不保证 0/1 连续）
+var _two_n = 0
+var _two_y1 = 0, _two_y2 = 0, _two_x1 = 0, _two_x2 = 0
+for (var _d = 0; _d < 10; _d++) {
+	if (!device_mouse_check_button(_d, mb_left)) continue
+	_two_n++
+	if (_two_n == 1) { _two_x1 = device_mouse_x(_d); _two_y1 = device_mouse_y(_d) }
+	else if (_two_n == 2) { _two_x2 = device_mouse_x(_d); _two_y2 = device_mouse_y(_d) }
+}
+if (_two_n >= 2) {
+	var _two_mx = (_two_x1 + _two_x2) * 0.5
+	var _two_my = (_two_y1 + _two_y2) * 0.5
+	if (point_in_rectangle(_two_mx, _two_my, x - 700, y - 500, x + 700, y + 500)) {
+		if (two_touch_scroll_active) y_offset = clamp(y_offset - (_two_my - two_touch_scroll_y) / 101, 0, max(0, array_length(current_cookbook_list) - 6))
+		two_touch_scroll_y = _two_my
+		two_touch_scroll_active = true
+	} else two_touch_scroll_active = false
+} else two_touch_scroll_active = false
 
 if button_select < 0{
 	draw_set_font(font_yuan)

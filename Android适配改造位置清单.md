@@ -47,14 +47,16 @@
 
 ## 4. 双指滑动
 
-功能：移动端滚动交互，统一采用「双指触点中点帧间差值」驱动内容偏移（`device_mouse_check_button(0) && device_mouse_check_button(1)`）。
+功能：移动端滚动交互，统一采用「双指触点中点帧间差值」驱动内容偏移。触点检测必须遍历 `device_mouse_check_button(_d, mb_left)`（`_d = 0..9`）收集全部按下的触点，**不得硬编码 0/1**（Android 触点索引不保证连续分配，硬编码是「双指从未生效」的根因）。坐标一律用房间坐标 `device_mouse_x/y()`，与各面板的 `point_in_rectangle` 判定保持一致（Draw GUI 场景才用 `_to_gui`）。
 
 | 文件 | 位置 | 说明 |
 |------|------|------|
-| `objects/GridList/Create_0.gml` | L317 | GridList 通用列表组件（两指滑动基准实现） |
+| `objects/GridList/Create_0.gml` | L317 | GridList 通用列表组件（Begin Step 内 `apply_wheel`；修正原 GUI 坐标误用） |
 | `objects/obj_package_bg/Draw_0.gml` | L728 | 背包面板滚动 |
-| `objects/obj_craft_bg/Draw_0.gml` | L464 | 合成屋面板滚动 |
+| `objects/obj_craft_bg/Draw_0.gml` | L511 | 合成屋面板滚动 |
 | `objects/obj_info_island_bg/Draw_0.gml` | L535 | 信息岛面板滚动 |
+| `objects/obj_readyroom_manager/Draw_0.gml` | L191 | 选卡界面滚动（`Create_0` 含 `two_touch_scroll_*` 初始化） |
+| `objects/obj_cookbook_bg/Draw_0.gml` | L9 | 食神谱滚动（按行高 101 折算 `y_offset`；`Create_0` 含初始化） |
 
 ---
 
