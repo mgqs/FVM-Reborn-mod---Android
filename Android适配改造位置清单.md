@@ -53,7 +53,7 @@
 |------|------|------|
 | `objects/GridList/Create_0.gml` | L317 | GridList 通用列表组件（Begin Step 内 `apply_wheel`；修正原 GUI 坐标误用） |
 | `objects/obj_package_bg/Draw_0.gml` | L728 | 背包面板滚动 |
-| `objects/obj_craft_bg/Draw_0.gml` | L511 | 合成屋面板滚动 |
+| `objects/obj_craft_bg/Draw_0.gml` | L887 | 合成屋面板滚动（`Create_0` L31–32 含 `two_touch_scroll_*` 初始化；同步源端覆盖后需重新嫁接此段） |
 | `objects/obj_info_island_bg/Draw_0.gml` | L535 | 信息岛面板滚动 |
 | `objects/obj_readyroom_manager/Draw_0.gml` | L191 | 选卡界面滚动（`Create_0` 含 `two_touch_scroll_*` 初始化） |
 | `objects/obj_cookbook_bg/Draw_0.gml` | L9 | 食神谱滚动（按行高 101 折算 `y_offset`；`Create_0` 含初始化） |
