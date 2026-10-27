@@ -1,4 +1,3 @@
-if (is_eternal_gacha_mode()) {
-    image_blend = c_gray;
-}
+// 2026-10-27：抽卡模式不再把诸神商店入口置灰（与普通模式一致）
+//   店内限制仍在本体：买进化凭证 / 神使卡 / 菜谱会被 obj_gods_store_buy_btn 拦下，只放转职凭证
 draw_self();
