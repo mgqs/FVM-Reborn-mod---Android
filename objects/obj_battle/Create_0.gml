@@ -196,6 +196,8 @@ for(var i = 0 ; i < global.grid_rows ; i++){
 
 		}
 	}
+	// 海克斯「食材升级」的老鼠侧代价：禁用猫
+	if (hex_enemy_no_cat()) continue;
 	var new_x = global.grid_offset_x -1 * global.grid_cell_size_x
 	var new_y = global.grid_offset_y + i * global.grid_cell_size_y
 	var grid_pos = get_grid_position_from_world(new_x,new_y)
@@ -258,6 +260,12 @@ function enemy_subwave_summon(){
 			}
 		}
 	}
+
+	// 海克斯第二批：「全息制冷」等出怪间隔词条。这里的 wave_timer 同时是
+	// 下一波小怪的间隔与整波时长，按倍率缩放即可得到「出怪更密」的效果。
+	// 只在海克斯模式重算：旧模式一律走原值，避免 round 把小数时长截断。
+	// 下限 1 帧，否则倍率叠到很低时 wave_timer 会被 round 成 0 → 同一帧刷满全场。
+	if (hex_enabled()) wave_timer = max(1, round(wave_timer * hex_batch2_spawn_interval()));
 
 	current_wave_max_time = wave_timer
 
@@ -371,6 +379,11 @@ function enemy_subwave_summon(){
                 rows_used[row_index] = true;
             }
 
+            // 海克斯：「老鼠数量 −X%」按概率不刷这一只
+            // 注意：非海克斯模式概率为 0，此时连 random() 都不能调，否则会打乱其它模式的随机序列
+            var _hex_skip = hex_enemy_skip_chance();
+            if (_hex_skip > 0 && random(1) < _hex_skip) continue;
+
             var enemy_obj = global.enemy_map[? _enemy_type]._obj;
 
             var new_x = global.grid_offset_x + (9 + x_offset) * global.grid_cell_size_x;
@@ -378,6 +391,17 @@ function enemy_subwave_summon(){
 
             var grid_pos = get_grid_position_from_world(new_x, new_y);
             var new_enemy = instance_create_depth(grid_pos.x+30, grid_pos.y + 38, 0, enemy_obj);
+            // 生成后立刻乘 PI / 词条的老鼠侧倍率（顺序铁律：在关卡难度系数之后）
+            hex_enemy_scale(new_enemy);
+
+            // 海克斯：「老鼠数量 +X%」按概率多刷一只（与上面的 −X% 跳过对称）
+            var _hex_extra = hex_enemy_extra_chance();
+            if (_hex_extra > 0 && random(1) < _hex_extra) {
+                var _dup = instance_create_depth(grid_pos.x + 30 + irandom_range(-14, 14),
+                                                 grid_pos.y + 38, 0, enemy_obj);
+                hex_enemy_scale(_dup);
+                current_total_hp += global.enemy_map[? _enemy_type].hp;
+            }
 
             
             // 更新统计信息
@@ -388,5 +412,8 @@ function enemy_subwave_summon(){
         }
     }
     }
+
+    // 鼠潮：按 PI 阈值往本波尾部追加精英（不计击杀，但算掉落）
+    hex_spawn_flood(enemy_list);
 
 }

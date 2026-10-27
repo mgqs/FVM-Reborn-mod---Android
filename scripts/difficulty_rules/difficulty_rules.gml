@@ -82,14 +82,21 @@ function random_gift_prepare_selected_deck() {
     if (!has_wanpilong) add_to_deck("wanpilong", 2);
 }
 
+/// @function difficulty_get_reward_multiplier_for(_difficulty)
+/// @desc 给定难度号的奖励倍率。与玩法模式无关：抽卡版 / 欧皇版 / 随机礼盒 / 海克斯
+///       一律按"实际基础难度"结算，不按模式给固定值。
+///       美味 1 / 火山 1 / 浮空 2 / 星际 3 / 永恒 4 / 不朽 7
+function difficulty_get_reward_multiplier_for(_difficulty) {
+    var _table = [1, 1, 2, 3, 4, 7];
+    return _table[clamp(floor(_difficulty), 0, array_length(_table) - 1)];
+}
+
 /// @function difficulty_get_reward_multiplier()
-/// @desc 难度奖励倍率只由基础难度决定
+/// @desc 当前难度的奖励倍率（只读 global.difficulty，不看 global.play_mode）
+///       海克斯的「达摩克里斯之剑（×10）」「搏一搏（翻倍/减半）」也在这里并入，
+///       这样结算界面显示的数字与实际入账完全同源
 function difficulty_get_reward_multiplier() {
-    switch (global.difficulty) {
-        case 4: return 3;
-        case 5: return 5;
-        default: return 1;
-    }
+    return difficulty_get_reward_multiplier_for(global.difficulty) * hex_batch2_reward_mult();
 }
 
 /// @function difficulty_grant_immortal_start_cards()
@@ -99,8 +106,9 @@ function difficulty_grant_immortal_start_cards() {
     if (variable_struct_exists(global.save_data, "immortal_start_cards_given")) return false;
     if (array_length(global.save_data.completed_levels) != 0) return false;
 
+    // 烤串机本体改为百味关首通奖励，不再计入不朽开局随机白板；按玩家要求换成邪恶牛油果。
     var _card_pool = [
-        "spoon_rabbit", "yanhuangma", "guiyuanma", "double_blade_snake", "hongliukaochuan",
+        "spoon_rabbit", "yanhuangma", "guiyuanma", "double_blade_snake", "niuyouguo",
         "yufengma", "fenjima", "xiandima", "laipishe", "starrabbit"
     ];
     unlock_card("yanyantu", 0, 0, 0);
@@ -125,5 +133,6 @@ function difficulty_get_display_name() {
     if (global.play_mode == 1) result += "·抽卡版";
     else if (global.play_mode == 2) result += "·欧皇版";
     else if (global.play_mode == 3) result += "·随机礼盒";
+    else if (global.play_mode == 4) result += "·海克斯模式";
     return result;
 }
