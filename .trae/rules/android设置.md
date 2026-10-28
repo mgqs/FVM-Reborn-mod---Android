@@ -11,6 +11,11 @@
   - `objects/obj_readyroom_manager/Draw_0.gml` + `Create_0.gml` （选卡界面，上限 `ready_max_y_offset`）
   - `objects/obj_cookbook_bg/Draw_0.gml` + `Create_0.gml` （食神谱，按行高 101 折算）
   - `objects/GridList/Create_0.gml` （通用列表 `apply_wheel` 段）
+- 面板动效 surface 收尾 / 自愈受保护组（2026-10-28 修「Unbalanced surface stack」后入库；源端合成屋强化页仍缺收尾，同步覆盖会重新引入，必须保留）：
+  - `objects/obj_craft_bg/Draw_0.gml` 文件末尾 `panel_anim_end_parts(id, craft_parts, 260);` —— 强化页（`craft_top_tab == 0`）分支的唯一收尾，与转职/进化/融合三页同口径；删掉即每开动效必报错
+  - `scripts/GuiStack/GuiStack.gml` —— `panel_anim_step()` 开头 `if (pnl_recording) { surface_reset_target(); pnl_recording = false }` 自愈块，以及各 `panel_anim_end_*` reset 后置 `pnl_recording = false`
+  - `objects/obj_craft_bg/Destroy_0.gml` 、 `CleanUp_0.gml` —— `surface_free(card_surface)` 判存在并置 `-1`，避免 Destroy 与 CleanUp 双重释放
+  - `objects/obj_package_bg/Draw_0.gml` —— 四处 `surface_reset_target()` 必须与 `surface_set_target()` 同条件 `surface_exists` 保护，否则 surface 缺失时会弹掉上层动效目标（如 `pnl_surf`）
 - `objects/obj_edit_menu_button/Mouse_4.gml` 、`objects/obj_edit_menu/Create_0.gml` （存档导入导出/删除）
 - `objects/obj_game_init/Create_0.gml` （启动 os 守卫 + 创建虚拟按键）
 - `objects/obj_file_manager/Step_0.gml` 、`Other_3.gml` （IME/鼠标限频守卫）

@@ -140,7 +140,8 @@ if (craft_top_tab == 3) {
 	}
 
 	// ⑥'-b 右侧列表滑块（2026-10-27 补，与转职页同一套）
-	var _esb = craft_list_sb(evo_list_y - 48, evo_grows * evo_gpy, evo_rows_max, evo_scroll, evo_scroll_target, evo_sb);
+	// 视口高用 815（= 强化页 card_surface 高），保证滑块落在面板同一条凹槽里、滑块长度与强化页一致
+	var _esb = craft_list_sb(evo_list_y - 48, 815, evo_rows_max, evo_scroll, evo_scroll_target, evo_sb);
 	evo_scroll        = _esb.cur;
 	evo_scroll_target = _esb.target;
 
@@ -326,7 +327,8 @@ if (craft_top_tab == 2) {
 	}
 
 	// ⑥' 右侧列表滑块（2026-10-27 补；几何/拖动都走 Create_0 的 craft_list_sb）
-	var _tsb = craft_list_sb(tg_list_y - 48, tg_grows * tg_gpy, tg_rows_max, tg_scroll, tg_scroll_target, tg_sb);
+	// 视口高用 815（= 强化页 card_surface 高），与强化页同一条凹槽、同一滑块长度
+	var _tsb = craft_list_sb(tg_list_y - 48, 815, tg_rows_max, tg_scroll, tg_scroll_target, tg_sb);
 	tg_scroll        = _tsb.cur;
 	tg_scroll_target = _tsb.target;
 
@@ -1294,3 +1296,9 @@ else if button_select == 1{
 
 // 提示框：推进尺寸/消失动画并绘制（每帧一次）
 tooltip_draw();
+
+// 强化页（craft_top_tab == 0，默认页）收尾 —— 必须和上面的转职 / 进化 / 融合三页一样调一次：
+//   panel_anim_begin() 在这一帧开头把渲染目标切到 pnl_surf，这里不 reset 就会
+//   「Unbalanced surface stack. You MUST use surface_reset_target() for each set.」
+//   另外三页都写在各自的 exit 前，唯独这一页当初漏了。
+panel_anim_end_parts(id, craft_parts, 260);

@@ -255,7 +255,7 @@ if package_button_select == 1 {
         card_index++;
     }
 	
-	surface_reset_target()
+	if (surface_exists(package_surface)) surface_reset_target()
 	draw_surface_ext(package_surface,x-354-42,y-361-48,1,1,0,c_white,_pg_alpha_r)
     
     // 绘制悬停提示
@@ -521,7 +521,7 @@ else if package_button_select == 2 {
 		_flat_index++
 	}
 
-	surface_reset_target()
+	if (surface_exists(package_surface)) surface_reset_target()
 	draw_surface_ext(package_surface,x-354-42,y-368-44,1,1,0,c_white,_pg_alpha_r)
 
 	// 绘制悬停提示
@@ -674,7 +674,7 @@ else if package_button_select == 3{
             }
         }
     }
-	surface_reset_target()
+	if (surface_exists(package_surface)) surface_reset_target()
 	draw_surface_ext(package_surface,x-354-42,y-368-44,1,1,0,c_white,_pg_alpha_r)
 	// 绘制悬停提示
     if (hover_material_index != -1) {
@@ -759,7 +759,7 @@ else if package_button_select == 4{
 			}
 		}
 	}
-	surface_reset_target()
+	if (surface_exists(package_surface)) surface_reset_target()
 	draw_surface_ext(package_surface, x - 354 - 42, y - 368 - 44, 1, 1, 0, c_white, _pg_alpha_r)
 
 	// 悬停提示（文案也在分段表里，不写数量：凭证上限按持有 1）

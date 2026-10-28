@@ -57,6 +57,10 @@
 | `objects/obj_info_island_bg/Draw_0.gml` | L535 | 信息岛面板滚动 |
 | `objects/obj_readyroom_manager/Draw_0.gml` | L191 | 选卡界面滚动（`Create_0` 含 `two_touch_scroll_*` 初始化） |
 | `objects/obj_cookbook_bg/Draw_0.gml` | L9 | 食神谱滚动（按行高 101 折算 `y_offset`；`Create_0` 含初始化） |
+| `objects/obj_craft_bg/Draw_0.gml` | 文件末尾 | 强化页（tab 0）收尾 `panel_anim_end_parts(id, craft_parts, 260);` —— 源端仍缺这行，同步后必须补回，否则开动效必报 `Unbalanced surface stack` |
+| `scripts/GuiStack/GuiStack.gml` | `panel_anim_step()` 开头 L231-234 | 漏 reset 自愈：`pnl_recording` 仍为 true 时补 `surface_reset_target()` 并置 false；各 `panel_anim_end_*` 收尾后亦置 false |
+| `objects/obj_craft_bg/Destroy_0.gml` / `CleanUp_0.gml` | Destroy L8-10 / CleanUp L3-5 | `surface_free(card_surface)` 判存在并置 `-1`，避免 Destroy 与 CleanUp 双重释放 |
+| `objects/obj_package_bg/Draw_0.gml` | L258 / L524 / L677 / L762 | 四处 `surface_reset_target()` 与 `surface_set_target()` 同条件 `surface_exists` 保护，避免 surface 缺失时弹掉上层动效目标 |
 
 ---
 

@@ -222,6 +222,16 @@ function panel_anim_close(_inst){
 function panel_anim_step(_inst, _sync_kids = true){
     with (_inst) {
         if (!variable_instance_exists(id, "pnl_o")) { return }
+        // ── 漏 reset 自愈（2026-10-28）──
+        // panel_anim_begin 会把 pnl_recording 置 true，每个 end_XXX 结束时会置回 false。
+        // 若上一帧的 Draw 走了某个没调 end_XXX 的分支（合成屋强化页曾经就是这样），
+        // 目标栈会留在 pnl_surf 上，下一帧 GM 直接抛 "Unbalanced surface stack" 并弹窗。
+        // 这里发现 pnl_recording 还是 true = 上一帧确实漏放过，先补一次 reset 把栈拉平，
+        // 保证「某个分支忘了写 end」只会少一帧动画，而不会整局报错。
+        if (pnl_recording) {
+            surface_reset_target()
+            pnl_recording = false
+        }
         if (_sync_kids) { __panel_anim_collect_kids(id) }   // 动态创建的子对象每帧自动补上
         var _p = 1
         if (!ui_anim_on(1)) {
@@ -305,6 +315,7 @@ function panel_anim_end_slide(_inst, _dist = undefined){
         pnl_dist = _d
         if (!pnl_recording) { return }      // 静止帧：内容已经直接画在屏幕上了
         surface_reset_target()
+        pnl_recording = false
         draw_surface_ext(pnl_surf, 0, (1 - pnl_o) * _d, 1, 1, 0, c_white, pnl_o)
     }
 }
@@ -318,6 +329,7 @@ function panel_anim_end_drawer(_inst, _dir = -1, _dist = undefined){
         pnl_dist       = _d
         if (!pnl_recording) { return }      // 静止帧：内容已经直接画在屏幕上了
         surface_reset_target()
+        pnl_recording = false
         draw_surface_ext(pnl_surf, _dir * (1 - pnl_o) * _d, 0, 1, 1, 0, c_white, pnl_o)
     }
 }
@@ -332,6 +344,7 @@ function panel_anim_end_split(_inst, _split, _dist = undefined){
         var _sh = (1 - pnl_o) * _d
         if (!pnl_recording) { return }      // 静止帧：两块本来就画在原位，不需要贴回来
         surface_reset_target()
+        pnl_recording = false
         // 左半：整体左移 _sh；右半：整体右移 _sh。只影响动画，静止时两块拼回去是完整的。
         draw_surface_part_ext(pnl_surf, 0, 0, _split, room_height, -_sh, 0, 1, 1, c_white, pnl_o)
         draw_surface_part_ext(pnl_surf, _split, 0, room_width - _split, room_height, _split + _sh, 0, 1, 1, c_white, pnl_o)
@@ -349,6 +362,7 @@ function panel_anim_end_parts(_inst, _parts, _dist = undefined){
         if (!pnl_recording) { return }      // 静止帧：内容已经直接画在屏幕上了
         var _sh = (1 - pnl_o) * _d
         surface_reset_target()
+        pnl_recording = false
         for (var i = 0; i < array_length(_parts); i++) {
             var _p = _parts[i]
             draw_surface_part_ext(pnl_surf, _p[0], _p[1], _p[2] - _p[0], _p[3] - _p[1],
