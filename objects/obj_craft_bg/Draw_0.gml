@@ -1234,7 +1234,18 @@ else if button_select == 1{
         var _touch_y = (_two_y1 + _two_y2) * 0.5
         var _touch_inside = point_in_rectangle(_touch_x, _touch_y, _sb_l, _sb_t, _sb_l + 600, _sb_t + _sb_vh)
         if (_touch_inside) {
-            if (two_touch_scroll_active) y_offset_target = clamp(y_offset_target - (_touch_y - two_touch_scroll_y), 0, _sb_max)
+            if (two_touch_scroll_active) {
+                var _two_dy = _touch_y - two_touch_scroll_y
+                // Android 双指滑动按页签分流：转职/进化页滚右侧卡列表（整行 96px），强化页滚 y_offset
+                if (craft_top_tab == 2) {
+                    tg_scroll_target = clamp(tg_scroll_target - _two_dy / 96, 0, tg_rows_max)
+                } else if (craft_top_tab == 3) {
+                    evo_scroll_target = clamp(evo_scroll_target - _two_dy / 96, 0, evo_rows_max)
+                } else if (craft_top_tab == 0) {
+                    y_offset_target = clamp(y_offset_target - _two_dy, 0, _sb_max)
+                }
+                // craft_top_tab == 1（食灵融合）：双面板各自滚轮驱动，双指不接管
+            }
             two_touch_scroll_y = _touch_y
             two_touch_scroll_active = true
         } else two_touch_scroll_active = false
