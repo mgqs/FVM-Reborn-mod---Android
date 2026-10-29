@@ -17,7 +17,7 @@
   - `objects/obj_craft_bg/Destroy_0.gml` 、 `CleanUp_0.gml` —— `surface_free(card_surface)` 判存在并置 `-1`，避免 Destroy 与 CleanUp 双重释放
   - `objects/obj_package_bg/Draw_0.gml` —— 四处 `surface_reset_target()` 必须与 `surface_set_target()` 同条件 `surface_exists` 保护，否则 surface 缺失时会弹掉上层动效目标（如 `pnl_surf`）
 - `objects/obj_edit_menu_button/Mouse_4.gml` 、`objects/obj_edit_menu/Create_0.gml` （存档导入导出/删除）
-- `objects/obj_game_init/Create_0.gml` （启动 os 守卫 + 创建虚拟按键）
+- `objects/obj_game_init/Create_0.gml` （启动 os 守卫 + 创建虚拟按键 + 授权启动块：文件末尾 `auth_init();` → `global.auth_gate_force=true;` → `if(!auth_ok() && !instance_exists(obj_auth_gate)) instance_create_depth(…);` → `global.auth_gate_force=false;`；源端同位置已有授权启动块，但缺少 `global.auth_gate_force` 传参——同步覆盖后必须重新嫁接此块）
 - `objects/obj_file_manager/Step_0.gml` 、`Other_3.gml` （IME/鼠标限频守卫）
 - `objects/SearchBox/Create_0.gml` （IME 守卫）
 - `objects/LaboratoryGUI/Create_0.gml` 、`objects/obj_mod_menu/Create_0.gml` 、`Step_0.gml` （目录操作守卫）
@@ -26,3 +26,9 @@
 - `scripts/NativeUtil/NativeUtil.gml`
 - `options/android/options_android.yy` （横屏锁定）
 - `FVM_Reborn_makk.yyp`
+- 授权系统安卓适配受保护组（2026-10-29 入库；源端 auth 实现无安卓分支，全部手写嫁接）：
+  - `scripts/auth_client/auth_client.gml` — `auth_file_path()` 安卓返回相对路径 `"auth.dat"`（沙盒内），`auth_hwid()` 安卓读/写 `auth_hwid.dat`（首次启动随机生成 8 位十六进制），`auth_save()` 跳过 Windows 建目录逻辑；源端这三处都是裸实现，同步覆盖会删掉所有安卓分支，必须重新嫁接
+  - `objects/obj_auth_gate/Create_0.gml` — 面板高度按安卓加 72px、新增 `android_paste/paste_x/paste_y/paste_w/paste_h/hover_paste` 变量、尝试 `keyboard_virtual_show(kbv_type_default, kbv_returnkey_done, kbv_autocapitalize_sentences, true)` 拉软键盘（4 个参数，GM1020 只认 4 个，少写必编译报错）、`input_box.focus()` 之后接软键盘调用；**注意**：`keyboard_virtual_show` 在部分机型上无效，try/catch 只包软键盘这一行
+  - `objects/obj_auth_gate/Step_0.gml` — 每帧计算 `hover_paste`、新增「点粘贴按钮 → `clipboard_get_text()` → `auth_clean()` → `input_box.set_text()` + `keyboard_string` → 直接提交绑定」流程；`_confirm` 判定须追加 `|| _paste_submit`
+  - `objects/obj_auth_gate/Draw_0.gml` — 只在 `os_type == os_android` 分支下画整条可点的粘贴授权码按钮（矩形 + 居中文案）
+  - `objects/obj_auth_button/` — 仅对象注册与创建，无安卓分支，随目录整体保留即可

@@ -76,6 +76,7 @@
 | `objects/obj_game_init/Create_0.gml` | L12 | `move_files()` 内 `if (os_type == os_android) return;` |
 | `objects/obj_game_init/Create_0.gml` | L65 | Mod 包目录初始化包裹 `if (os_type != os_android)` |
 | `objects/obj_game_init/Create_0.gml` | L219 | `native_disable_ime` 加 `os_type != os_android &&` 短路 |
+| `objects/obj_game_init/Create_0.gml` | 文件末尾（native_disable_ime 之后） | 授权启动块：`auth_init();` → `global.auth_gate_force = true;` → `if (!auth_ok() && !instance_exists(obj_auth_gate)) instance_create_depth(0, 0, -9500, obj_auth_gate);` → `global.auth_gate_force = false;`。**源端**同位置已有启动块但缺 `global.auth_gate_force` 传参（Create 是同步执行的，在外面拿到实例再赋值已太晚）；同步覆盖后必须重新嫁接此块
 
 ### 5.2 输入法（IME）/ 鼠标限频
 
@@ -137,6 +138,39 @@
 | 文件 | 位置 | 说明 |
 |------|------|------|
 | `options/android/options_android.yy` | 整个文件 | `option_android_orient_portrait` / `option_android_orient_portrait_flipped` 设为 `false`（仅保留横屏及横屏翻转） |
+
+---
+
+## 8. 授权系统
+
+功能：启动未授权时强制弹授权窗（mandatory，不给走）。授权码 30+ 位，PC 端手打 + 复制识别码发 QQ 机器人；Android 端没有物理键盘，**全部手写适配**（源端 auth 实现无安卓分支，`NativeUtil` 也拿不到移动端稳定设备 ID，所以机器码改成首次启动随机生成）。
+
+> ⚠️ 卸载重装 / 清除数据会删掉 `auth_hwid.dat`，机器码变旧授权码失效，需重新领码换绑；这是设计上的取舍（换绑成本 > 重装丢失成本），不要尝试让机器码"稳定"——移动端不存在稳定的设备指纹。
+
+| 文件 | 位置 | 说明 |
+|------|------|------|
+| `scripts/auth_client/auth_client.gml` | `auth_file_path()` | 安卓 → `"auth.dat"`（沙盒内相对路径，不能用 `get_path_in_local_appdata`）；Windows → `%LOCALAPPDATA%\FVM_Reborn_makk\auth.dat` |
+| `scripts/auth_client/auth_client.gml` | `auth_hwid()` | 安卓：读 `auth_hwid.dat`，缺失 → 随机 8 位十六进制写回；Windows：MD5(COMPUTERNAME \| PROCESSOR_IDENTIFIER \| NUMBER_OF_PROCESSORS) 取前 8 位 |
+| `scripts/auth_client/auth_client.gml` | `auth_save()` | 写入目录创建逻辑包裹 `if (os_type != os_android)`（Windows 端 `directory_exists + directory_create`，Android 端相对路径直接落沙盒） |
+| `objects/obj_auth_gate/Create_0.gml` | 顶部 | 面板高度按安卓加 72px：`panel_h = 470 + (os_type == os_android ? 72 : 0);`（粘贴按钮放在状态提示与底部按钮之间，其余版面全部用相对偏移，不影响） |
+| `objects/obj_auth_gate/Create_0.gml` | 中部 | 新增安卓粘贴按钮变量：`android_paste / paste_x / paste_y / paste_w / paste_h / hover_paste`（位置 = 状态提示行下方、`status_y + 18`，整条 860×52） |
+| `objects/obj_auth_gate/Create_0.gml` | `input_box.focus()` 之后 | 软键盘尝试：`if (os_type == os_android) try { keyboard_virtual_show(kbv_type_default, kbv_returnkey_done, kbv_autocapitalize_sentences, true); } catch(_e) {}`。**4 个参数缺一不可**（GM1020 只认 4 个，少写必编译报错）；`kbv_returnkey_done` 让回车键显示"完成"，`kbv_autocapitalize_sentences` 关自动大写（授权码要纯大写）。部分机型此函数无效，try/catch 只包软键盘这一行，粘贴按钮兜底 |
+| `objects/obj_auth_gate/Step_0.gml` | `hover_ok/hover_no/hover_hwid` 之后 | 每帧追加 `hover_paste` 命中判定 |
+| `objects/obj_auth_gate/Step_0.gml` | `_clicked/hover_no` 之前 | 粘贴按钮点击流程：`android_paste && _clicked && hover_paste` → `clipboard_get_text()` → 空则提示"剪贴板是空的" → `auth_clean()` 清洗空格/换行/零宽字符 → `input_box.set_text()` + `keyboard_string` → `_paste_submit = true` → 直接提交绑定（清洗很关键：QQ 复制常带杂字符，多一个就验不过） |
+| `objects/obj_auth_gate/Step_0.gml` | `var _confirm = …` | 追加 `|| _paste_submit`，粘贴按钮点一次等同点"确认绑定" |
+| `objects/obj_auth_gate/Draw_0.gml` | 状态提示行之后 | 安卓粘贴按钮绘制：`if (android_paste) { draw_roundrect_ext(…); draw_text_transformed("粘贴授权码（从剪贴板填入并确认）", …); }`（整条可点，不画外框） |
+| `objects/obj_auth_gate/Create_0.gml` | 文件末尾 | 源端 Create 末尾已有授权启动块但缺 `global.auth_gate_force` 传参（Create 是同步执行的，在外面拿到实例再赋值已太晚）；**已嫁接**：`global.auth_gate_force = true; if (!auth_ok() && !instance_exists(obj_auth_gate)) instance_create_depth(0, 0, -9500, obj_auth_gate); global.auth_gate_force = false;` |
+| `objects/obj_auth_gate/Step_0.gml` | 顶部 | `mandatory` 分支下关闭按钮移到屏幕外（`btn_no_x = -9999`），防止改坐标绕过 |
+| `objects/obj_auth_gate/Other_3.gml` | 整个文件 | Async-Dialog 事件：授权成功弹窗后 3 秒自毁 |
+| `objects/obj_auth_button/` | 整个目录 | 仅对象注册（Draw 里画"授权"按钮、Step 里 `mouse_check_button_pressed` 打开授权窗），无安卓分支，随目录整体保留即可 |
+
+**同步覆盖必须重新嫁接的段**（源端 auth 实现无安卓分支，整文件覆盖会删掉下面所有 Android 专属逻辑）：
+
+1. `auth_client.gml` 三处：`auth_file_path()` 相对路径、`auth_hwid()` 随机落盘、`auth_save()` 跳过建目录
+2. `obj_auth_gate/Create_0.gml` 面板高度 + 粘贴按钮变量 + 软键盘尝试
+3. `obj_auth_gate/Step_0.gml` 粘贴按钮 hover + 点击提交流程 + `_confirm` 追加 `_paste_submit`
+4. `obj_auth_gate/Draw_0.gml` 安卓分支粘贴按钮绘制
+5. `obj_game_init/Create_0.gml` 末尾授权启动块（含 `global.auth_gate_force` 传参）
 
 ---
 
