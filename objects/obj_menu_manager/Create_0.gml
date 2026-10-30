@@ -26,6 +26,9 @@ if not instance_exists(obj_menu_music_controller){
 if not instance_exists(obj_world_map_button){
 	instance_create_depth(1670,80,0,obj_world_map_button)
 }
+// 授权入口已移除：授权窗只在启动时未授权才弹出（obj_game_init），
+// 授权一次后永久不再出现，所以菜单里不再需要入口按钮。
+// obj_auth_button 资源保留但不再创建实例，删不删都不影响运行。
 instance_create_depth(room_width-210,room_height,-1,obj_player_menu_bg)
 timer = 0
 
@@ -192,7 +195,7 @@ function on_draw() {
 	draw_set_valign(fa_middle)
 	draw_set_halign(fa_center)
 	draw_set_colour(c_yellow)
-	draw_text(_x1+self.total_progress_bar_width/2, _y1 - 80, "本游戏为免费开源游戏，任何付费获取方式均为诈骗\n游戏作者B站名称：Spring曙光");
+	draw_text(_x1+self.total_progress_bar_width/2, _y1 - 80, "本游戏为免费开源游戏，任何付费获取方式均为诈骗\n游戏作者B站名称：Spring曙光\nDLC作者:Makk;落玖;泽等广大群友");
     draw_set_alpha(1)
 }
 

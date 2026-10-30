@@ -19,7 +19,7 @@
 - `objects/obj_edit_menu_button/Mouse_4.gml` 、`objects/obj_edit_menu/Create_0.gml` （存档导入导出/删除）
 - `objects/obj_game_init/Create_0.gml` （启动 os 守卫 + 创建虚拟按键 + 授权启动块：文件末尾 `auth_init();` → `global.auth_gate_force=true;` → `if(!auth_ok() && !instance_exists(obj_auth_gate)) instance_create_depth(…);` → `global.auth_gate_force=false;`；源端同位置已有授权启动块，但缺少 `global.auth_gate_force` 传参——同步覆盖后必须重新嫁接此块）
 - `objects/obj_file_manager/Step_0.gml` 、`Other_3.gml` （IME/鼠标限频守卫）
-- `objects/SearchBox/Create_0.gml` （IME 守卫）
+- `objects/SearchBox/Create_0.gml` （IME 守卫 + 移动端软键盘：`focus()` 里 `if (os_type == os_android) try { keyboard_virtual_show(kbv_type_default, kbv_returnkey_done, kbv_autocapitalize_sentences, true) } catch(_e){}`，`blur()` 里 `if (os_type == os_android) try { keyboard_virtual_hide() } catch(_e){}`；**4 个参数缺一不可**，少写必编译报错 GM1020；该文件是所有输入框的公共组件，同步覆盖后必须重新嫁接这两个安卓分支）
 - `objects/LaboratoryGUI/Create_0.gml` 、`objects/obj_mod_menu/Create_0.gml` 、`Step_0.gml` （目录操作守卫）
 - `objects/obj_update_checker_btn/` （show_question_async 异步弹窗）
 - `scripts/MapDownloadManager/MapDownloadManager.gml` 、`scripts/external_mod_system/external_mod_system.gml` （地图下载 / Mod Lua 守卫）

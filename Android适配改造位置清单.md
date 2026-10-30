@@ -85,7 +85,9 @@
 | `objects/obj_file_manager/Step_0.gml` | L37 / L42 / L52 | `native_enable_ime` / `native_disable_ime` 加 `os_type != os_android` |
 | `objects/obj_file_manager/Step_0.gml` | L62 / L67 | 鼠标限频 `native_stop/start_mouse_limit` 加 `os_type != os_android` |
 | `objects/obj_file_manager/Other_3.gml` | L5 | 关闭鼠标限频加 `os_type != os_android` |
-| `objects/SearchBox/Create_0.gml` | L69 / L79 | IME enable / disable 加 `os_type != os_android` |
+| `objects/SearchBox/Create_0.gml` | L78 / L96 | IME enable / disable 加 `os_type != os_android` |
+| `objects/SearchBox/Create_0.gml` | `focus()` L84-88 | 安卓调起系统软键盘：`if (os_type == os_android) try { keyboard_virtual_show(kbv_type_default, kbv_returnkey_done, kbv_autocapitalize_sentences, true) } catch(_e){}`。**4 个参数缺一不可**（GM1020 只认 4 个，少写必编译报错）；该文件是所有输入框（存档命名 / 实验室 / 联机地图搜索等）的公共组件，改一处全局生效；部分机型此调用无效，靠 try/catch 兜底，失败仍可粘贴或外接键盘 |
+| `objects/SearchBox/Create_0.gml` | `blur()` L100-102 | 安卓收起软键盘：`if (os_type == os_android) try { keyboard_virtual_hide() } catch(_e){}`，避免点空白 / Esc / 切界面后键盘一直压着画面 |
 
 ### 5.3 文件夹 / 目录操作
 
