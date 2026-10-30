@@ -53,8 +53,24 @@ input_lock = 2                // 开窗头 2 帧锁输入：防止「按下」�
 // 标题 / 「持有」/ 数量标签 / 单价单位 这些文案在 scripts/transfer_credit 的 credit_trade_ui_words()
 //   （凭证域的东西别在对象里再写一份）
 
+// ── Android：开窗即调起数字软键盘（这个窗只收数字，弹数字键盘最省事）──
+// 本对象没有 SearchBox 那种 focus 概念，全靠每帧读 keyboard_string，
+// 所以键盘生命周期跟着窗口走：Create 弹出、trade_close() 收起。
+// 4 个参数缺一不可（GM1020 只认 4 个，少写必编译报错）；
+// 部分机型/定制系统上该调用无效，try/catch 兜底——退路是「最大」按钮与外接键盘。
+if (os_type == os_android) {
+    try {
+        keyboard_virtual_show(kbv_type_numbers, kbv_returnkey_done, kbv_autocapitalize_sentences, true)
+    } catch (_e) {}
+}
+
 /// @func trade_close() 关窗：复位来源界面的「子菜单开着」并刷新它的列表
 function trade_close(){
+    // Android：关窗收起软键盘。三种关闭路径（确定 / 取消 / ESC）都会走到这里，
+    // 一处覆盖全部，避免键盘留在屏幕上压着背包 / 商店
+    if (os_type == os_android) {
+        try { keyboard_virtual_hide() } catch (_e) {}
+    }
     if (instance_exists(obj_package_bg)){
         obj_package_bg.is_submenu_opened = false;
     }

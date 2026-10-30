@@ -88,6 +88,8 @@
 | `objects/SearchBox/Create_0.gml` | L78 / L96 | IME enable / disable 加 `os_type != os_android` |
 | `objects/SearchBox/Create_0.gml` | `focus()` L84-88 | 安卓调起系统软键盘：`if (os_type == os_android) try { keyboard_virtual_show(kbv_type_default, kbv_returnkey_done, kbv_autocapitalize_sentences, true) } catch(_e){}`。**4 个参数缺一不可**（GM1020 只认 4 个，少写必编译报错）；该文件是所有输入框（存档命名 / 实验室 / 联机地图搜索等）的公共组件，改一处全局生效；部分机型此调用无效，靠 try/catch 兜底，失败仍可粘贴或外接键盘 |
 | `objects/SearchBox/Create_0.gml` | `blur()` L100-102 | 安卓收起软键盘：`if (os_type == os_android) try { keyboard_virtual_hide() } catch(_e){}`，避免点空白 / Esc / 切界面后键盘一直压着画面 |
+| `objects/obj_material_sell_confirm/Create_0.gml` | Create 末尾 L56-65 | 道具出售窗（兼作凭证回收 / 凭证购买）开窗即弹**数字软键盘**：`if (os_type == os_android) try { keyboard_virtual_show(kbv_type_numbers, kbv_returnkey_done, kbv_autocapitalize_sentences, true) } catch(_e){}`。该对象没有 focus 概念，全靠每帧读 `keyboard_string`，键盘生命周期跟窗口走；**4 个参数缺一不可**（GM1020） |
+| `objects/obj_material_sell_confirm/Create_0.gml` | `trade_close()` 开头 L68-73 | 关窗收起软键盘：`if (os_type == os_android) try { keyboard_virtual_hide() } catch(_e){}`。确定 / 取消 / ESC 三条关闭路径都走 `trade_close()`，一处覆盖全部关闭场景 |
 
 ### 5.3 文件夹 / 目录操作
 

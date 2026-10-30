@@ -22,6 +22,7 @@
 - `objects/SearchBox/Create_0.gml` （IME 守卫 + 移动端软键盘：`focus()` 里 `if (os_type == os_android) try { keyboard_virtual_show(kbv_type_default, kbv_returnkey_done, kbv_autocapitalize_sentences, true) } catch(_e){}`，`blur()` 里 `if (os_type == os_android) try { keyboard_virtual_hide() } catch(_e){}`；**4 个参数缺一不可**，少写必编译报错 GM1020；该文件是所有输入框的公共组件，同步覆盖后必须重新嫁接这两个安卓分支）
 - `objects/LaboratoryGUI/Create_0.gml` 、`objects/obj_mod_menu/Create_0.gml` 、`Step_0.gml` （目录操作守卫）
 - `objects/obj_update_checker_btn/` （show_question_async 异步弹窗）
+- `objects/obj_material_sell_confirm/Create_0.gml` （移动端数字软键盘；该窗三用：道具页卖材料 / 凭证回收 / 凭证购买，全生命周期每帧读 `keyboard_string`，没有 focus 概念：Create 末尾 `if (os_type == os_android) try { keyboard_virtual_show(kbv_type_numbers, kbv_returnkey_done, kbv_autocapitalize_sentences, true) } catch(_e){}`，`trade_close()` 开头 `if (os_type == os_android) try { keyboard_virtual_hide() } catch(_e){}`（确定/取消/ESC 三条关闭路径都走 trade_close，一处覆盖全部）；**4 个参数缺一不可**，少写必编译报错 GM1020；同步覆盖后必须重新嫁接这两段）
 - `scripts/MapDownloadManager/MapDownloadManager.gml` 、`scripts/external_mod_system/external_mod_system.gml` （地图下载 / Mod Lua 守卫）
 - `scripts/NativeUtil/NativeUtil.gml`
 - `options/android/options_android.yy` （横屏锁定）
