@@ -27,6 +27,17 @@
 - `scripts/NativeUtil/NativeUtil.gml`
 - `options/android/options_android.yy` （横屏锁定）
 - `FVM_Reborn_makk.yyp`
+- 移动端软键盘受保护组（2026-10-30 入库；`keyboard_virtual_show/hide` 是 Android 专属调用，源端完全没有，同步覆盖必然丢失）：
+  - 三个落点，全部必须重新嫁接：
+    - `objects/SearchBox/Create_0.gml` — 全局输入框组件。`focus()` 弹键盘（`kbv_type_default` 文本键盘）、`blur()` 收起。改这一处覆盖存档命名 / 实验室 / 联机地图搜索等所有 SearchBox 输入框
+    - `objects/obj_auth_gate/Create_0.gml` — 授权窗开窗时 `_box.focus()` 之后手动再拉一次键盘（`kbv_type_default`）。**与 SearchBox.focus() 内部那次是重复调用，属已知冗余，禁止以「去重」为由删除**
+    - `objects/obj_material_sell_confirm/Create_0.gml` — 道具出售窗（三用：卖材料 / 凭证回收 / 凭证购买）。Create 末尾弹 `kbv_type_numbers` 数字键盘，`trade_close()` 开头收起（确定/取消/ESC 三条关闭路径都走这里）
+  - **统一规范（新增任何移动端输入时照此写）**：
+    1. 一律 4 个参数：`keyboard_virtual_show(kbv_type_*, kbv_returnkey_done, kbv_autocapitalize_sentences, true)`。少写必编译报错 GM1020（`keyboard_virtual_show` 至少 4 个参数）
+    2. `try/catch` **只包软键盘那一行**，不要把业务逻辑圈进去（部分机型/定制系统上该调用无效，失败不能影响输入流程）
+    3. 有 show 必须有配对的 hide；hide 放在**所有关闭路径都能走到的公共出口**（SearchBox 用 `blur()`，出售窗用 `trade_close()`），不要在每个按钮里各写一遍
+    4. 新增输入框一律用 `SearchBox`（自动获得弹/收键盘能力），**不要另手搓一套 `keyboard_virtual_show`**
+  - 已知局限（真机表现，不是 bug）：`keyboard_virtual_show` 在部分机型无效（退路是「最大」按钮 / 粘贴 / 外接键盘）；键盘弹起可能压缩 application surface 导致 `device_mouse_x_to_gui` 与 `room_width` 混用的界面错位，出现时再单独处理
 - 授权系统安卓适配受保护组（2026-10-29 入库；源端 auth 实现无安卓分支，全部手写嫁接）：
   - `scripts/auth_client/auth_client.gml` — `auth_file_path()` 安卓返回相对路径 `"auth.dat"`（沙盒内），`auth_hwid()` 安卓读/写 `auth_hwid.dat`（首次启动随机生成 8 位十六进制），`auth_save()` 跳过 Windows 建目录逻辑；源端这三处都是裸实现，同步覆盖会删掉所有安卓分支，必须重新嫁接
   - `objects/obj_auth_gate/Create_0.gml` — 面板高度按安卓加 72px、新增 `android_paste/paste_x/paste_y/paste_w/paste_h/hover_paste` 变量、尝试 `keyboard_virtual_show(kbv_type_default, kbv_returnkey_done, kbv_autocapitalize_sentences, true)` 拉软键盘（4 个参数，GM1020 只认 4 个，少写必编译报错）、`input_box.focus()` 之后接软键盘调用；**注意**：`keyboard_virtual_show` 在部分机型上无效，try/catch 只包软键盘这一行

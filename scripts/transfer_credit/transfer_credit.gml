@@ -312,8 +312,8 @@ function transfer_credit_face_box() {
         "hundun_god_1": [147, 148, 90, 73],
         "hundun_god_2": [141, 159, 112, 80],
         "hundun_god_3": [142, 154, 109, 97],
-        "lingrong_god_1": [0, 0, 88, 87],
-        "lingrong_god_2": [0, 0, 105, 93],
+        "lingrong_god_1": [0, 0, 113, 92],
+        "lingrong_god_2": [0, 0, 112, 92],
         "shennong_god_1": [20, 28, 73, 109],
         "shennong_god_2": [46, 39, 79, 116],
         "chongsheng_god_1": [4, 27, 97, 84],
@@ -572,7 +572,7 @@ function transfer_credit_card_max_shape(_card_id) {
 /// @desc 这张卡的**星级**（练到过的最高星级 = 存档 unlocked_cards 的 max_level）；没拥有返回 -1
 ///       ⚠️ 用 max_level 不是 level：界面上的星星画的就是 max_level（合成屋/背包/转职槽都读它），
 ///          两张表口径必须一致，否则会出现「看着 6 星却提示星级不足」
-///       转职的星级门槛（一转 7 星 / 二转 10 星，见 mod_craft_transfer_table 的 mod_tg_star_need）
+///       转职的星级门槛（一转 6 星 / 二转 10 星，见 mod_craft_transfer_table 的 mod_tg_star_need）
 ///       就是拿它比 —— 别在别处另扫一遍 unlocked_cards
 function transfer_credit_card_level(_card_id) {
     var _uc = global.save_data.unlocked_cards;

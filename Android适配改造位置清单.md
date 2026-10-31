@@ -178,6 +178,36 @@
 
 ---
 
+## 9. 移动端软键盘（keyboard_virtual_show / hide）
+
+功能：安卓没有物理键盘，所有需要打字的地方必须主动调起系统软键盘。`keyboard_virtual_*` 是 Android 专属调用，源端完全没有，同步覆盖必然丢失。
+
+> ⚠️ **4 个参数缺一不可**：`keyboard_virtual_show(type, return_key, autocapitalization, predictive)`。只传 2 个会编译报错 `GM1020 函数 'keyboard_virtual_show' 接受至少 4 个参数`。
+
+| 文件 | 位置 | 说明 |
+|------|------|------|
+| `objects/SearchBox/Create_0.gml` | `focus()` L84-88 | 全局输入框组件，弹**默认文本键盘** `kbv_type_default`（中英标点都能打）。改这一处覆盖存档命名 / 实验室 / 联机地图搜索等所有 SearchBox 输入框；输入仍走 `keyboard_string`，与既有 `on_step` 同步逻辑天然兼容，调用方无需改动 |
+| `objects/SearchBox/Create_0.gml` | `blur()` L100-102 | 收起软键盘。`blur()` 是所有失去焦点的公共出口（点空白 / Esc / 切界面），一处覆盖全部关闭场景 |
+| `objects/obj_auth_gate/Create_0.gml` | `_box.focus()` 之后 | 授权窗开窗时手动再拉一次 `kbv_type_default`。**与 SearchBox.focus() 内部那次是重复调用，属已知冗余，禁止以「去重」为由删除**（删除属于改动授权受保护层） |
+| `objects/obj_material_sell_confirm/Create_0.gml` | Create 末尾 L56-65 | 道具出售窗（三用：卖材料 / 凭证回收 / 凭证购买）弹**数字键盘** `kbv_type_numbers`。该对象没有 focus 概念、全生命周期每帧读 `keyboard_string`，所以键盘跟着窗口生命周期走 |
+| `objects/obj_material_sell_confirm/Create_0.gml` | `trade_close()` 开头 L68-73 | 收起键盘。确定 / 取消 / ESC 三条关闭路径全部经过 `trade_close()`，一处覆盖全部 |
+
+### 统一规范（新增任何移动端输入时照此写）
+
+1. 一律 4 个参数，少写必 GM1020 编译报错
+2. `try/catch` **只包软键盘那一行**，不要把业务逻辑圈进去（部分机型 / 定制系统上该调用无效，失败不能影响输入流程）
+3. 有 show 必须有配对的 hide；hide 放在**所有关闭路径都能走到的公共出口**（SearchBox → `blur()`，出售窗 → `trade_close()`），不要在每个按钮里各写一遍
+4. 新增输入框一律用 `SearchBox`（自动获得弹/收键盘能力），**不要另手搓一套 `keyboard_virtual_show`**
+5. 键盘类型按内容选：文本 → `kbv_type_default`；纯数字 → `kbv_type_numbers`；纯英文 → `kbv_type_ascii`
+
+### 已知局限（真机表现，不是 bug）
+
+- `keyboard_virtual_show` 在部分机型 / 定制系统上无效，退路是「最大」按钮 / 剪贴板粘贴 / 外接键盘
+- 键盘弹起可能压缩 application surface，导致 `device_mouse_x_to_gui()` 与 `room_width/room_height` 混用的界面错位（如 `obj_material_sell_confirm`）。真机出现错位时把界面坐标统一改成 GUI 尺寸口径，或调整 `options/android` 的缩放策略
+- 键盘唤出瞬间部分系统会重置输入缓冲区，`keyboard_string` 可能从预填值变空（如出售窗初值 `"1"`），属正常空态
+
+---
+
 ## 附：全局事件类型映射（GMS2）
 
 用于定位 `.yy` 中的事件文件：

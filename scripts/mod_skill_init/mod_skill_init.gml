@@ -57,7 +57,9 @@ function mod_skill_init()
     register_card_skill("athena", "cycle", [360, 348, 336, 324, 312, 300, 288, 270, 240]);
     register_card_skill("odin", "cycle", [78, 75, 72, 69, 66, 63, 60, 54, 48]);
     register_card_skill("sun_god", "flame_produce", [25, 27, 29, 31, 34, 37, 40, 44, 48]);
-    register_card_skill("corn_shooter", "cooldown", [3000, 2700, 2460, 2220, 1920, 1620, 1320, 1020, 720]);
+    // 玉蜀黍：技能影响[攻击间隔]（2026-10-30 用户定，单位秒 → 帧：
+    //   1.3 / 1.25 / 1.2 / 1.15 / 1.1 / 1.05 / 1 / 0.95 / 0.9  × 60）
+    register_card_skill("corn_shooter", "cycle", [78, 75, 72, 69, 66, 63, 60, 57, 54]);
     register_card_skill("moon_god", "cycle", [180, 174, 168, 162, 153, 144, 132, 120, 102]);
     register_card_skill("war_god", "cycle", [78, 75, 72, 69, 66, 63, 60, 54, 48]);
     register_card_skill("hera", "cooldown", [1800, 1680, 1560, 1440, 1320, 1200, 1080, 900, 720]);
@@ -77,12 +79,21 @@ function mod_skill_init()
     register_card_skill("fengrao_god", "cooldown", [2100, 1980, 1860, 1740, 1620, 1500, 1320, 1080, 720]);
     register_card_skill("houyi_god", "cycle", [75, 72, 69, 66, 63, 60, 57, 54, 51]);
     register_card_skill("heian_god","cycle",[15*60,16*60,17*60,18*60,20*60,22*60,26*60,31*60,36*60]);
-    register_card_skill("hundun_god", "cycle", [2100, 2040, 1980, 1920, 1860, 1800, 1680, 1560, 1440]);
-    register_card_skill("guangming_god","cooldown",[60*60,58*60,56*60,54*60,51*60,48*60,41*60,34*60,27*60]);
+    // 混沌神：情报岛口径「星级影响[攻击间隔],技能影响[冷却时间]」。
+    // 攻击间隔 = mod_cards_init 的 cycle（35→2 秒随星级），技能只压冷却：35/32/29/26/23/19/15/11/7 秒。
+    register_card_skill("hundun_god", "cooldown", [2100, 1920, 1740, 1560, 1380, 1140, 900, 660, 420]);
+    // 光明神：情报岛口径「星级影响[攻击力],技能影响[攻击间隔]」，冷却固定 21 秒（mod_cards_init 的 1260）。
+    // 攻击间隔按技能 3.5→2.8 秒。
+    register_card_skill("guangming_god", "cycle", [210, 207, 204, 201, 198, 192, 186, 180, 168]);
     register_card_skill("lingrong_god", "hp", [100, 140, 180, 220, 300, 400, 520, 640, 760]);
     register_card_skill("laipishe", "cycle", [210, 204, 198, 192, 186, 180, 168, 156, 120]);
     register_card_skill("liehuohu", "cooldown", [3300, 3120, 2940, 2940, 2580, 2400, 2220, 2040, 1800]);
     register_card_skill("double_blade_snake", "cycle", [78, 75, 72, 69, 66, 63, 60, 57, 51]);
+    // 重生神：情报岛口径「星级影响[冷却时间]，技能影响[攻击间隔]」。
+    // 攻击间隔（=复活瞬间的无敌时长）按技能 2.5→3.5 秒；减伤BUFF持续按技能 15→20 秒；
+    // 减伤比例仍按技能 30%→80%。冷却走 mod_cards_init 的星级表。
+    register_card_skill("chongsheng_god", "cycle", [150, 153, 156, 159, 162, 165, 168, 180, 210]);
+    register_card_skill("chongsheng_god", "chongsheng_duration", [900, 930, 960, 990, 1020, 1050, 1080, 1110, 1200]);
     register_card_skill("chongsheng_god", "chongsheng_reduction", [0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.7, 0.8]);
     register_card_skill("hufa_god", "cycle", [108, 105, 102, 99, 96, 93, 90, 84, 78]);
     register_card_skill("zhanqima", "cycle", [1200, 1260, 1380, 1500, 1620, 1740, 1920, 2100, 2700]);
@@ -113,4 +124,6 @@ function mod_skill_init()
     // 桥头米线：星级影响[攻击力],技能影响[攻击间隔]。cycle 原为恒定 90 且无技能注册，
     // 导致技能等级完全无收益；基准 90，8 级降到 60（1 秒）。
     register_card_skill("mixian", "cycle", [90, 87, 84, 81, 78, 74, 70, 66, 60]);
+    register_card_skill("bbq", "cycle", [84, 81, 78, 75, 72, 69, 66, 60, 54]);
+    register_card_skill("eightcake", "cycle", [120, 117, 114, 111, 108, 105, 102, 99, 90]);
 }
