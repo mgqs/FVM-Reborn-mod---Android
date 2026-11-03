@@ -208,6 +208,30 @@
 
 ---
 
+## 10. 移动端右键取消（双击 / 双指误触）
+
+功能：Windows 端各面板用 `mouse_check_button_pressed(mb_right)`（右键）作为「取消 / 返回」。安卓真机上，双指同按与快速连点会被引擎映射成 `mb_right`，表现为**在选卡界面连点两下就弹出退出确认窗**；同类误触还会让卡槽误取消选择、关卡预览窗误关、万皮龙误取消前摇。
+
+> 处理口径：**安卓不认右键**，移动端返回只走虚拟 Esc 键（`obj_mobile_buttons`）。判定统一收敛到底层函数 `ui_back_click_pressed()`，禁止在安卓分支里另写裸 `mouse_check_button_pressed(mb_right)`。
+
+| 文件 | 位置 | 说明 |
+|------|------|------|
+| `scripts/ui_input/ui_input.gml` | 全文件 | 新增底层判定函数 `ui_back_click_pressed()`：`if (os_type == os_android) return false;` 否则等价于 `mouse_check_button_pressed(mb_right)`。脚本已在 yyp 注册（`Folders: Util`） |
+| `objects/obj_readyroom_manager/Step_0.gml` | L8 | 选卡界面退出确认窗（本次报障点）。改成 `keyboard_check_pressed(vk_escape) \|\| ui_back_click_pressed()` |
+| `objects/obj_card_slot/Step_0.gml` | L151 | 右键取消选卡 |
+| `objects/obj_level_preview/Step_0.gml` | L20 | 关闭关卡预览 |
+| `objects/obj_shovel_slot/Step_0.gml` | L26 | 取消铲子选择 |
+| `objects/obj_wanpilong/Step_0.gml` | L326 / L383 / L465 | 前摇取消（3 处） |
+
+### 统一规范（新增「右键取消」入口时照此写）
+
+1. 一律调用 `ui_back_click_pressed()`，**不要**直接写 `mouse_check_button_pressed(mb_right)`
+2. `ui_back_click_pressed()` 只用于「取消 / 返回 / 关闭」，不要用于会改变游戏状态的战斗操作
+3. 若某个入口在安卓上确实需要右键语义（例如外接鼠标的场景），必须先征得用户同意再单独开分支，不得默认放开
+4. 源端没有 `scripts/ui_input/`，同步覆盖时**不得删除该脚本与其 yyp 注册**
+
+---
+
 ## 附：全局事件类型映射（GMS2）
 
 用于定位 `.yy` 中的事件文件：

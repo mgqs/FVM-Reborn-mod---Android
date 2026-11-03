@@ -23,7 +23,7 @@ if keyboard_check_pressed(slot_key){
 		deselect_shovel();
 	}
 }
-if ((mouse_check_button_pressed(mb_right) or keyboard_check_pressed(vk_escape)) && is_selected) {
+if ((ui_back_click_pressed() or keyboard_check_pressed(vk_escape)) && is_selected) {
     deselect_shovel();
 }
 // 在铲子槽对象 (obj_shovel_slot) 的鼠标点击处理中添加:

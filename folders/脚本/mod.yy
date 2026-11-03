@@ -15,6 +15,7 @@
   "listItems":[
     {"name":"bullet_homing","path":"scripts/bullet_homing/bullet_homing.yy",},
     {"name":"card_buff_category","path":"scripts/card_buff_category/card_buff_category.yy",},
+    {"name":"cross_server_star_gate","path":"scripts/cross_server_star_gate/cross_server_star_gate.yy",},
     {"name":"difficulty_rules","path":"scripts/difficulty_rules/difficulty_rules.yy",},
     {"name":"gods_goods_registry","path":"scripts/gods_goods_registry/gods_goods_registry.yy",},
     {"name":"gods_shop_init","path":"scripts/gods_shop_init/gods_shop_init.yy",},
@@ -29,6 +30,7 @@
     {"name":"mod_clotho_get_random_level","path":"scripts/mod_clotho_get_random_level/mod_clotho_get_random_level.yy",},
     {"name":"mod_get_buff_type","path":"scripts/mod_get_buff_type/mod_get_buff_type.yy",},
     {"name":"mod_info_island_init","path":"scripts/mod_info_island_init/mod_info_island_init.yy",},
+    {"name":"mod_info_island_search","path":"scripts/mod_info_island_search/mod_info_island_search.yy",},
     {"name":"mod_on_card_placed","path":"scripts/mod_on_card_placed/mod_on_card_placed.yy",},
     {"name":"mod_register_plant_lite","path":"scripts/mod_register_plant_lite/mod_register_plant_lite.yy",},
     {"name":"mod_shop_init","path":"scripts/mod_shop_init/mod_shop_init.yy",},

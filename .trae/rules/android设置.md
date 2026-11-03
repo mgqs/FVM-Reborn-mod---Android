@@ -11,6 +11,14 @@
   - `objects/obj_readyroom_manager/Draw_0.gml` + `Create_0.gml` （选卡界面，上限 `ready_max_y_offset`）
   - `objects/obj_cookbook_bg/Draw_0.gml` + `Create_0.gml` （食神谱，按行高 101 折算）
   - `objects/GridList/Create_0.gml` （通用列表 `apply_wheel` 段）
+- 移动端右键取消受保护组（2026-11-03 入库；Android 上双指同按 / 快速连点会被引擎映射成 `mb_right`，导致选卡界面误弹退出确认窗、卡槽误取消选择、关卡预览窗误关闭、万皮龙误取消前摇。统一收敛到 `ui_back_click_pressed()`，安卓恒返回 `false`，移动端返回只走虚拟 Esc）：
+  - `scripts/ui_input/ui_input.gml` + `ui_input.yy` —— 新增脚本资源，yyp 已注册；属底层保护层，同步时不得删除、不得被源端无此文件覆盖掉
+  - 全部调用点（一律用 `ui_back_click_pressed()` 替代裸 `mouse_check_button_pressed(mb_right)`，禁止在安卓上另写裸右键判定）：
+    - `objects/obj_readyroom_manager/Step_0.gml`（选卡界面退出确认窗，约 L8）
+    - `objects/obj_card_slot/Step_0.gml`（右键取消选卡，约 L151）
+    - `objects/obj_level_preview/Step_0.gml`（关闭关卡预览，约 L20）
+    - `objects/obj_shovel_slot/Step_0.gml`（取消铲子选择，约 L26）
+    - `objects/obj_wanpilong/Step_0.gml`（前摇取消，3 处）
 - 面板动效 surface 收尾 / 自愈受保护组（2026-10-28 修「Unbalanced surface stack」后入库；源端合成屋强化页仍缺收尾，同步覆盖会重新引入，必须保留）：
   - `objects/obj_craft_bg/Draw_0.gml` 文件末尾 `panel_anim_end_parts(id, craft_parts, 260);` —— 强化页（`craft_top_tab == 0`）分支的唯一收尾，与转职/进化/融合三页同口径；删掉即每开动效必报错
   - `scripts/GuiStack/GuiStack.gml` —— `panel_anim_step()` 开头 `if (pnl_recording) { surface_reset_target(); pnl_recording = false }` 自愈块，以及各 `panel_anim_end_*` reset 后置 `pnl_recording = false`

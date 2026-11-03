@@ -47,7 +47,7 @@ global.level_data = {}
 global.ui_anim = 1
 global.debug = 0
 global.laboretory_room = false
-global.game_version = "3.0.2.4"
+global.game_version = "3.0.2.5"
 global.tower_level_click = false
 global.tower_cake_page = 1
 global.cross_server_return_page = -1
@@ -223,7 +223,7 @@ if (os_type != os_android && global.ime_block && native_disable_ime != undefined
     native_disable_ime(window_handle());
 }
 
-// 授权状态：恢复 auth.dat
+// 授权状态：恢复 %LOCALAPPDATA%\FVM_Reborn_makk\auth.dat
 // 必须放在 global.native_util 初始化之后（auth_file_path() 依赖它）
 auth_init();
 
