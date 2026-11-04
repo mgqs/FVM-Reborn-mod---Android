@@ -1,5 +1,5 @@
 mod_root = global.native_util.get_path_in_local_appdata("\\FVM_Reborn_makk\\mod");
-if (os_type != os_android && !native_folder_exists(mod_root)) directory_create(mod_root);
+if (!native_folder_exists(mod_root)) directory_create(mod_root);
 state_path = mod_root + "\\mod_state.json";
 scroll_offset = 0;
 row_height = 58;

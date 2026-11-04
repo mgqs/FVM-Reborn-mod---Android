@@ -50,34 +50,10 @@ function auth_secret() {
 }
 
 /// 本机识别码：8 位大写十六进制。
-/// Windows：只用系统名 + CPU 型号，**不掺用户名**——改个用户名就让码失效太坑玩家。
-///          换电脑 / 重装系统 / 改计算机名 → 这个值会变，需要重新领码（换绑）。
-/// Android：系统指纹在移动端拿不到稳定值（设备 ID 受权限限制，且各厂商不一致），
-///          改为首次启动生成一次随机 8 位十六进制并落盘到 auth_hwid.dat。
-///          卸载重装 / 清除数据 → 这个值会变，需要重新领码（换绑）。
+/// 只用系统名 + CPU 型号，**不掺用户名**——改个用户名就让码失效太坑玩家。
+/// 换电脑 / 重装系统 / 改计算机名 → 这个值会变，需要重新领码（换绑）。
 /// @returns {String}
 function auth_hwid() {
-    if (os_type == os_android) {
-        var _f = file_text_open_read("auth_hwid.dat");
-        if (_f != -1) {
-            var _saved = string_upper(auth_clean(file_text_read_string(_f)));
-            file_text_close(_f);
-            if (auth_hwid_valid(_saved)) {
-                return _saved;
-            }
-        }
-        var _chars = "0123456789ABCDEF";
-        var _h = "";
-        for (var _i = 0; _i < kAuthHwidLen; _i++) {
-            _h += string_char_at(_chars, irandom(15) + 1);
-        }
-        var _w = file_text_open_write("auth_hwid.dat");
-        if (_w != -1) {
-            file_text_write_string(_w, _h);
-            file_text_close(_w);
-        }
-        return _h;
-    }
     var _name = string_upper(environment_get_variable("COMPUTERNAME"));
     var _cpu = string_upper(environment_get_variable("PROCESSOR_IDENTIFIER"));
     var _n = string(environment_get_variable("NUMBER_OF_PROCESSORS"));
@@ -205,11 +181,6 @@ function auth_verify_code(_code) {
 }
 
 function auth_file_path() {
-    // Android 沙盒：用相对路径，落在游戏自身存档目录里
-    // （get_path_in_local_appdata 是 Windows 专属的目录拼接，移动端不可用）
-    if (os_type == os_android) {
-        return "auth.dat";
-    }
     return global.native_util.get_path_in_local_appdata("\\FVM_Reborn_makk") + "\\auth.dat";
 }
 
@@ -240,12 +211,9 @@ function auth_save(_code_id, _code) {
     // 落盘走 file_text_*，和工程里 save_file / load_file 完全一致。
     // 不要再用 buffer_create + buffer_save：那两个函数在工程里没有其它先例，
     // 万一缺失要等到**下次启动读档**才炸，比写入时就炸难查得多。
-    // Android 用相对路径直接落在沙盒存档目录，不需要也不允许手工建目录。
-    if (os_type != os_android) {
-        var _dir = global.native_util.get_path_in_local_appdata("\\FVM_Reborn_makk");
-        if (!directory_exists(_dir)) {
-            directory_create(_dir);
-        }
+    var _dir = global.native_util.get_path_in_local_appdata("\\FVM_Reborn_makk");
+    if (!directory_exists(_dir)) {
+        directory_create(_dir);
     }
 
     var _f = file_text_open_write(auth_file_path());

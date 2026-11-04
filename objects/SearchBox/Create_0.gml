@@ -78,16 +78,8 @@ function focus() {
     self.state.cursor_timer = 0
     self.state.cursor_visible = true
     keyboard_string = self.state.text
-    if (os_type != os_android && variable_global_exists("ime_block") && native_enable_ime != undefined) {
+    if (variable_global_exists("ime_block") && native_enable_ime != undefined) {
         native_enable_ime(window_handle())
-    }
-    // Android：点输入框即调起系统软键盘（默认文本键盘，中英标点都能打）
-    // 4 个参数缺一不可（GM1020 只认 4 个）；部分机型/定制系统上该调用无效，
-    // 所以必须 try/catch——失败也不影响输入流程，玩家仍可粘贴/外接键盘。
-    if (os_type == os_android) {
-        try {
-            keyboard_virtual_show(kbv_type_default, kbv_returnkey_done, kbv_autocapitalize_sentences, true)
-        } catch (_e) {}
     }
 }
 
@@ -96,12 +88,8 @@ function blur() {
         return
     }
     self.state.focused = false
-    if (os_type != os_android && variable_global_exists("ime_block") && global.ime_block && native_disable_ime != undefined) {
+    if (variable_global_exists("ime_block") && global.ime_block && native_disable_ime != undefined) {
         native_disable_ime(window_handle())
-    }
-    // Android：失去焦点（点空白 / Esc / 界面切走）时收起软键盘，避免键盘一直压着画面
-    if (os_type == os_android) {
-        try { keyboard_virtual_hide() } catch (_e) {}
     }
 }
 

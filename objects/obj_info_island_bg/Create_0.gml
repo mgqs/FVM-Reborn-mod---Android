@@ -43,7 +43,7 @@ scrollbar_y = 0
 scrollbar_w = 17
 scrollbar_h = 0
 y_offset_target = 0
-// Android 双指滑动：触点中点帧差驱动滚动（受保护段，勿覆盖）
+// Android 双指滑动（受保护段，勿覆盖）
 two_touch_scroll_active = false
 two_touch_scroll_y = 0
 anim_slide = 360

@@ -42,6 +42,12 @@ else if (hex_enabled())
 
 if (global.level_id == "test_level")
 {
+    // F9：海克斯隔离自检（docs 8 验收）。四个旧模式里应当"零海克斯"
+    if (keyboard_check_pressed(vk_f9))
+    {
+        hex_selfcheck_report();
+    }
+
     // F2 打开情报岛敌人页。
     if (!instance_exists(obj_info_island_bg) && keyboard_check_pressed(vk_f2))
     {
@@ -159,7 +165,7 @@ if global.lose_focus_pause{
 
 // Keep expedition/tower timers tied to rendered frame rate.  At 60 FPS this
 // is unchanged; lower FPS advances fewer game-time frames per real frame.
-var _frame_rate_scaled = (string_pos("ancient_castle_", global.level_data.id) == 1)
+var _frame_rate_scaled = is_cross_server_level(global.level_data.id)
     || (string_pos("tower_cake_", global.level_data.id) == 1);
 if (_frame_rate_scaled) {
     var _target_fps = max(1, game_get_speed(gamespeed_fps));
@@ -275,9 +281,15 @@ if time_limit > 0{
 }
 
 
-var _mobile_shift_pressed = variable_global_exists("mobile_shift_pressed") && global.mobile_shift_pressed;
-if keyboard_check_pressed(vk_shift) || keyboard_check_pressed(vk_lshift) || _mobile_shift_pressed{
-	if (_mobile_shift_pressed) global.mobile_shift_pressed = false;
+// Android：虚拟按键 Shift 锁存标志消费（受保护段，勿覆盖）
+if (global.mobile_shift_pressed) {
+    global.mobile_shift_pressed = false;
+    speed_up = not speed_up;
+    if (speed_up) { game_set_speed(120, gamespeed_fps) }
+    else { game_set_speed(60, gamespeed_fps) }
+}
+
+if keyboard_check_pressed(vk_shift) || keyboard_check_pressed(vk_lshift){
 	speed_up = not speed_up
 	if speed_up{
 		game_set_speed(120,gamespeed_fps)

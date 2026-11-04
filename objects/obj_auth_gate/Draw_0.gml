@@ -90,17 +90,6 @@ draw_roundrect_ext(btn_ok_x, btn_y, btn_ok_x + btn_w, btn_y + btn_h, 12, 12, tru
 draw_set_color(c_white);
 draw_text_transformed(btn_ok_x + btn_w * 0.5, btn_y + btn_h * 0.5, "确认绑定", 1.15, 1.15, 0);
 
-// ── Android：粘贴授权码（整条可点，点了直接提交绑定）──
-if (android_paste) {
-    draw_set_color(hover_paste ? make_color_rgb(214, 196, 158) : make_color_rgb(232, 220, 194));
-    draw_roundrect_ext(paste_x, paste_y, paste_x + paste_w, paste_y + paste_h, 12, 12, false);
-    draw_set_color(make_color_rgb(150, 128, 96));
-    draw_roundrect_ext(paste_x, paste_y, paste_x + paste_w, paste_y + paste_h, 12, 12, true);
-    draw_set_color(make_color_rgb(62, 46, 28));
-    draw_text_transformed(paste_x + paste_w * 0.5, paste_y + paste_h * 0.5,
-        "粘贴授权码（从剪贴板填入并确认）", 1.0, 1.0, 0);
-}
-
 // ── 关闭按钮（强制模式没有：未授权就得留在这）──
 if (!mandatory) {
     draw_set_color(hover_no ? make_color_rgb(196, 186, 168) : make_color_rgb(178, 166, 146));

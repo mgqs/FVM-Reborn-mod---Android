@@ -7,9 +7,6 @@ github_api_url = "https://api.github.com/repos/Spring-SG/FVM-Reborn/releases/lat
 // 用于存储HTTP请求的ID
 update_request_id = -1;
 
-// 更新询问弹窗确认后要打开的下载链接（由 Async-Dialog 事件读取）
-update_url = "";
-
 image_xscale = 0.7
 image_yscale = 0.7
 image_speed = 0

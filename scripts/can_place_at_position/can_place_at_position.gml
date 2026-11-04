@@ -11,6 +11,8 @@ function can_place_at_position(x, y, plant_type,feature_type,target_card,card_id
     if (hex_place_locked()) return false;
     // 海克斯「牢大的祝福」：除咖啡杯系以外的攻击类卡片一律不许落位
     if (hex_batch2_coffee_block(card_id)) return false;
+    // 海克斯二期「唯我独尊」：同一种美食场上只能有一张
+    if (hex_b3_unique_block(card_id)) return false;
     if (card_id == "kuileima" && !global.replace_placement) {
         for (var p = 0; p < instance_number(obj_kuileima); p++) {
             var existing = instance_find(obj_kuileima,p);
@@ -108,6 +110,17 @@ function can_place_at_position(x, y, plant_type,feature_type,target_card,card_id
             if (plant.plant_id == card_id) return false;
         }
         return true;
+    }
+
+    if (card_id == "maiya" || card_id == "cotton_candy")
+    {
+        var _carrier_other = (card_id == "maiya") ? "cotton_candy" : "maiya";
+        for (var _ci = 0; _ci < ds_list_size(plant_list); _ci++)
+        {
+            var _cp = ds_list_find_value(plant_list, _ci);
+            if (!instance_exists(_cp) || !variable_instance_exists(_cp, "plant_id")) continue;
+            if (_cp.plant_id == _carrier_other) return false;
+        }
     }
 
     // 根据植物类型检查是否可以种植
@@ -369,7 +382,10 @@ function can_place_at_position(x, y, plant_type,feature_type,target_card,card_id
 						for (var i = 0; i < ds_list_size(plant_list); i++) {
 		                    var plant = ds_list_find_value(plant_list, i);
                     		if (!instance_exists(plant)) continue;
-		                    if (plant.plant_type == "lilypad" && !has_same) {
+		                    if ((plant.plant_type == "lilypad"
+							|| (variable_instance_exists(plant, "provides_bubble") && plant.provides_bubble)
+							|| (variable_instance_exists(plant, "provides_lava") && plant.provides_lava))
+							&& !has_same) {
 		                        return true;
 		                    }
 						}

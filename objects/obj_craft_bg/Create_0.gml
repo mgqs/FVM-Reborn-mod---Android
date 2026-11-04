@@ -37,9 +37,6 @@ y_offset_target = 0
 sb_dragging = false
 sb_drag_y = 0
 sb_drag_offset = 0
-// Android 双指滑动：触点中点帧差驱动滚动（受保护段，勿覆盖）
-two_touch_scroll_active = false
-two_touch_scroll_y = 0
 card_surface = -1
 
 current_uprade_target_id = ""

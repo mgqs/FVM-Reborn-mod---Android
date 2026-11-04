@@ -40,12 +40,12 @@ if (_ime_typing != ime_was_typing) {
     if (_ime_typing) {
         // 获得焦点：放开输入法（摘子类化 + 杀定时器 + 挂回 HIMC）
         // 只在功能开启时才碰 IME：ime_block 关闭时从未屏蔽过，无需也不应改动窗口状态
-        if (os_type != os_android && global.ime_block && native_enable_ime != undefined) {
+        if (global.ime_block && native_enable_ime != undefined) {
             native_enable_ime(window_handle());
         }
     } else {
         // 失焦：立刻恢复屏蔽
-        if (os_type != os_android && global.ime_block && native_disable_ime != undefined) {
+        if (global.ime_block && native_disable_ime != undefined) {
             native_disable_ime(window_handle());
         }
     }
@@ -55,7 +55,7 @@ if (_ime_typing != ime_was_typing) {
 ime_tick++;
 if (!_ime_typing && ime_tick >= 60) {
     ime_tick = 0;
-    if (os_type != os_android && global.ime_block && native_disable_ime != undefined) {
+    if (global.ime_block && native_disable_ime != undefined) {
         native_disable_ime(window_handle());
     }
 }
@@ -65,12 +65,12 @@ if (!variable_instance_exists(id, "ml_tick")) {
     ml_on = false;
     ml_focus_stable = false;
     ml_focus_count = 0;
-    if (os_type != os_android && native_stop_mouse_limit != undefined) native_stop_mouse_limit();
+    if (native_stop_mouse_limit != undefined) native_stop_mouse_limit();
 }
 ml_tick++;
 if (ml_tick >= 10) {
     ml_tick = 0;
-    if (os_type != os_android && global.mouse_limit_hz > 0 && native_start_mouse_limit != undefined) {
+    if (global.mouse_limit_hz > 0 && native_start_mouse_limit != undefined) {
         var _ml_focus = window_has_focus();
         if (_ml_focus != ml_focus_stable) {
             ml_focus_count++;
