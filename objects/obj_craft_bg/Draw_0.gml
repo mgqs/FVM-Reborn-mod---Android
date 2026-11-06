@@ -1255,6 +1255,36 @@ else if button_select == 1{
     var _sb_x   = _sb_l + 600 - _sb_w + 28 + _sb_w * 0.5
     var _sb_vh  = 815                                    // 视口高 = card_surface 高度
     var _sb_max = craft_max_y_offset                     // 与 Mouse_61 同一上限（按解锁卡数动态算）
+    var _two_n = 0
+    var _two_x1 = 0, _two_y1 = 0, _two_x2 = 0, _two_y2 = 0
+    for (var _d = 0; _d < 10; _d++) {
+        if (!device_mouse_check_button(_d, mb_left)) continue
+        _two_n++
+        if (_two_n == 1) { _two_x1 = device_mouse_x(_d); _two_y1 = device_mouse_y(_d) }
+        else if (_two_n == 2) { _two_x2 = device_mouse_x(_d); _two_y2 = device_mouse_y(_d) }
+    }
+    // 滑块优先（2026-10-28 Android）：正在拖 tg_sb / evo_sb 时不接管双指，避免两者同时滚动
+    if (_two_n >= 2 && !tg_sb.on && !evo_sb.on) {
+        var _touch_x = (_two_x1 + _two_x2) * 0.5
+        var _touch_y = (_two_y1 + _two_y2) * 0.5
+        var _touch_inside = point_in_rectangle(_touch_x, _touch_y, _sb_l, _sb_t, _sb_l + 600, _sb_t + _sb_vh)
+        if (_touch_inside) {
+            if (two_touch_scroll_active) {
+                var _two_dy = _touch_y - two_touch_scroll_y
+                // Android 双指滑动按页签分流：转职/进化页滚右侧卡列表（整行 96px），强化页滚 y_offset
+                if (craft_top_tab == 2) {
+                    tg_scroll_target = clamp(tg_scroll_target - _two_dy / 96, 0, tg_rows_max)
+                } else if (craft_top_tab == 3) {
+                    evo_scroll_target = clamp(evo_scroll_target - _two_dy / 96, 0, evo_rows_max)
+                } else if (craft_top_tab == 0) {
+                    y_offset_target = clamp(y_offset_target - _two_dy, 0, _sb_max)
+                }
+                // craft_top_tab == 1（食灵融合）：双面板各自滚轮驱动，双指不接管
+            }
+            two_touch_scroll_y = _touch_y
+            two_touch_scroll_active = true
+        } else two_touch_scroll_active = false
+    } else two_touch_scroll_active = false
     // 滚动平滑趋近：滚轮与点轨道只改目标值，这里每帧非线性逼近（等级 1；等级 0 直接到位）
     if (ui_anim_on(1)) {
         y_offset += (y_offset_target - y_offset) * 0.28

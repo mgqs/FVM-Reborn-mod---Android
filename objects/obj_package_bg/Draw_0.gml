@@ -261,7 +261,7 @@ if package_button_select == 1 {
         card_index++;
     }
 	
-	surface_reset_target()
+	if (surface_exists(package_surface)) surface_reset_target()
 	draw_surface_ext(package_surface,x-354-42,y-361-48,1,1,0,c_white,_pg_alpha_r)
     
     // 绘制悬停提示
@@ -527,7 +527,7 @@ else if package_button_select == 2 {
 		_flat_index++
 	}
 
-	surface_reset_target()
+	if (surface_exists(package_surface)) surface_reset_target()
 	draw_surface_ext(package_surface,x-354-42,y-368-44,1,1,0,c_white,_pg_alpha_r)
 
 	// 绘制悬停提示
@@ -680,7 +680,7 @@ else if package_button_select == 3{
             }
         }
     }
-	surface_reset_target()
+	if (surface_exists(package_surface)) surface_reset_target()
 	draw_surface_ext(package_surface,x-354-42,y-368-44,1,1,0,c_white,_pg_alpha_r)
 	// 绘制悬停提示
     if (hover_material_index != -1) {
@@ -769,7 +769,7 @@ else if package_button_select == 4{
 			}
 		}
 	}
-	surface_reset_target()
+	if (surface_exists(package_surface)) surface_reset_target()
 	draw_surface_ext(package_surface, x - 354 - 42, y - 368 - 44, 1, 1, 0, c_white, _pg_alpha_r)
 
 	// 悬停提示（文案也在分段表里，不写数量：凭证上限按持有 1）
@@ -801,6 +801,24 @@ if (package_button_select == 1) {
 } else {
 	_sb_max = variable_instance_exists(id, "max_y_offset_3") ? max_y_offset_3 : max(0, (package_rows - 9) * 88);
 }
+var _two_n = 0;
+var _two_x1 = 0, _two_y1 = 0, _two_x2 = 0, _two_y2 = 0;
+for (var _d = 0; _d < 10; _d++) {
+	if (!device_mouse_check_button(_d, mb_left)) continue;
+	_two_n++;
+	if (_two_n == 1) { _two_x1 = device_mouse_x(_d); _two_y1 = device_mouse_y(_d); }
+	else if (_two_n == 2) { _two_x2 = device_mouse_x(_d); _two_y2 = device_mouse_y(_d); }
+}
+if (_two_n >= 2) {
+	var _touch_x = (_two_x1 + _two_x2) * 0.5;
+	var _touch_y = (_two_y1 + _two_y2) * 0.5;
+	var _touch_inside = point_in_rectangle(_touch_x, _touch_y, _sb_l, _sb_t, _sb_l + 756, _sb_t + _sb_vh);
+	if (_touch_inside) {
+		if (two_touch_scroll_active) y_offset_target = clamp(y_offset_target - (_touch_y - two_touch_scroll_y), 0, _sb_max);
+		two_touch_scroll_y = _touch_y;
+		two_touch_scroll_active = true;
+	} else two_touch_scroll_active = false;
+} else two_touch_scroll_active = false;
 if (ui_anim_on(1)) {
 	y_offset += (y_offset_target - y_offset) * 0.28;
 	if (abs(y_offset_target - y_offset) < 0.5) y_offset = y_offset_target;

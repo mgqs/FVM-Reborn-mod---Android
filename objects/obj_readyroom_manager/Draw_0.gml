@@ -189,15 +189,7 @@ for(var i = 0 ; i < slot_rows ; i++){
 }
 draw_surface(slot_surface,x-25+803-42,y+ 375-48)
 {
-	var _sb_scl = 2.2
-	var _sb_w = sprite_get_width(spr_info_island_scroll_bar) * _sb_scl
-	var _sb_h = sprite_get_height(spr_info_island_scroll_bar) * _sb_scl
-	var _sb_l = x - 25 + 803 - 42
-	var _sb_t = y + 375 - 48
-	var _sb_x = _sb_l + (x + 42 + slot_rows * 84) + 6 + _sb_w * 0.5
-	var _sb_vh = 420
-	var _sb_max = ready_max_y_offset
-	// Android 双指滑动（受保护段，勿覆盖）：触点中点帧差驱动 y_offset_target
+	// 双指滑动：遍历所有触点索引（Android 触点索引不保证 0/1 连续）
 	var _two_n = 0
 	var _two_x1 = 0, _two_y1 = 0, _two_x2 = 0, _two_y2 = 0
 	for (var _d = 0; _d < 10; _d++) {
@@ -206,17 +198,25 @@ draw_surface(slot_surface,x-25+803-42,y+ 375-48)
 		if (_two_n == 1) { _two_x1 = device_mouse_x(_d); _two_y1 = device_mouse_y(_d) }
 		else if (_two_n == 2) { _two_x2 = device_mouse_x(_d); _two_y2 = device_mouse_y(_d) }
 	}
-	if (_two_n >= 2 && !sb_dragging) {
-		var _touch_x = (_two_x1 + _two_x2) * 0.5
-		var _touch_y = (_two_y1 + _two_y2) * 0.5
-		if (point_in_rectangle(_touch_x, _touch_y, _sb_x - 60, _sb_t - 20, _sb_x + _sb_w + 60, _sb_t + _sb_vh + 20)) {
-			if (two_touch_scroll_active) {
-				y_offset_target = clamp(y_offset_target - (_touch_y - two_touch_scroll_y), 0, _sb_max)
-			}
-			two_touch_scroll_y = _touch_y
+	if (_two_n >= 2) {
+		var _two_mx = (_two_x1 + _two_x2) * 0.5
+		var _two_my = (_two_y1 + _two_y2) * 0.5
+		var _two_l = x - 25 + 803 - 42
+		var _two_t = y + 375 - 48
+		if (point_in_rectangle(_two_mx, _two_my, _two_l, _two_t, _two_l + slot_rows * 84, _two_t + 420)) {
+			if (two_touch_scroll_active) y_offset_target = clamp(y_offset_target - (_two_my - two_touch_scroll_y), 0, ready_max_y_offset)
+			two_touch_scroll_y = _two_my
 			two_touch_scroll_active = true
 		} else two_touch_scroll_active = false
 	} else two_touch_scroll_active = false
+	var _sb_scl = 2.2
+	var _sb_w = sprite_get_width(spr_info_island_scroll_bar) * _sb_scl
+	var _sb_h = sprite_get_height(spr_info_island_scroll_bar) * _sb_scl
+	var _sb_l = x - 25 + 803 - 42
+	var _sb_t = y + 375 - 48
+	var _sb_x = _sb_l + (x + 42 + slot_rows * 84) + 6 + _sb_w * 0.5
+	var _sb_vh = 420
+	var _sb_max = ready_max_y_offset
 	if (_sb_max > 0 && _sb_vh > _sb_h) {
 		var _sb_travel = _sb_vh - _sb_h
 		var _sb_y = _sb_t + clamp(y_offset / _sb_max, 0, 1) * _sb_travel
@@ -422,11 +422,16 @@ for(var i = deck_first_slot_index; i < deck_first_slot_index+11;i++){
 	if global.level_file.version != "1.0.0"{
 		if array_get_index(global.save_data.completed_levels,global.level_data.id) == -1{
 			draw_text(100,780,"关卡奖励（首通）")
-			var _cs_rw_rd = cross_server_reward(global.level_data.id, true);
-			if (_cs_rw_rd != undefined) {
-					draw_text(100,820,"白银徽章（"+string(_cs_rw_rd.silver)+"）");
-					draw_text(100,860,"黄金徽章（"+string(_cs_rw_rd.gold_medal)+"）");
-					draw_text(100,900,"金币（"+string(_cs_rw_rd.coins)+"）");
+			var _is_cs_ready = (string_pos("ancient_castle_", global.level_data.id) == 1);
+			if (_is_cs_ready) {
+					var _cs_silver_arr_rd = [350, 400, 181, 240, 280, 395, 635, 875];
+					var _cs_lv_idx_rd = real(string_delete(global.level_data.id, 1, string_length("ancient_castle_")));
+					var _cs_silver_rd = _cs_silver_arr_rd[min(_cs_lv_idx_rd, array_length(_cs_silver_arr_rd) - 1)];
+					var _cs_gold_medal_rd = [90, 120, 181, 240, 280, 395, 635, 875][min(_cs_lv_idx_rd, 7)];
+					var _cs_gold_coins_rd = [60000, 84000, 104000, 129000, 140000, 160000, 190000, 220000][min(_cs_lv_idx_rd, 7)];
+					draw_text(100,820,"白银徽章（"+string(_cs_silver_rd)+"）");
+					draw_text(100,860,"黄金徽章（"+string(_cs_gold_medal_rd)+"）");
+					draw_text(100,900,"金币（"+string(_cs_gold_coins_rd)+"）");
 				} else {
 				draw_text(100,820,"金币（"+string(global.level_file.rewards[1].gold)+"）")
 				draw_text(100,860,"技能："+string(global.level_file.rewards[1].skill_level)+"级")
@@ -467,11 +472,16 @@ for(var i = deck_first_slot_index; i < deck_first_slot_index+11;i++){
 		}
 		else{
 			draw_text(100,780,"关卡奖励")
-			var _cs_rw_rr = cross_server_reward(global.level_data.id, false);
-			if (_cs_rw_rr != undefined) {
-					draw_text(100,820,"白银徽章（"+string(_cs_rw_rr.silver)+"）");
-					draw_text(100,860,"黄金徽章（"+string(_cs_rw_rr.gold_medal)+"）");
-					draw_text(100,900,"金币（"+string(_cs_rw_rr.coins)+"）");
+			var _is_cs_ready_r = (string_pos("ancient_castle_", global.level_data.id) == 1);
+			if (_is_cs_ready_r) {
+					var _cs_silver_arr_rr = [105, 149, 169, 203, 209, 203, 157, 113];
+					var _cs_lv_idx_rr = real(string_delete(global.level_data.id, 1, string_length("ancient_castle_")));
+					var _cs_silver_rr = _cs_silver_arr_rr[min(_cs_lv_idx_rr, array_length(_cs_silver_arr_rr) - 1)];
+					var _cs_gold_rr = [27, 35, 55, 71, 83, 119, 191, 263][min(_cs_lv_idx_rr, 7)];
+					var _cs_gold_coins_rr = [30000, 42000, 52000, 64500, 70000, 80000, 95000, 110000][min(_cs_lv_idx_rr, 7)];
+					draw_text(100,820,"白银徽章（"+string(_cs_silver_rr)+"）");
+					draw_text(100,860,"黄金徽章（"+string(_cs_gold_rr)+"）");
+					draw_text(100,900,"金币（"+string(_cs_gold_coins_rr)+"）");
 				} else {
 				draw_text(100,820,"金币（"+string(global.level_file.rewards[0].gold)+"）")
 				var item_string = ""

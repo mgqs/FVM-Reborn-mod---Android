@@ -42,7 +42,8 @@ if (instance_exists(obj_battle)) {
 // 全部尺寸集中在这里，Draw 不再写死数字。改版面只动这一块。
 // 竖向节奏（相对面板顶部）：50 / 96 / 128 / 206 / 300 / 底部 -96
 panel_w = 860;
-panel_h = 470;
+// Android 在状态提示与按钮之间多一行「粘贴授权码」，面板加高 72（其余版面全部按相对偏移算，不受影响）
+panel_h = 470 + (os_type == os_android ? 72 : 0);
 pad     = 60;                                   // 左右内边距
 panel_x = (room_width  - panel_w) * 0.5;
 panel_y = (room_height - panel_h) * 0.5;
@@ -89,6 +90,18 @@ if (mandatory) {
 hover_ok = false;
 hover_no = false;
 
+// ── Android：粘贴授权码按钮（2026-10-29）──
+// 移动端没有物理键盘，在输入框里手打 30 多位的码几乎不可能。
+// 点这个按钮 = 读剪贴板 → 清洗 → 填进输入框并直接提交绑定。
+// 位置：状态提示（panel_y+300）与按钮行（panel_y+panel_h-148）之间，
+//       Android 面板已加高 72，这段空隙放得下。
+android_paste = (os_type == os_android);
+paste_x = panel_x + pad;
+paste_y = panel_y + 318;
+paste_w = inner_w;
+paste_h = 52;
+hover_paste = false;
+
 // ── 输入框：复用 SearchBox（已处理粘贴 / 输入法 / 失焦）──
 // 深度取 -16000（比面板再深一层），保证输入框画在面板之上。
 var _box = instance_create_depth(box_x, box_y, -16000, SearchBox);
@@ -125,5 +138,14 @@ _box.set_on_change(method({ owner: id }, function(_text) {
     }
 }));
 _box.focus();
+
+// 安卓额外尝试拉起系统软键盘（能拉起来就直接打字；拉不起来也不影响，还有上面的粘贴按钮兜底）
+// 该函数在部分机型上无效，所以必须 try/catch，失败不能影响启动
+if (os_type == os_android) {
+    try {
+        // 4 个参数：type / returnkey / autocapitalization / predictive text
+        keyboard_virtual_show(kbv_type_default, kbv_returnkey_done, kbv_autocapitalize_sentences, true);
+    } catch (_e) {}
+}
 
 input_box = _box;

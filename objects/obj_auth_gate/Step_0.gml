@@ -29,6 +29,7 @@ var _my = device_mouse_y_to_gui(0);
 hover_ok   = point_in_rectangle(_mx, _my, btn_ok_x,  btn_y, btn_ok_x  + btn_w, btn_y + btn_h);
 hover_no   = point_in_rectangle(_mx, _my, btn_no_x,  btn_y, btn_no_x  + btn_w, btn_y + btn_h);
 hover_hwid = point_in_rectangle(_mx, _my, hwid_x,   hwid_y, hwid_x + hwid_w, hwid_y + hwid_h);
+hover_paste = point_in_rectangle(_mx, _my, paste_x,  paste_y, paste_x + paste_w, paste_y + paste_h);
 
 var _clicked = mouse_check_button_pressed(mb_left);
 
@@ -42,14 +43,31 @@ if (_clicked && hover_hwid) {
     exit;
 }
 
+// Android：点「粘贴授权码」→ 读剪贴板清洗后填入输入框，并直接提交绑定
+// （清洗很关键：QQ 复制常带空格 / 换行 / 零宽字符，多一个字符就验不过）
+var _paste_submit = false;
+if (android_paste && _clicked && hover_paste) {
+    var _clip = clipboard_get_text();
+    if (_clip == "") {
+        msg = "剪贴板是空的，先在 QQ 里复制授权码再点这里";
+        msg_ok = false;
+        msg_timer = 180;
+        exit;
+    }
+    var _clip_clean = auth_clean(_clip);
+    input_box.set_text(_clip_clean);
+    keyboard_string = _clip_clean;
+    _paste_submit = true;
+}
+
 // 「稍后再说」：强制模式下按钮已被移到屏幕外，这里再挡一道，防止有人靠改坐标绕过
 if (!mandatory && _clicked && hover_no) {
     instance_destroy();
     exit;
 }
 
-// 回车等同点「确认绑定」
-var _confirm = (_clicked && hover_ok) || keyboard_check_pressed(vk_enter);
+// 回车等同点「确认绑定」；粘贴按钮点一次也直接提交
+var _confirm = (_clicked && hover_ok) || keyboard_check_pressed(vk_enter) || _paste_submit;
 if (!_confirm) {
     exit;
 }

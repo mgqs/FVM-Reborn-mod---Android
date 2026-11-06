@@ -323,7 +323,7 @@ function step_targeting_source()
     }
 
     // 右键取消
-    if (mouse_check_button_pressed(mb_right))
+    if (ui_back_click_pressed())
     {
         wanpilong_cancel_cast();
         return;
@@ -380,7 +380,7 @@ function step_pre_swing()
     }
 
     // 右键取消（前摇期间可取消）
-    if (mouse_check_button_pressed(mb_right))
+    if (ui_back_click_pressed())
     {
         wanpilong_cancel_cast();
         return;
@@ -462,7 +462,7 @@ function step_targeting_dest()
     var _row = _mouse_grid.row;
 
     // 右键取消
-    if (mouse_check_button_pressed(mb_right))
+    if (ui_back_click_pressed())
     {
         wanpilong_cancel_cast();
         return;

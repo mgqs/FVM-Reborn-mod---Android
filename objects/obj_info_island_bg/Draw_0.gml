@@ -58,8 +58,6 @@ for (var _sr_i = _sr_i0; _sr_i <= _sr_i1; _sr_i++) {
 //   info_view 的含义：tab1 = global.player_deck 的下标（已排序）；tab2 = 敌人 id；tab3 = 关卡 id
 //   顺序不能换：排序 → 过滤 → 分页/行数，否则页码和滚动会跟结果对不上
 var _q = string_lower(info_search_text);
-// 卡片页签的分类检索（2026-11-03）：空格分词在这里切一次，过滤循环里复用
-var _q_words = info_island_search_words(_q);
 info_view = [];
 if (info_button_select == 1) {
     if (ds_exists(global.player_deck, ds_type_list)) {
@@ -85,8 +83,12 @@ if (info_button_select == 1) {
 
         for (var _vi = 0; _vi < array_length(deck_sort_order); _vi++) {
             var _di = deck_sort_order[_vi];
-            // 卡名 / 分类 / 别名叫法都能搜（2026-11-03）
-            if (!info_island_search_match_card(_q_words, global.player_deck[| _di])) continue;
+            if (_q != "") {
+                var _fcid = global.player_deck[| _di];
+                var _fsd = get_plant_shape_data(_fcid, 0);
+                var _fnm = (_fsd != undefined) ? string(_fsd[? "name"]) : _fcid;
+                if (!info_island_search_match(_q, _fnm)) continue;
+            }
             array_push(info_view, _di);
         }
     }
@@ -387,9 +389,7 @@ else if info_button_select == 2 {
 	if (select_card_index != -1 && select_card_index < array_length(info_view)){
 		//绘制右侧信息栏
 		var enemy_id_array = info_view
-		var enemy_id = enemy_id_array[select_card_index]
-		// 海克斯「情报收集」：打开右侧信息栏 = 已查看这只鼠军（跨存档记一笔）
-		if (hex_enabled()) hex_b3_info_mark(string(enemy_id));
+        var enemy_id = enemy_id_array[select_card_index]
 		var enemy_data = global.enemy_map[? enemy_id];
 		var info = global.enemy_info_island[? enemy_id]
 		var name = enemy_data.name
@@ -560,26 +560,25 @@ var sb_h       = 2.2;                              // 长度缩放
 var content_height = 142 * 1.5 * info_rows;
 var scroll_max = content_height - surface_height;
 
-// Android 双指滑动（受保护段，勿覆盖）：触点中点帧差驱动 y_offset_target
-var _two_n = 0
-var _two_x1 = 0, _two_y1 = 0, _two_x2 = 0, _two_y2 = 0
+// Android 双指滑动：触点中点帧差驱动滚动（受保护段，勿覆盖）
+var _two_n = 0;
+var _two_x1 = 0, _two_y1 = 0, _two_x2 = 0, _two_y2 = 0;
 for (var _d = 0; _d < 10; _d++) {
-    if (!device_mouse_check_button(_d, mb_left)) continue
-    _two_n++
-    if (_two_n == 1) { _two_x1 = device_mouse_x(_d); _two_y1 = device_mouse_y(_d) }
-    else if (_two_n == 2) { _two_x2 = device_mouse_x(_d); _two_y2 = device_mouse_y(_d) }
+    if (!device_mouse_check_button(_d, mb_left)) continue;
+    _two_n++;
+    if (_two_n == 1) { _two_x1 = device_mouse_x(_d); _two_y1 = device_mouse_y(_d); }
+    else if (_two_n == 2) { _two_x2 = device_mouse_x(_d); _two_y2 = device_mouse_y(_d); }
 }
-if (_two_n >= 2 && !scrollbar_dragging) {
-    var _touch_x = (_two_x1 + _two_x2) * 0.5
-    var _touch_y = (_two_y1 + _two_y2) * 0.5
-    if (point_in_rectangle(_touch_x, _touch_y, sb_x - 40, sb_y_start - 20, sb_x + 200, sb_y_end + 40)) {
-        if (two_touch_scroll_active) {
-            y_offset_target = clamp(y_offset_target - (_touch_y - two_touch_scroll_y), 0, scroll_max)
-        }
-        two_touch_scroll_y = _touch_y
-        two_touch_scroll_active = true
-    } else two_touch_scroll_active = false
-} else two_touch_scroll_active = false
+if (_two_n >= 2) {
+    var _touch_x = (_two_x1 + _two_x2) * 0.5;
+    var _touch_y = (_two_y1 + _two_y2) * 0.5;
+    var _touch_inside = point_in_rectangle(_touch_x, _touch_y, x - surface_width * 0.5, y - surface_height * 0.5, x + surface_width * 0.5, y + surface_height * 0.5);
+    if (_touch_inside) {
+        if (two_touch_scroll_active) y_offset_target = clamp(y_offset_target - (_touch_y - two_touch_scroll_y), 0, max(0, scroll_max));
+        two_touch_scroll_y = _touch_y;
+        two_touch_scroll_active = true;
+    } else two_touch_scroll_active = false;
+} else two_touch_scroll_active = false;
 
 if (scroll_max > 0) {
     var track_h = sb_y_end - sb_y_start;

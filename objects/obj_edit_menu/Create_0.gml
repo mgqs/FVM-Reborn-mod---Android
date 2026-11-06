@@ -18,7 +18,11 @@ save_btn.parent = id; // 设置父对象以便通信
 
 // 创建保存按钮
 var open_save_folder_btn = instance_create_depth(x - 175, y + 280, depth-1, obj_edit_menu_button);
-open_save_folder_btn.button_text = "存档文件夹";
+if (os_type == os_android) {
+	open_save_folder_btn.button_text = "删除存档";
+} else {
+	open_save_folder_btn.button_text = "存档文件夹";
+}
 open_save_folder_btn.btn_type = "open_save_folder";
 open_save_folder_btn.parent = id; 
 

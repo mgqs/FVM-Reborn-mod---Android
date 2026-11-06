@@ -1,13 +1,13 @@
  // Inherit the parent event
 event_inherited();
-hp = 249
-maxhp = 249
+hp = 800
+maxhp = 800
 move_speed = 0.9
 move_anim = 8
 attack_anim = 11
 death_anim = 14
 skipped = false
 
-block_list = ["chocolate_bread","pineapple_explosive_bread"]
+block_list = ["chocolate_bread","pineapple_explosive_bread","mianbao"]
 immune_to_ash = true
 mouse_id = "kuafu_skateboard"

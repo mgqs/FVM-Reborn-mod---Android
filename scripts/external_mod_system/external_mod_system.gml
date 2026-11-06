@@ -20,13 +20,16 @@ function external_mod_lua_bind() {
 }
 
 function native_mod_lua_create(source) {
+    if (os_type == os_android) return "{\"ok\":false,\"error\":\"Mod Lua 仅支持 Windows\"}";
     external_mod_lua_bind();
     return external_call(global.external_mod_lua_functions[0], source);
 }
 function native_mod_lua_call(handle, event_name, context) {
+    if (os_type == os_android) return "{\"ok\":false}";
     return external_call(global.external_mod_lua_functions[1], handle, event_name, context);
 }
 function native_mod_lua_destroy(handle) {
+    if (os_type == os_android) return 0;
     return external_call(global.external_mod_lua_functions[2], handle);
 }
 

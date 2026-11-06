@@ -191,10 +191,14 @@ function create_widgets() {
             if (_online_visible) {
                 close_fn()
             } else {
-                var _target = global.native_util.get_path_in_local_appdata("\\FVM_Reborn_makk\\laboratory")
-                var _error_code = native_open_folder(_target)
-                if (_error_code != 0) {
-                    global.native_util.show_error(_error_code, "打开实验室文件夹失败")
+                if (os_type == os_android) {
+                    show_message_async("实验室文件夹仅支持 Windows")
+                } else {
+                    var _target = global.native_util.get_path_in_local_appdata("\\FVM_Reborn_makk\\laboratory")
+                    var _error_code = native_open_folder(_target)
+                    if (_error_code != 0) {
+                        global.native_util.show_error(_error_code, "打开实验室文件夹失败")
+                    }
                 }
             }
         }))

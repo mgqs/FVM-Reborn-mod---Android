@@ -1,4 +1,4 @@
-﻿function gods_shop_init()
+function gods_shop_init()
 {
     register_gods_goods("gaia",
     {

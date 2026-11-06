@@ -71,8 +71,12 @@ if (point_in_rectangle(mouse_x, mouse_y, x - 420, y - 305, x - 245, y - 270) && 
 }
 
 if (point_in_rectangle(mouse_x, mouse_y, x - 230, y - 305, x - 35, y - 270) && mouse_check_button_pressed(mb_left)) {
-    var open_code = native_open_folder(mod_root);
-    if (open_code != 0) status_text = "打开目录失败，错误码：" + string(open_code);
+    if (os_type == os_android) {
+        status_text = "Mod 目录管理仅支持 Windows";
+    } else {
+        var open_code = native_open_folder(mod_root);
+        if (open_code != 0) status_text = "打开目录失败，错误码：" + string(open_code);
+    }
 }
 
 for (var i = 0; i < array_length(mods); i++) {
@@ -98,12 +102,16 @@ for (var i = 0; i < array_length(mods); i++) {
         audio_play_sound(snd_button, 0, 0);
     }
     if (point_in_rectangle(mouse_x, mouse_y, x + 335, row_y - 17, x + 415, row_y + 17) && mouse_check_button_pressed(mb_left)) {
-        var delete_code = native_delete_folder(mod_root + "\\" + mods[i].folder);
-        if (delete_code == 0) {
-            status_text = "已删除：" + mods[i].name + "，重启后生效；保留卡片进度";
-            refresh_mods();
+        if (os_type == os_android) {
+            status_text = "删除 Mod 仅支持 Windows";
         } else {
-            status_text = "删除失败，错误码：" + string(delete_code);
+            var delete_code = native_delete_folder(mod_root + "\\" + mods[i].folder);
+            if (delete_code == 0) {
+                status_text = "已删除：" + mods[i].name + "，重启后生效；保留卡片进度";
+                refresh_mods();
+            } else {
+                status_text = "删除失败，错误码：" + string(delete_code);
+            }
         }
         audio_play_sound(snd_button, 0, 0);
         break;

@@ -66,6 +66,7 @@ function MapDownloadManager() constructor {
     /// @param {String} _title
     /// @returns {Bool}
     static is_downloaded = function(_title) {
+        if (os_type == os_android) return false;
         return native_folder_exists(self.get_download_folder(_title)) == 1
             || native_folder_exists(self.get_working_download_folder(_title)) == 1
     }
@@ -252,6 +253,7 @@ function MapDownloadManager() constructor {
     /// @param {String} _title
     /// @returns {Real}
     static delete_download = function(_title) {
+        if (os_type == os_android) return 0;
         var _code = 0
         var _folder = self.get_download_folder(_title)
         if (native_folder_exists(_folder) == 1) {
@@ -271,6 +273,7 @@ function MapDownloadManager() constructor {
     /// @param {String} _title
     /// @returns {Real}
     static unzip_to_title = function(_zip_path, _title) {
+        if (os_type == os_android) return -1;
         var _zip = global.native_util.to_native_absolute(_zip_path)
         var _dest = self.get_download_folder(_title)
         show_debug_message("[OnlineMap] unzip " + _zip + " -> " + _dest)

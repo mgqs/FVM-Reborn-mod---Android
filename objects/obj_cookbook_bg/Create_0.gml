@@ -6,6 +6,8 @@ is_submenu_opened = false
 button_select = -1
 target_cookbook_index = -1
 y_offset = 0
+two_touch_scroll_active = false
+two_touch_scroll_y = 0
 
 current_cookbook_list = []
 

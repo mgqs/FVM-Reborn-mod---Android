@@ -37,13 +37,9 @@ if (event_id == update_request_id) {
                 var msg = "发现新版本: " + remote_tag + "\n当前版本: v" + local_version + 
                           "\n\n是否前往下载页面？";
                 
-                // 弹窗询问（或者直接显示提示）
-                if (show_question(msg)) {
-                    // 注意：这里使用浏览器打开URL，需要特定平台支持
-                    // 在Windows/Mac上通常可以使用 url_open()
-                    // 但在部分新版本GMS2或特定导出模块中可能需要扩展
-                    url_open(html_url); 
-                }
+                // Android 等平台改用异步弹窗，结果在 Async-Dialog 事件中处理
+                update_url = html_url;
+                show_question_async(msg);
             } else {
                 show_notice("当前已是最新版本。",60);
                 // 可选：显示一个小提示

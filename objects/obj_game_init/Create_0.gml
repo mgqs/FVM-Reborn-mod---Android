@@ -1,5 +1,4 @@
 function init_native_log() {
-    // Android：无 native 日志系统，跳过（受保护段，勿覆盖）
     if (os_type == os_android) return;
     var _local_log_file = global.native_util.get_path_in_local_appdata("\\FVM_Reborn_makk\\native\\latest.log")
 	var _error_code = native_set_native_log_file_path(_local_log_file)
@@ -10,7 +9,6 @@ function init_native_log() {
 }
 
 function move_files () {
-    // Android：存档/实验室已在沙盒，跳过迁移（受保护段，勿覆盖）
     if (os_type == os_android) return;
     var _local_folder = global.native_util.get_path_in_local_appdata("\\FVM_Reborn_makk")
     var _old_root = global.native_util.get_path_in_local_appdata("\\FVM_Reborn")
@@ -49,7 +47,7 @@ global.level_data = {}
 global.ui_anim = 1
 global.debug = 0
 global.laboretory_room = false
-global.game_version = "3.0.2.7"
+global.game_version = "3.0.2.8"
 global.tower_level_click = false
 global.tower_cake_page = 1
 global.cross_server_return_page = -1
@@ -63,13 +61,18 @@ global.native_util = new NativeUtil()
 init_native_log()
 move_files()
 
-// Mod 包目录：所有外部 Mod 解压到 %LOCALAPPDATA%\\FVM_Reborn_makk\\mod
-// Android：沙盒内无此目录结构，跳过（受保护段，勿覆盖）
+// Mod 包目录：所有外部 Mod 解压到 %LOCALAPPDATA%\\FVM_Reborn_makk\\mod（Windows 专属）
 if (os_type != os_android) {
-var _mod_folder = global.native_util.get_path_in_local_appdata("\\FVM_Reborn_makk\\mod")
-if (native_folder_exists(_mod_folder) == 0) {
-    directory_create(_mod_folder)
+    var _mod_folder = global.native_util.get_path_in_local_appdata("\\FVM_Reborn_makk\\mod")
+    if (native_folder_exists(_mod_folder) == 0) {
+        directory_create(_mod_folder)
+    }
 }
+
+// 移动端虚拟按键（左下角 Shift/Esc），持久化跨房间存活
+global.mobile_shift_pressed = false;
+if (os_type == os_android) {
+    instance_create_depth(0, 0, -9999, obj_mobile_buttons);
 }
 
 // 初始化全局键位映射
@@ -215,16 +218,9 @@ global.sound_volume_before_mute = global.sound_volume > 0 ? global.sound_volume 
 
 show_debug_message(working_directory)
 
-// 屏蔽输入法（IME）：游戏内全程中文候选框不弹出
-// Android：无 native IME，跳过（受保护段，勿覆盖）
+// 屏蔽输入法（IME）：游戏内全程中文候选框不弹出（仅 Windows 原生有效，Android 端跳过）
 if (os_type != os_android && global.ime_block && native_disable_ime != undefined) {
     native_disable_ime(window_handle());
-}
-
-// Android：创建虚拟按键（Esc 全局 + Shift 仅对局内；persistent 跨房间存活；受保护段，勿覆盖）
-if (os_type == os_android) {
-    global.mobile_shift_pressed = false;
-    instance_create_depth(0, 0, -9999, obj_mobile_buttons);
 }
 
 // 授权状态：恢复 %LOCALAPPDATA%\FVM_Reborn_makk\auth.dat
