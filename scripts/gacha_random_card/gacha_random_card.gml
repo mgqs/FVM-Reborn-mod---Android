@@ -94,7 +94,25 @@ function random_gift_pick_card() {
 /// @function random_gift_spawn_card(x, y, col, row, level)
 /// @desc 创建礼盒抽出的卡片，并在创建前传入形态、星级和技能参数。
 function random_gift_spawn_card(_x, _y, _col, _row, _level) {
+    // 礼盒抽到「水属性鼠军」时必须有水格：纯陆地地图上粉红保罗这类 water 敌人
+    // 没有可走的地形，Boss 技能按行取格会踩空报错。这里最多重抽 8 次，抽不到就放弃。
+    var _water_cell = false;
+    if (variable_global_exists("grid_terrains") && is_array(global.grid_terrains)
+        && _row >= 0 && _col >= 0
+        && _row < array_length(global.grid_terrains)
+        && is_array(global.grid_terrains[_row])
+        && _col < array_length(global.grid_terrains[_row])) {
+        var _t = global.grid_terrains[_row][_col];
+        if (is_struct(_t) && variable_struct_exists(_t, "type")) {
+            _water_cell = (_t.type == "water");
+        }
+    }
     var result = random_gift_pick_card();
+    for (var _try = 0; _try < 8 && result != undefined && result.kind == "enemy" && !_water_cell; _try++) {
+        var _can_feat = (is_struct(result.data) && variable_struct_exists(result.data, "feature")) ? result.data.feature : "";
+        if (_can_feat != "water") break;
+        result = random_gift_pick_card();
+    }
     if (result == undefined) return noone;
     if (result.kind == "enemy") {
         var enemy_obj = result.data._obj;
@@ -604,10 +622,10 @@ function gacha_pick_random_reward() {
     // 权重值（非百分比；最终按「有候选的池」的权重之和归一化）：
     //   抽卡（难度6）：融合菜谱20 / 金卡15 / 生肖20 / 普通74 / 武器0.5 / 宝石0.5   → 合计 130
     //   欧皇（难度7）：融合菜谱30 / 金卡50 / 生肖25 / 普通20 / 武器2.5 / 宝石2.5   → 合计 130
-    var fusion_weight = 20;
+    var fusion_weight = 15;
     var gold_weight = 15;
-    var zodiac_weight = 30;
-    var normal_weight = 70;
+    var zodiac_weight = 20;
+    var normal_weight = 80;
     var weapon_weight = 0.5;
     var gem_weight = 0.5;
 
