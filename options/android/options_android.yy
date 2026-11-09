@@ -11,7 +11,7 @@
   "option_android_compile_sdk":"35",
   "option_android_device_support":0,
   "option_android_display_layout":"LAYOUT_IN_DISPLAY_CUTOUT_MODE_DEFAULT",
-  "option_android_display_name":"美食大战老鼠：重生",
+  "option_android_display_name":"美食大战老鼠：重生Makk",
   "option_android_edge_to_edge_display":false,
   "option_android_facebook_app_display_name":"",
   "option_android_facebook_id":"",
@@ -79,7 +79,7 @@
   "option_android_tv_isgame":true,
   "option_android_tv_supports_leanback":true,
   "option_android_use_facebook":false,
-  "option_android_version":"3.0.1",
+  "option_android_version":"3.0.3",
   "resourceType":"GMAndroidOptions",
   "resourceVersion":"2.0",
 }

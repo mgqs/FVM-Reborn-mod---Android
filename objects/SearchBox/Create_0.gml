@@ -101,6 +101,20 @@ function focus() {
     }
 }
 
+/// @func searchbox_any_focused(_except)
+/// @desc 除了 _except 这个实例之外，是否还有别的输入框已经拿到焦点
+///   同一画面可能同时存在多个输入框（情报岛 / 授权 / 商店凭证），
+///   点另一个框时两个实例的 Step 都会跑：先 focus 再 blur 会把刚弹出来的键盘又收掉
+function searchbox_any_focused(_except) {
+    var _found = false
+    with (SearchBox) {
+        if (id != _except && state.focused) {
+            _found = true
+        }
+    }
+    return _found
+}
+
 function blur() {
     if (!self.state.focused) {
         return
@@ -110,8 +124,11 @@ function blur() {
         native_disable_ime(window_handle())
     }
     // Android：失去焦点（点空白 / Esc / 界面切走）时收起软键盘，避免键盘一直压着画面
+    //   但如果玩家是点了「另一个」输入框，键盘马上会被对方重新调起来，这里就别关了
     if (os_type == os_android) {
-        try { keyboard_virtual_hide() } catch (_e) {}
+        if (!searchbox_any_focused(id)) {
+            try { keyboard_virtual_hide() } catch (_e) {}
+        }
     }
 }
 
@@ -192,7 +209,48 @@ function on_step() {
     // ── 2026-11-05：支持「光标插在中间」（原来整串取 keyboard_string，只能在末尾加、末尾删）──
     //   自己维护 text + caret：每帧把 keyboard_string 和上一帧副本比对，只把「新增的那一段」
     //   插到光标处；随后回写 keyboard_string = text，让下一帧的比对基准永远是本框的文字。
-    if (keyboard_check(vk_control) && keyboard_check_pressed(ord("V"))) {
+    if (os_type == os_android) {
+        // ── 2026-11-08 安卓：软键盘（系统输入法）自己维护文本缓冲，本框**只读不写** ──
+        //   旧代码每帧都执行 keyboard_string = text 回写，等于每帧给输入法 setText 一次：
+        //   组合态被打断（拼音一个字母都上不了屏），部分机型干脆把所有字符吞掉。
+        //   现在把 keyboard_string 当唯一缓冲：只拿它和上一帧副本比对，吸收「变的那段」。
+        var _akb = keyboard_string
+        var _apk = self.state.kb_prev
+
+        if (_akb != _apk) {
+            var _len_kb = string_length(_akb)
+            var _len_pk = string_length(_apk)
+            if (_len_kb > _len_pk && string_pos(_apk, _akb) == 1) {
+                // 正常打字 / 中文上屏：多出来的那段插到光标处
+                insert_at_caret(string_delete(_akb, 1, _len_pk))
+                self.state.kb_prev = _akb
+            } else if (_len_kb < _len_pk && string_pos(_akb, _apk) == 1) {
+                if (_akb == "" && self.state.text != "") {
+                    // 输入法把缓冲清空了（刚弹键盘 / 机型差异）：重新播种，别误判成退格
+                    keyboard_string = self.state.text
+                    self.state.kb_prev = keyboard_string
+                } else {
+                    // 原生退格：缓冲末尾被删 → 改成「删光标前一个字」
+                    if (self.state.caret > 0) {
+                        self.state.text = string_delete(self.state.text, self.state.caret, 1)
+                        self.state.caret -= 1
+                    }
+                    self.state.kb_prev = _akb
+                }
+            } else {
+                // 兜底（组合态等判定不了的变化）：整串接管，光标跟到末尾
+                self.state.text = _akb
+                self.state.caret = string_length(_akb)
+                self.state.kb_prev = _akb
+            }
+        } else if (keyboard_check_pressed(vk_backspace)) {
+            // 退格：有的输入法只发按键、不改 keyboard_string
+            if (self.state.caret > 0) {
+                self.state.text = string_delete(self.state.text, self.state.caret, 1)
+                self.state.caret -= 1
+            }
+        }
+    } else if (keyboard_check(vk_control) && keyboard_check_pressed(ord("V"))) {
         insert_at_caret(clipboard_get_text())
     } else {
         var _kb = keyboard_string
@@ -229,8 +287,11 @@ function on_step() {
         self.state.text = string_copy(self.state.text, 1, 64)
     }
     self.state.caret = clamp(self.state.caret, 0, string_length(self.state.text))
-    keyboard_string = self.state.text
-    self.state.kb_prev = keyboard_string
+    // 桌面才回写：安卓回写等于每帧给输入法 setText 一次，会把组合态冲掉（见上面的分支注释）
+    if (os_type != os_android) {
+        keyboard_string = self.state.text
+        self.state.kb_prev = keyboard_string
+    }
 
     if (self.state.text != _prev || self.state.caret != _prev_caret) {
         self.state.cursor_timer = 0
