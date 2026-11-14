@@ -171,3 +171,28 @@ SWF 适配器可通过 `api.shoot` 传入 `speed_y`、`vertical_distance` 和 `b
 - 行为：放置、索敌、发射、减速、动画事件、定时器、暂停、异常脚本隔离。
 - 一致性：16 星强化上限、金卡 Clotho 17/18 星、普通卡不超过 16 星、转职、技能、复制、复活、铲除和死亡。
 - 关闭恢复：进度保留，重新启用同 ID Mod 恢复；缺失卡片不能放置。
+
+## Android 端差异
+
+目录与状态文件：
+
+- Mod 根目录在安卓上是 `/storage/emulated/0/Android/data/com.company.game/files/mod`（应用外部私有目录，零权限，玩家可用 USB/MTP 或文件管理器直接投放）。`global.native_util.get_mod_root()` 负责探测；探测不到时降级为沙盒相对路径 `"mod"`（玩家看不见，但不崩）。
+- 开关状态固定写沙盒相对路径 `mod_state.json`（`external_mod_state_path()`），因为外部私有目录未必可写；目录只读时界面会提示，功能不受影响。
+- `file_find_first` 的属性常量（`fa_directory` / `fa_archive` / `fa_readonly`）只在 Windows 有效，安卓必须传 `0`，统一走 `external_mod_find_flags()`。
+
+功能边界：
+
+- **Lua 行为脚本不执行。** 后端是 `FvmNativeSupport.dll`（Windows PE），工程内没有对应的 `.so`。安卓上 `has_script` 会被置为 `false`，卡片退化为「纯 JSON 声明式」：属性、子弹、动画正常，只有自定义行为没有。
+- **压缩包导入不可用。** `get_open_filename`（桌面专属）与 `native_unzip_map_file`（Windows DLL 导出）在安卓都拿不到，ZIP 也没有纯 GML 解包。导入按钮改为「刷新列表」，玩家必须在 PC 上解压好再整体投放文件夹。
+- **打开目录改为复制路径**：沙盒外部目录虽然存在，但系统文件管理器未必允许直达，复制到剪贴板更稳。
+- **删除 Mod** 走纯 GML 递归删除（`external_mod_delete_folder`），不再限制 Windows。
+
+三处目录的取舍（为什么不在 Download 里读）：
+
+| 位置 | 需 root | 需权限 | 玩家怎么放 | GML 能否读写 |
+|------|---------|--------|-----------|--------------|
+| `/data/data/com.company.game/`（引擎保存区） | 否，但玩家看不见 | 无 | 只能游戏内导入 | 能读写 |
+| `/storage/emulated/0/Android/data/com.company.game/files/`（当前采用） | 否 | 无 | USB / MTP 拖拽、`adb push` | 能读写 |
+| `/storage/emulated/0/Download/` | 否 | `MANAGE_EXTERNAL_STORAGE` | 任意文件管理器 | 有权限才通 |
+
+`WRITE_EXTERNAL_STORAGE` 在 API 30+ 被系统忽略，本项目 targetSdk 35 下即使打开也拿不到公共目录；要用公共目录只能申请 `MANAGE_EXTERNAL_STORAGE`（会弹「访问所有文件」授权）。

@@ -26,6 +26,9 @@ target_card = sh.target_card;
 target_type = sh.target_type;
 event_user(0);
 external_mod_animate(id, "idle");
-var response = json_parse(native_mod_lua_create(mod_definition.source));
-if (response.ok) mod_lua_handle = response.handle;
-else { mod_script_failed = true; show_debug_message("[Mod " + plant_id + "] " + response.error); }
+// 安卓没有 Lua 后端：声明式卡片照常工作，只是不执行 logic.lua 的行为回调。
+if (mod_definition.has_script && os_type != os_android) {
+    var response = json_parse(native_mod_lua_create(mod_definition.source));
+    if (response.ok) mod_lua_handle = response.handle;
+    else { mod_script_failed = true; show_debug_message("[Mod " + plant_id + "] " + response.error); }
+}

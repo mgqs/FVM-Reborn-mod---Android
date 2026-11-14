@@ -8,7 +8,8 @@ function FileUtil() constructor {
             return _sub_folders
         }
         show_debug_message("Find sub folders at: " + _path);
-        var _folder_name = file_find_first(_path + "*", fa_directory)
+        // fa_directory 等属性常量只在 Windows 有效，其他平台必须传 0（手册 file_find_first）。
+        var _folder_name = file_find_first(_path + "*", os_type == os_windows ? fa_directory : 0)
         while (_folder_name != "") {
             if (directory_exists(_path + _folder_name)) {
                 if (_folder_name == "." || _folder_name == "..") {
@@ -38,7 +39,7 @@ function FileUtil() constructor {
         if (!directory_exists(_path)) return _files;
 
         var _temp_list = [];
-        var _item = file_find_first(_path + "*.*", fa_directory | fa_archive | fa_readonly);
+        var _item = file_find_first(_path + "*.*", os_type == os_windows ? (fa_directory | fa_archive | fa_readonly) : 0);
         
         while (_item != "") {
             if (_item != "." && _item != "..") {

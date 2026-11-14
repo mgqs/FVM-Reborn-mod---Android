@@ -47,10 +47,13 @@ global.level_data = {}
 global.ui_anim = 1
 global.debug = 0
 global.laboretory_room = false
-global.game_version = "3.0.2.11"
+global.game_version = "3.0.2.14"
 global.tower_level_click = false
 global.tower_cake_page = 1
 global.cross_server_return_page = -1
+// 跨服关卡借用 tower_cake 的 map_id，退出时要还原进入前的底图（否则回程停在空白的魔塔蛋糕底图上）
+global.cross_server_return_map_id = ""
+global.cross_server_return_map_name = ""
 Music_Init()
 
 global.laboratory_manager = new LaboratoryManager()
@@ -61,12 +64,16 @@ global.native_util = new NativeUtil()
 init_native_log()
 move_files()
 
-// Mod 包目录：所有外部 Mod 解压到 %LOCALAPPDATA%\\FVM_Reborn_makk\\mod（Windows 专属）
+// Mod 包目录：Windows = %LOCALAPPDATA%\FVM_Reborn_makk\mod；
+// 安卓 = /storage/emulated/0/Android/data/<包名>/files/mod（零权限，玩家可用 USB/文件管理器直接投放），
+// 该目录不可写时 get_mod_root() 会自动降级到沙盒相对路径 "mod"。
 if (os_type != os_android) {
     var _mod_folder = global.native_util.get_path_in_local_appdata("\\FVM_Reborn_makk\\mod")
     if (native_folder_exists(_mod_folder) == 0) {
         directory_create(_mod_folder)
     }
+} else {
+    global.native_util.get_mod_root()
 }
 
 // 移动端虚拟按键（左下角 Shift/Esc），持久化跨房间存活
@@ -179,9 +186,24 @@ if (ini_read_string("settings", "ui_anim", "") == "") {
     ini_write_real("settings", "ui_anim", global.ui_anim);
 }
 global.ime_block = ini_read_bool("settings", "ime_block", true); // 输入法屏蔽开关（个别输入法环境异常时可关）
-global.mouse_limit_hz = ini_read_real("settings", "mouse_limit_hz", 500);
+// 鼠标输入限频（鼠标帧锁定）：默认关闭，0 = 关闭。
+//   v3 之前默认写死 500 Hz：会在光标链路上吞掉移动事件、再用 SendInput 绝对坐标补发，
+//   手感就是「移动鼠标时有人跟自己抢鼠标」——补发与真实移动打架、且取整误差会累积。
+//   需要限频的环境可手改 %LOCALAPPDATA%\FVM_Reborn_makk\config.ini 的 mouse_limit_hz
+//   （有效区间 1~1000，建议 250~500），改完进游戏即生效，无需重启。
+global.mouse_limit_hz = clamp(ini_read_real("settings", "mouse_limit_hz", 0), 0, 1000);
 if (ini_read_string("settings", "mouse_limit_hz", "") == "") {
-    ini_write_real("settings", "mouse_limit_hz", 500);
+    ini_write_real("settings", "mouse_limit_hz", 0);
+}
+// 老配置迁移：旧版把 500 当默认写进 config.ini，绝大多数玩家从没动过它。
+// cfg_rev 缺失 = v3 之前的配置 → 只有当值仍是旧默认 500 时才归零，
+// 玩家自己设过别的值（比如 250 / 1000）保持不动。
+if (ini_read_real("settings", "cfg_rev", 0) < 1) {
+    if (abs(global.mouse_limit_hz - 500) < 0.5) {
+        global.mouse_limit_hz = 0;
+        ini_write_real("settings", "mouse_limit_hz", 0);
+    }
+    ini_write_real("settings", "cfg_rev", 1);
 }
 // 兼容旧配置：键缺失时补写，玩家可手改 %LOCALAPPDATA%\FVM_Reborn_makk\config.ini 关闭
 if (ini_read_string("settings", "ime_block", "") == "") {

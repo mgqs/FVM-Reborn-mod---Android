@@ -1,6 +1,6 @@
-mod_root = global.native_util.get_path_in_local_appdata("\\FVM_Reborn_makk\\mod");
-if (os_type != os_android && !native_folder_exists(mod_root)) directory_create(mod_root);
-state_path = mod_root + "\\mod_state.json";
+mod_root = global.native_util.get_mod_root();
+if (!directory_exists(mod_root)) directory_create(mod_root);
+state_path = external_mod_state_path();
 scroll_offset = 0;
 row_height = 58;
 list_top = y - 205;
@@ -9,7 +9,8 @@ mods = [];
 status_text = "";
 notify_result = function(message) {
     status_text = message;
-    show_message(message);
+    // 安卓上 show_message 是模态阻塞，会卡住主循环，必须用 async 版。
+    show_message_async(message);
 };
 return_depth = depth + 10;
 close_panel = function() {
@@ -57,13 +58,11 @@ save_state = function() {
 manifest_name = function(folder_path, fallback) {
     var root;
     try { root = external_mod_root(folder_path); } catch (_missing_manifest) { return fallback; }
-    var p = root + "\\manifest.json";
-    if (!file_exists(p)) p = root + "\\card.json";
+    var p = root + "/manifest.json";
+    if (!file_exists(p)) p = root + "/card.json";
     if (!file_exists(p)) return fallback;
-    var b = buffer_load(p);
-    if (!buffer_exists(b)) return fallback;
-    var raw = buffer_read(b, buffer_string);
-    buffer_delete(b);
+    var raw;
+    try { raw = external_mod_read(p); } catch (_read_error) { return fallback; }
     try {
         var parsed = json_parse(raw);
         if (is_struct(parsed)) {
@@ -77,11 +76,21 @@ manifest_name = function(folder_path, fallback) {
 refresh_mods = function() {
     var previous = mods;
     mods = [];
+    // 安卓：启动时外部私有目录若还不存在会先降级成沙盒 "mod"。玩家把文件夹投放进去后点
+    // 「刷新列表」，这里再探测一次；只有当前确实在降级状态时才重新探测，避免每次刷新都写探针文件。
+    if (os_type == os_android && mod_root == "mod") {
+        global.native_util.get_mod_root(true);
+        var _probe_root = global.native_util.get_mod_root();
+        if (_probe_root != mod_root) {
+            mod_root = _probe_root;
+            state_path = external_mod_state_path();
+        }
+    }
     // Collect names first: resolving an outer package directory also uses file_find.
     var folders = [];
-    var folder = file_find_first(mod_root + "\\*", fa_directory);
+    var folder = file_find_first(mod_root + "/*", external_mod_find_flags());
     while (folder != "") {
-        if (folder != "." && folder != ".." && directory_exists(mod_root + "\\" + folder)) {
+        if (folder != "." && folder != ".." && directory_exists(mod_root + "/" + folder)) {
             array_push(folders, folder);
         }
         folder = file_find_next();
@@ -97,7 +106,7 @@ refresh_mods = function() {
                     break;
                 }
             }
-            array_push(mods, { folder: folder, name: manifest_name(mod_root + "\\" + folder, folder), enabled: enabled });
+            array_push(mods, { folder: folder, name: manifest_name(mod_root + "/" + folder, folder), enabled: enabled });
     }
     array_sort(mods, function(a, b) {
         return a.folder == b.folder ? 0 : (a.folder < b.folder ? -1 : 1);
@@ -108,6 +117,10 @@ refresh_mods = function() {
 
 mods = load_state();
 refresh_mods();
+// 安卓的 Mod 目录若被系统拒绝写入，开关状态存不进 Mod 目录（状态已固定写沙盒），这里只提示不阻断。
+if (os_type == os_android && !global.native_util.mod_root_is_writable()) {
+    status_text = "Mod 目录只读，Mod 开关状态会存到游戏内部存档；投放 Mod 后点「刷新列表」。";
+}
 if (variable_global_exists("external_mod_errors")) {
     var failed_folders = variable_struct_get_names(global.external_mod_errors);
     if (array_length(failed_folders) > 0) {

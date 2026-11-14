@@ -96,8 +96,7 @@
 | 文件 | 位置 | 说明 |
 |------|------|------|
 | `objects/LaboratoryGUI/Create_0.gml` | L194 | `native_open_folder` Android 分支提示 |
-| `objects/obj_mod_menu/Create_0.gml` | L2 | mod 目录创建加 `os_type != os_android` |
-| `objects/obj_mod_menu/Step_0.gml` | L74 / L105 | mod 打开目录 / 删除文件夹 Android 分支 |
+| `scripts/FileUtil/FileUtil.gml` | `find_sub_folders` / `find_files_with_extension_recursively` | `file_find_first` 的 `fa_directory` / `fa_archive` / `fa_readonly` 只在 Windows 有效，非 Windows 一律传 `0`（否则安卓永远扫到空列表） |
 
 ### 5.4 地图下载 / 在线地图
 
@@ -121,6 +120,48 @@
 |------|------|------|
 | `scripts/NativeUtil/NativeUtil.gml` | 整个文件 | NativeUtil 封装（`to_native_absolute`、`show_error` 等） |
 | `scripts/__scribble_misc_functions/__scribble_misc_functions.gml` | L516 | Scribble 库内置宏 `__SCRIBBLE_ON_MOBILE`（含 `os_android`，非本次改造点） |
+
+---
+
+### 5.7 Mod 管理器 Android 适配
+
+功能：Mod 管理器在安卓上从「点了没反应 / 卡片必然加载失败」改为可用 —— 声明式 Mod（纯 JSON + PNG）照常注册，Lua 行为脚本自动跳过。
+
+> 本节的**规则化版本**已沉淀到 `.trae/rules/android设置.md` 末尾《文件路径 / 存储位置规范（Windows → Android）》。此后任何「Windows 绝对路径 → Android」的新改造都按那份规范写，并把新落点登记进那里的表格；本节表格保留作为 Mod 管理器的具体位置索引。
+
+| 文件 | 位置 | 说明 |
+|------|------|------|
+| `scripts/NativeUtil/NativeUtil.gml` | `get_android_package()` | 返回 `com.company.game`，必须与 `options/android/options_android.yy` 的 domain / company / product 三字段一致 |
+| `scripts/NativeUtil/NativeUtil.gml` | `get_external_files_root()` | 安卓返回 `/storage/emulated/0/Android/data/<包名>/files`（`EXTERNAL_STORAGE` 取不到时兜底 `/storage/emulated/0`）；桌面回落 `%LOCALAPPDATA%\FVM_Reborn_makk` |
+| `scripts/NativeUtil/NativeUtil.gml` | `get_mod_root()` | Windows 行为不变；安卓先探测外部私有目录（建目录 + 写 `.probe` 验证可写），读得到就用它，完全拿不到才降级沙盒相对路径 `"mod"`；结果缓存在 `global._android_mod_root` |
+| `scripts/NativeUtil/NativeUtil.gml` | `mod_root_is_writable()` / `mod_root_is_user_visible()` / `get_mod_root_hint()` | 目录能力与提示文案查询 |
+| `scripts/external_mod_system/external_mod_system.gml` | `external_mod_state_path()` | 安卓开关状态固定写沙盒相对路径 `mod_state.json`（外部私有目录未必可写）；Windows 仍是 `<mod>/mod_state.json` |
+| `scripts/external_mod_system/external_mod_system.gml` | `external_mod_find_flags()` | `file_find_first` 属性常量按平台返回（Windows `fa_directory`，其他 `0`） |
+| `scripts/external_mod_system/external_mod_system.gml` | `external_mod_delete_folder()` | Windows 先走 `native_delete_folder`，失败或非 Windows 走纯 GML 递归删除 |
+| `scripts/external_mod_system/external_mod_system.gml` | `external_mod_validate()` | 安卓上行为脚本可选：缺失 / 非 `.lua` 时 `has_script = false`，`source` 置空不再抛「文件不存在」 |
+| `scripts/external_mod_system/external_mod_system.gml` | `external_mod_load_all()` | 根目录改用 `get_mod_root()`；Lua probe 加 `d.has_script && os_type != os_android` 守卫 |
+| `objects/obj_external_mod_card/Create_0.gml` | L30 | Lua 句柄创建包进 `mod_definition.has_script && os_type != os_android`，安卓声明式卡片不再尝试建句柄 |
+| `objects/obj_mod_menu/Create_0.gml` | L1-L3 / L13 | 根目录与状态文件同源；`notify_result` 的 `show_message` 换 `show_message_async`（安卓模态会卡主循环）；`refresh_mods()` 全部改用 `/` 与 `external_mod_find_flags()` |
+| `objects/obj_mod_menu/Step_0.gml` | L26-L32 | 安卓「导入」变「刷新列表」（没有 `get_open_filename` / `native_unzip_map_file`） |
+| `objects/obj_mod_menu/Step_0.gml` | L84-L91 | 安卓「打开目录」变「复制目录到剪贴板」（沙盒目录文件管理器进不去） |
+| `objects/obj_mod_menu/Step_0.gml` | L117 | 删除 Mod 统一走 `external_mod_delete_folder`，去掉「仅支持 Windows」限制 |
+| `objects/obj_mod_menu/Draw_0.gml` | L68-L77 | 列表为空时安卓额外画三行投放引导（目标路径 + 用 USB/文件管理器投放 + 回来点刷新） |
+| `objects/obj_game_init/Create_0.gml` | L75-L77 | 安卓分支主动调 `get_mod_root()`，启动时就建好 / 探测好目录 |
+
+安置位置的三类对照（为什么选第二类）：
+
+| 位置 | 需 root | 需权限 | 玩家怎么放 | GML 能否读写 |
+|------|---------|--------|-----------|--------------|
+| `/data/data/com.company.game/`（引擎保存区） | 否，但玩家看不见 | 无 | 只能游戏内导入 | 能读写 |
+| `/storage/emulated/0/Android/data/com.company.game/files/`（应用外部私有目录，**当前采用**） | 否 | 无 | USB / MTP 拖拽、`adb push` | 能读写 |
+| `/storage/emulated/0/Download/` | 否 | `MANAGE_EXTERNAL_STORAGE` | 任意文件管理器 | 有权限才通 |
+
+注意：`WRITE_EXTERNAL_STORAGE` 在 API 30+ 被系统忽略，本项目 targetSdk 35 下即使打开也拿不到公共目录；要公共目录只能申请 `MANAGE_EXTERNAL_STORAGE`（会弹「访问所有文件」授权）。
+
+安卓端功能边界（改造后仍然的限制）：
+- Lua 行为脚本不执行（后端是 Windows PE DLL，工程内无 `.so`），卡片退化为「纯 JSON 声明式」——属性、子弹、动画都正常，只有自定义行为没有。
+- 压缩包导入不可用（无 `get_open_filename`、无 ZIP 解包）：玩家必须在 PC 上解压好，把文件夹整体投放进 `/Android/data/com.company.game/files/mod/`。
+- 目录若被系统拒绝写入，`mod_state.json` 仍会落在沙盒，界面会提示「Mod 目录只读」。
 
 ---
 

@@ -7,6 +7,48 @@ function external_mod_error_text(error_data) {
     return string(external_mod_field(error_data, "message", error_data));
 }
 
+// 开关状态文件的位置。安卓的 Mod 目录在应用外部私有目录，那里未必可写，
+// 所以状态固定写进沙盒相对路径；Windows 保持 Mod 目录内以兼容已有存档。
+function external_mod_state_path() {
+    if (os_type == os_android) return "mod_state.json";
+    return global.native_util.get_mod_root() + "/mod_state.json";
+}
+
+// file_find_first 的 fa_directory / fa_readonly / fa_archive 只在 Windows 有效，
+// 其他平台必须传 0，否则列表永远是空（安卓表现为「扫不到任何 Mod」）。
+function external_mod_find_flags() {
+    return os_type == os_windows ? fa_directory : 0;
+}
+
+// 安卓没有 native_delete_folder（那是 Windows DLL），这里用纯 GML 递归删。
+function external_mod_delete_folder(path) {
+    if (os_type == os_windows) {
+        // Windows 仍走原生的 7z 删除（更快、能处理只读属性）；失败再回落到纯 GML 递归。
+        var _native_code = native_delete_folder(path);
+        if (_native_code == 0) return 0;
+    }
+    try {
+        if (!directory_exists(path)) return 0;
+        var _names = [];
+        var _f = file_find_first(path + "/*", 0);
+        while (_f != "") {
+            if (_f != "." && _f != "..") array_push(_names, _f);
+            _f = file_find_next();
+        }
+        file_find_close();
+        for (var _i = 0; _i < array_length(_names); _i++) {
+            var _child = path + "/" + _names[_i];
+            if (directory_exists(_child)) external_mod_delete_folder(_child);
+            else file_delete(_child);
+        }
+        directory_destroy(path);
+        return 0;
+    } catch (_e) {
+        show_debug_message("[Mod] delete folder failed: " + string(_e));
+        return -1;
+    }
+}
+
 // Resolve lazily: older DLLs can still run the base game when no external Mod is enabled.
 function external_mod_lua_bind() {
     if (variable_global_exists("external_mod_lua_functions")) return;
@@ -71,7 +113,7 @@ function external_mod_root(folder) {
     if (file_exists(folder + "/manifest.json") || file_exists(folder + "/card.json")) return folder;
     var roots = [];
     var names = [];
-    var n = file_find_first(folder + "/*", fa_directory);
+    var n = file_find_first(folder + "/*", external_mod_find_flags());
     while (n != "") {
         if (n != "." && n != ".." && directory_exists(folder + "/" + n)) array_push(names, n);
         n = file_find_next();
@@ -173,10 +215,21 @@ function external_mod_validate(folder) {
         if (!is_numeric(declared_max) || floor(declared_max) != declared_max || (declared_max != 16 && declared_max != 18)) throw "max_star 只能是 16 或 18";
         if (declared_max == 18 && !d.is_gold) throw "18 星卡片必须是金卡";
         d.max_level = declared_max;
+        // 安卓没有 Lua 后端（DLL 只有 Windows 版），所以行为脚本在安卓上可选：
+        // 缺脚本或读不到时按「只声明不驱动」处理，卡片照常注册，只是没有自定义行为。
+        d.has_script = true;
         d.script_path = external_mod_path(d.root, external_mod_field(d, "script", "logic.lua"));
-        if (string_lower(filename_ext(d.script_path)) != ".lua") throw "行为脚本必须是 .lua";
-        d.source = external_mod_read(d.script_path);
-        if (string_byte_length(d.source) > 262144) throw "Lua 脚本不能超过 256 KB";
+        if (string_lower(filename_ext(d.script_path)) != ".lua") {
+            if (os_type == os_android) d.has_script = false;
+            else throw "行为脚本必须是 .lua";
+        }
+        if (d.has_script && os_type == os_android && !file_exists(d.script_path)) d.has_script = false;
+        if (d.has_script) {
+            d.source = external_mod_read(d.script_path);
+            if (string_byte_length(d.source) > 262144) throw "Lua 脚本不能超过 256 KB";
+        } else {
+            d.source = "";
+        }
         // Legacy single-card form becomes a separate shape struct, avoiding a self reference.
         d.shapes = external_mod_field(d, "shapes", [json_parse(external_mod_read(file))]);
         if (!is_array(d.shapes) || array_length(d.shapes) < 1 || array_length(d.shapes) > 6) throw "需要 1–6 个连续形态";
@@ -331,12 +384,13 @@ function external_mod_load_all() {
     global.external_mod_errors = {};
     global.external_mod_loaded = {};
     global.external_mod_assets = [];
-    var root = global.native_util.get_path_in_local_appdata("\\FVM_Reborn_makk\\mod");
+    var root = global.native_util.get_mod_root();
     var state = [];
-    try { if (file_exists(root + "/mod_state.json")) state = json_parse(external_mod_read(root + "/mod_state.json")); } catch (e) { state = []; }
+    var _state_path = external_mod_state_path();
+    try { if (file_exists(_state_path)) state = json_parse(external_mod_read(_state_path)); } catch (e) { state = []; }
     if (!is_array(state)) state = [];
     var folders = [];
-    var f = file_find_first(root + "/*", fa_directory);
+    var f = file_find_first(root + "/*", external_mod_find_flags());
     while (f != "") {
         if (f != "." && f != ".." && directory_exists(root + "/" + f)) array_push(folders, f);
         f = file_find_next();
@@ -357,9 +411,13 @@ function external_mod_load_all() {
             for (var c = 0; c < array_length(pack.cards); c++) {
                 var d = pack.cards[c];
                 if (ds_map_exists(global.plant_registry, d.id) || deck_get_card_data(d.id, 0) != noone) throw "卡片 ID 已存在：" + d.id;
-                var probe = json_parse(native_mod_lua_create(d.source));
-                if (!probe.ok) throw "Lua 无法加载：" + probe.error;
-                native_mod_lua_destroy(probe.handle);
+                // 安卓没有 Lua 后端，probe 只会返回失败；有脚本也跳过，靠 obj_external_mod_card 的
+                // mod_script_failed 分支退化成「纯 JSON 声明式卡片」。
+                if (d.has_script && os_type != os_android) {
+                    var probe = json_parse(native_mod_lua_create(d.source));
+                    if (!probe.ok) throw "Lua 无法加载：" + probe.error;
+                    native_mod_lua_destroy(probe.handle);
+                }
                 for (var s = 0; s < array_length(d.shapes); s++) {
                     var sh = d.shapes[s];
                     sh.sprite = external_mod_sprite(d.root, {frames: [sh.icon], origin: "bottom_center"}, assets);

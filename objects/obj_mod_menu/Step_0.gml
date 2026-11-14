@@ -21,6 +21,15 @@ if (point_in_rectangle(mouse_x, mouse_y, x + 405, y - 305, x + 465, y - 270) && 
 }
 
 if (point_in_rectangle(mouse_x, mouse_y, x - 420, y - 305, x - 245, y - 270) && mouse_check_button_pressed(mb_left)) {
+    // 安卓没有 get_open_filename（桌面专属）也没有 native_unzip_map_file（Windows DLL），
+    // 所以导入按钮在安卓上改成「刷新列表」：玩家把解压好的 Mod 文件夹直接放进 mod_root 再点这里。
+    if (os_type == os_android) {
+        refresh_mods();
+        audio_play_sound(snd_button, 0, 0);
+        notify_result("已重新扫描 Mod 目录。\n把解压后的 Mod 文件夹（含 manifest.json 或 card.json）放到：\n"
+            + global.native_util.get_mod_root() + "\n然后点「刷新」并重启游戏。");
+        exit;
+    }
     var selected = get_open_filename("Mod package|*.fvmmod;*.zip|All files|*.*", "");
     if (selected != "") {
         var extension = string_lower(filename_ext(selected));
@@ -34,8 +43,8 @@ if (point_in_rectangle(mouse_x, mouse_y, x - 420, y - 305, x - 245, y - 270) && 
             notify_result("压缩包名称无效");
             exit;
         }
-        var target = mod_root + "\\" + base_name;
-        if (native_folder_exists(target)) target += "_" + string(current_time);
+        var target = mod_root + "/" + base_name;
+        if (directory_exists(target)) target += "_" + string(current_time);
         directory_create(target);
         var code = native_unzip_map_file(selected, target);
         if (code == 0) {
@@ -59,11 +68,11 @@ if (point_in_rectangle(mouse_x, mouse_y, x - 420, y - 305, x - 245, y - 270) && 
                 if (save_state()) notify_result("已导入并开启：" + pack.name + "\n请完全退出并重新启动游戏，卡片才会加入背包、情报岛和选卡界面。");
                 else notify_result("压缩包已解压，但开启状态保存失败，请检查目录权限。");
             } catch (_validation_error) {
-                native_delete_folder(target);
+                external_mod_delete_folder(target);
                 notify_result("Mod 校验失败：" + external_mod_error_text(_validation_error));
             }
         } else {
-            native_delete_folder(target);
+            external_mod_delete_folder(target);
             notify_result("解压失败，错误码：" + string(code));
         }
     }
@@ -71,8 +80,11 @@ if (point_in_rectangle(mouse_x, mouse_y, x - 420, y - 305, x - 245, y - 270) && 
 }
 
 if (point_in_rectangle(mouse_x, mouse_y, x - 230, y - 305, x - 35, y - 270) && mouse_check_button_pressed(mb_left)) {
+    // 安卓没有文件管理器可开；把路径复制到剪贴板，玩家粘到系统文件管理器里就能进目录。
     if (os_type == os_android) {
-        status_text = "Mod 目录管理仅支持 Windows";
+        clipboard_set_text(mod_root);
+        status_text = "Mod 目录已复制到剪贴板：" + mod_root;
+        audio_play_sound(snd_button, 0, 0);
     } else {
         var open_code = native_open_folder(mod_root);
         if (open_code != 0) status_text = "打开目录失败，错误码：" + string(open_code);
@@ -102,16 +114,12 @@ for (var i = 0; i < array_length(mods); i++) {
         audio_play_sound(snd_button, 0, 0);
     }
     if (point_in_rectangle(mouse_x, mouse_y, x + 335, row_y - 17, x + 415, row_y + 17) && mouse_check_button_pressed(mb_left)) {
-        if (os_type == os_android) {
-            status_text = "删除 Mod 仅支持 Windows";
+        var delete_code = external_mod_delete_folder(mod_root + "/" + mods[i].folder);
+        if (delete_code == 0) {
+            status_text = "已删除：" + mods[i].name + "，重启后生效；保留卡片进度";
+            refresh_mods();
         } else {
-            var delete_code = native_delete_folder(mod_root + "\\" + mods[i].folder);
-            if (delete_code == 0) {
-                status_text = "已删除：" + mods[i].name + "，重启后生效；保留卡片进度";
-                refresh_mods();
-            } else {
-                status_text = "删除失败，错误码：" + string(delete_code);
-            }
+            status_text = "删除失败，错误码：" + string(delete_code);
         }
         audio_play_sound(snd_button, 0, 0);
         break;

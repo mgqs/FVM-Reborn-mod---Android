@@ -17,8 +17,8 @@ draw_roundrect(x - 420, y - 305, x - 245, y - 270, false);
 draw_roundrect(x - 230, y - 305, x - 35, y - 270, false);
 draw_roundrect(x + 405, y - 305, x + 465, y - 270, false);
 draw_set_color(#17314C);
-draw_text(x - 332, y - 287, "导入Mod");
-draw_text(x - 132, y - 287, "打开目录");
+draw_text(x - 332, y - 287, os_type == os_android ? "刷新列表" : "导入Mod");
+draw_text(x - 132, y - 287, os_type == os_android ? "复制目录" : "打开目录");
 draw_text(x + 435, y - 287, "关闭");
 
 draw_set_halign(fa_left);
@@ -65,7 +65,21 @@ draw_set_color(#17314C);
 draw_rectangle(track_x, thumb_y, track_x + 10, thumb_y + thumb_height, false);
 draw_set_color(#17314C);
 draw_set_halign(fa_center);
-if (array_length(mods) == 0) draw_text(x, y, "还没有安装 Mod");
+if (array_length(mods) == 0) {
+    draw_text(x, y, "还没有安装 Mod");
+    // 安卓玩家看不到应用私有目录，必须把「往哪儿放」直接画在界面上。
+    if (os_type == os_android) {
+        draw_set_color(#17314C);
+        if (global.native_util.android_mod_root_usable()) {
+            draw_text(x, y + 60, "把解压后的 Mod 文件夹（含 manifest.json）放到：");
+            draw_text(x, y + 92, global.native_util.get_mod_root());
+            draw_text(x, y + 124, "用 USB/文件管理器投放后，回来点「刷新列表」");
+        } else {
+            draw_text(x, y + 60, "无法访问外部目录，暂不支持从文件管理器投放 Mod");
+            draw_text(x, y + 92, "（外部存储被系统限制）");
+        }
+    }
+}
 if (status_text != "") {
     draw_set_valign(fa_top);
     var footer_text = string_replace_all(status_text, "\n", " ");
