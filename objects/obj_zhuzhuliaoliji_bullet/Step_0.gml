@@ -67,7 +67,7 @@ if (variable_global_exists("enemy_by_type") && bullet_enemy_reachable(id) && pre
 
     if (_hit != noone){
         audio_play_sound(snd_hit1, 0, 0);     // 2026-11-12 补：命中音
-        with (combat_live_or_noone(_hit, obj_enemy_parent)){
+        with (_hit){
             damage_amount = other.damage;
             damage_type = other.damage_type;
             event_user(0);

@@ -262,7 +262,7 @@ switch (state)
             
             if (attack_timer >= current_atk_cycle)
             {
-                with (combat_live_or_noone(target_plant, obj_card_parent))
+                with (target_plant)
                 {
                     if (!invincible)
                         hp -= other.atk;

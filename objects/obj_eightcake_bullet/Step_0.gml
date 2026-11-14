@@ -78,7 +78,7 @@ if (variable_global_exists("enemy_by_type"))
 
     if (_best != noone)
     {
-        with (combat_live_or_noone(_best, obj_enemy_parent))
+        with (_best)
         {
             damage_amount = other.damage;
             damage_type = other.damage_type;

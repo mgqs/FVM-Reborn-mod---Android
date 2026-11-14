@@ -29,7 +29,7 @@ if dash && (state == ENEMY_STATE.ATTACK or timer > 4.5*60){
 	state = ENEMY_STATE.ACTING
 	
 	if target_plant != noone{
-		with (combat_live_or_noone(target_plant, obj_card_parent)) {
+		with (target_plant) {
 			if !invincible{
 				hp -= 10;
 			}
