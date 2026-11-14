@@ -286,7 +286,7 @@ else if package_button_select == 2 {
 	hover_gem_index = -1
 
 	// 需要分组显示的mod武器：每把武器单独一格子，同列下方放该武器的专属宝石
-	var _mod_weapon_ids = ["zeus_bolt","master_shield","hades_scythe","aladdin_lamp","rose_shield","star_wand"]
+	var _mod_weapon_ids = ["zeus_bolt","master_shield","hades_scythe","aladdin_lamp","rose_shield","star_wand","gods_shield","poseidon_dart_gun","death_scythe"]
 	var _group_col = 0
 	var _group_end_row = 0
 	var _drawn_gem_indices = []
@@ -845,3 +845,9 @@ if (_sb_max > 0 && _sb_vh > _sb_h) {
 	if (mouse_check_button_released(mb_left)) sb_dragging = false;
 }
 panel_anim_end_split(id, 951, 260)
+
+// 「变装特效」弹窗互斥余量：Step 每帧置 2，这里递减 → 关掉后还能再挡两帧点击
+// （弹窗本体与判定都在 obj_attire_fx_help + scripts/attire_transformation）
+if (variable_global_exists("attire_fx_help_latch") && global.attire_fx_help_latch > 0) {
+	global.attire_fx_help_latch--;
+}

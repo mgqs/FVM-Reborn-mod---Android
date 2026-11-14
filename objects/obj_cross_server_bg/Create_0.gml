@@ -31,7 +31,18 @@ function refresh_level_buttons() {
     var _level_list = ds_map_find_value(global.maps_map, _map_id).levels_data;
     var _level_count = array_length(_level_list);
 
-    function is_level_unlocked(_level_data) {
+    // 水火之间 / 巫毒研究所：改为「按星级解锁」——不看上一关是否通关，
+    // 只看背包（unlocked_cards）里的最高卡片星级是否达到 cross_server_star_require(关卡序号)
+    // （第 1 关 8 星、第 2 关 9 星……第 8 关 15 星）。
+    // 因此开局只有第 1 关亮，之后靠升星逐关开放；与 obj_cross_server_level_create
+    // 点击时的 star_gate 判定同源，不会出现「点亮了却进不去」。
+    var _page_uses_star_gate = (_map_id == "cross_server_water_fire" || _map_id == "cross_server_voodoo_lab");
+
+    function is_level_unlocked(_level_data, _page_uses_star, _level_index) {
+        if (_page_uses_star) {
+            return save_data_max_card_star() >= cross_server_star_require(_level_index);
+        }
+
         var _requirements = variable_struct_exists(_level_data, "pre_level_require")
             ? _level_data.pre_level_require : [];
         if (!is_array(_requirements) || array_length(_requirements) == 0) return true;
@@ -51,7 +62,7 @@ function refresh_level_buttons() {
         var _button = instance_create_depth(416 + 405 * _col, 485 + 400 * _row, depth - 1, obj_cross_server_level_create);
         _button.level_index = _index;
         _button.cross_server_map_id = _map_id;
-        _button.is_disabled = !is_level_unlocked(_level_data);
+        _button.is_disabled = !is_level_unlocked(_level_data, _page_uses_star_gate, _index);
         if (_button.is_disabled == false) level_unlocked++;
         if (array_get_index(global.save_data.completed_levels, _level_data.id) != -1) level_passed++;
     }

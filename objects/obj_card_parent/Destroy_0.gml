@@ -1,3 +1,4 @@
+combat_targets_invalidate(object_index);
 if hp < max_hp && !invincible{
 	obj_task_manager.card_loss ++
 }
@@ -10,6 +11,10 @@ if (hex_enabled()) hex_b3_card_destroyed(id);
 // 常驻状态标记跟随宿主一起清掉（标记自身也有兜底，这里避免同帧残影）
 if (variable_instance_exists(id, "awake_mark_obj") && instance_exists(awake_mark_obj)) instance_destroy(awake_mark_obj);
 if (variable_instance_exists(id, "guard_mark_obj") && instance_exists(guard_mark_obj)) instance_destroy(guard_mark_obj);
+
+// 2026-11-13：星级图标是独立对象，父对象销毁时**必须一起带走**
+//   （以前没清：时光机自毁 / 卡被啃死 / 被铲掉 / 被顶掉都会留一颗星在场上）
+if (variable_instance_exists(id, "banding_star_obj") && instance_exists(banding_star_obj)) instance_destroy(banding_star_obj);
 
 var _was_shoveled = variable_instance_exists(id, "is_shoveled") && is_shoveled;
 var _no_revive_record = variable_instance_exists(id, "no_revive_record") && no_revive_record;
@@ -31,7 +36,7 @@ if (variable_instance_exists(id, "plant_id") && !_was_shoveled && !_no_revive_re
             "coke_bomb", "ice_bucket_bomb", "kettle_bomb", "wine_bottle_bomb", "whisky_bomb", "skewer_bomb",
             "chili_powder", "rabbit_lantern", "delicacy_firework", "bull_firework", "aquarius_elve", "mouse_clip",
             "flour_sack", "pufferfish", "yeziguo", "steel_wool", "baiyang", "save_god", "hundun_god", "qingse_shishi", "panduola_god",
-            "dandantu", "shuiping",
+            "dandantu", "shuiping", "shiliu_baobao_bing",
 
             "12yinliao", "coffee_grounds", "ice_cream", "magic_chicken", "clotho", "time_god", "heian_god",
             "zhiyumiao", "shegengbao", "wooden_cork", "baobaoji", "ventilation_fan", "xuanfengniu", "nizhuanniu",

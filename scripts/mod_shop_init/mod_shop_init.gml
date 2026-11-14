@@ -59,7 +59,7 @@ function mod_shop_init()
     register_goods("spoon_rabbit", 
     {
         type: "card",
-        cost: "90000",
+        cost: "80000",            // 2026-11-09 用户：从跨服挪回本体，定价 8 万
         unlock_item_id: "spoon_rabbit",
         description: "勺勺兔：向前方3行投射子弹",
         display_name: "勺勺兔"
@@ -72,11 +72,20 @@ function mod_shop_init()
         description: "加速榨汁机：为3x3范围内喷壶类卡片提供增伤",
         display_name: "加速榨汁机"
     });
+    register_goods("shiliu_baobao_bing",
+    {
+        type: "card",
+        cost: "75000",            // 数据表：本体商城；魔塔层数比玉兔灯笼高 1~2 层、威望 1.5 倍（50000 × 1.5）
+        unlock_item_id: "shiliu_baobao_bing",
+        description: "石榴爆爆冰：落地灰烬爆炸并附加冰冻减速，同时对范围内最近的地面目标碾压",
+        display_name: "石榴爆爆冰"
+    });
     register_goods("master_shield", 
     {
         type: "weapon",
         cost: "150000",
         unlock_item_id: "master_shield",
+            required_weapon_id: "gods_shield",
         description: "主宰之盾：增加800生命值",
         display_name: "主宰之盾"
     });
@@ -112,11 +121,125 @@ function mod_shop_init()
         description: "神忌之眼：每2.5秒对5×5范围敌人造成反伤与流血伤害",
         display_name: "神忌之眼"
     });
+
+    register_goods("gods_shield",
+    {
+        type: "weapon",
+        cost: "200000",
+        unlock_item_id: "gods_shield",
+        description: "诸神之盾：增加500生命值，镶嵌宝石时提供增益效果",
+        display_name: "诸神之盾"
+    });
+    register_goods("death_scythe",
+    {
+        type: "weapon",
+        cost: "200000",
+        unlock_item_id: "death_scythe",
+        description: "死神镰刀：O形轨迹发射旋转镰刀",
+        display_name: "死神镰刀"
+    });
+    register_goods("poseidon_dart_gun_gem_1",
+    {
+        type: "gem",
+        cost: "200000",
+        unlock_item_id: "poseidon_dart_gun_gem_1",
+        description: "魔影圣衣：海神镖枪子弹获得溅射伤害",
+        display_name: "魔影圣衣"
+    });
+    register_goods("poseidon_dart_gun_gem_2",
+    {
+        type: "gem",
+        cost: "200000",
+        unlock_item_id: "poseidon_dart_gun_gem_2",
+        description: "魔影蛮力：增加海神镖枪伤害",
+        display_name: "魔影蛮力"
+    });
+    register_goods("poseidon_dart_gun_gem_3",
+    {
+        type: "gem",
+        cost: "200000",
+        unlock_item_id: "poseidon_dart_gun_gem_3",
+        description: "魔影超刃：增加海神镖枪子弹数量",
+        display_name: "魔影超刃"
+    });
+    register_goods("poseidon_dart_gun_gem_4",
+    {
+        type: "gem",
+        cost: "200000",
+        unlock_item_id: "poseidon_dart_gun_gem_4",
+        description: "魔影迅疾：增加海神镖枪攻速",
+        display_name: "魔影迅疾"
+    });
+    register_goods("gods_shield_gem_1",
+    {
+        type: "gem",
+        cost: "200000",
+        unlock_item_id: "gods_shield_gem_1",
+        description: "光能之源：生产大量火苗",
+        display_name: "光能之源"
+    });
+    register_goods("gods_shield_gem_2",
+    {
+        type: "gem",
+        cost: "200000",
+        unlock_item_id: "gods_shield_gem_2",
+        description: "撕裂之源：撕裂3x3范围内的敌人",
+        display_name: "撕裂之源"
+    });
+    register_goods("gods_shield_gem_3",
+    {
+        type: "gem",
+        cost: "200000",
+        unlock_item_id: "gods_shield_gem_3",
+        description: "永恒之源：为5x5范围内的卡片提升攻击力",
+        display_name: "永恒之源"
+    });
+    register_goods("gods_shield_gem_4",
+    {
+        type: "gem",
+        cost: "200000",
+        unlock_item_id: "gods_shield_gem_4",
+        description: "生命之源：提升5x5范围内卡片的最大生命值",
+        display_name: "生命之源"
+    });
+    register_goods("death_scythe_gem_1",
+    {
+        type: "gem",
+        cost: "200000",
+        unlock_item_id: "death_scythe_gem_1",
+        description: "死神一击：增加死神镰刀伤害",
+        display_name: "死神一击"
+    });
+    register_goods("death_scythe_gem_2",
+    {
+        type: "gem",
+        cost: "200000",
+        unlock_item_id: "death_scythe_gem_2",
+        description: "死神收割：增加死神镰刀攻速",
+        display_name: "死神收割"
+    });
+    register_goods("death_scythe_gem_3",
+    {
+        type: "gem",
+        cost: "200000",
+        unlock_item_id: "death_scythe_gem_3",
+        description: "死神苏醒：增加死神镰刀子弹数量",
+        display_name: "死神苏醒"
+    });
+    register_goods("death_scythe_gem_4",
+    {
+        type: "gem",
+        cost: "200000",
+        unlock_item_id: "death_scythe_gem_4",
+        description: "死神意志：额外增加死神镰刀攻击并改变子弹形态",
+        display_name: "死神意志"
+    });
     register_goods("hades_scythe", 
     {
         type: "weapon",
         cost: "250000",
         unlock_item_id: "hades_scythe",
+            required_weapon_id: "death_scythe",
         description: "冥王战镰：∞形轨迹发射旋转镰刀",
         display_name: "冥王战镰"
     });
@@ -155,9 +278,9 @@ function mod_shop_init()
     register_goods("poseidon_dart_gun", 
     {
         type: "weapon",
-        cost: "80000",
+        cost: "200000",
         unlock_item_id: "poseidon_dart_gun",
-        description: "海神镖枪：发射两个追踪飞镖攻击敌人",
+        description: "海神镖枪：连续发射追踪飞镖，可溅射",
         display_name: "海神镖枪"
     });
     register_goods("zeus_bolt", 
@@ -165,6 +288,7 @@ function mod_shop_init()
         type: "weapon",
         cost: "200000",
         unlock_item_id: "zeus_bolt",
+            required_weapon_id: "poseidon_dart_gun",
         description: "宙斯神弩：发射两个追踪飞镖攻击敌人",
         display_name: "宙斯神弩"
     });
@@ -543,7 +667,7 @@ function mod_shop_init()
 
     register_goods("shuanggu", { type: "card", cost: "20000", unlock_item_id: "shuanggu", description: "蚝油双菇：同时向前方发射对陆与对空子弹", display_name: "蚝油双菇" });
 
-    register_goods("yeziguo", { type: "card", cost: "1130", unlock_item_id: "yeziguo", description: "椰子果：跳起碾压前方鼠军", display_name: "椰子果" });
+    register_goods("yeziguo", { type: "card", cost: "55000", unlock_item_id: "yeziguo", description: "椰子果：跳起碾压前方鼠军", display_name: "椰子果" });
     register_goods("yeziguo_1", { type: "card", card_id: "yeziguo", card_shape: 1, cost: "260", unlock_item_id: "yeziguo", required_card_shape: 0, description: "浓香椰子果：解锁一转", display_name: "浓香椰子果" });
     register_goods("yeziguo_2", { type: "card", card_id: "yeziguo", card_shape: 2, cost: "530", unlock_item_id: "yeziguo", required_card_shape: 1, description: "金丝椰子果：解锁二转", display_name: "金丝椰子果" });
 
@@ -562,7 +686,7 @@ function mod_shop_init()
     register_goods("guihuajiu", { type: "card", cost: "40000", unlock_item_id: "guihuajiu", description: "桂花酒：阻挡老鼠，被咬破时炸伤周围老鼠", display_name: "桂花酒" });
 
 
-    register_goods("zhuzhuliaoliji", { type: "card", cost: "250000", unlock_item_id: "zhuzhuliaoliji", description: "猪猪料理机：向五个方向各射出刀片", display_name: "猪猪料理机" });
+    //register_goods("zhuzhuliaoliji", { type: "card", cost: "250000", unlock_item_id: "zhuzhuliaoliji", description: "猪猪料理机：向五个方向各射出刀片", display_name: "猪猪料理机" });
     register_goods("budingwang", { type: "card", cost: "50000", unlock_item_id: "budingwang", description: "布丁汪：把穿过自己的子弹弹回去", display_name: "布丁汪" });
     register_goods("caihongshe", { type: "card", cost: "30000", unlock_item_id: "caihongshe", description: "彩虹蛇：保护被罩住的卡片并发射子弹", display_name: "彩虹蛇" });
     register_goods("meiweijishiqi", { type: "card", cost: "50000", unlock_item_id: "meiweijishiqi", description: "美味计时器：持续缩短本格卡片的冷却", display_name: "美味计时器" });
@@ -572,10 +696,25 @@ function mod_shop_init()
     register_goods("tunshilong", { type: "card", cost: "50000", unlock_item_id: "tunshilong", description: "吞噬龙：吞掉周围的地面老鼠", display_name: "吞噬龙" });
     register_goods("xiangliaohu", { type: "card", cost: "150000", unlock_item_id: "xiangliaohu", description: "香料虎：为周围追踪卡片提升攻击力", display_name: "香料虎" });
     register_goods("zhuanzhuanji", { type: "card", cost: "40000", unlock_item_id: "zhuanzhuanji", description: "转转鸡：连续快速向周边攻击", display_name: "转转鸡" });
-    register_goods("fashishe", { type: "card", cost: "160000", unlock_item_id: "fashishe", description: "法师蛇：向前发射整行穿透毒子弹", display_name: "法师蛇" });
+    register_goods("fashishe", { type: "card", cost: "2000", unlock_item_id: "fashishe", description: "法师蛇：向前发射整行穿透毒子弹", display_name: "法师蛇" });
     register_goods("fangkongmiao", { type: "card", cost: "75000", unlock_item_id: "fangkongmiao", description: "防空喵：高伤害轰炸空中鼠军", display_name: "防空喵" });
     register_goods("huojianzhu", { type: "card", cost: "80000", unlock_item_id: "huojianzhu", description: "火箭猪：全屏追踪攻击", display_name: "火箭猪" });
     register_goods("doumaobang", { type: "card", cost: "90000", unlock_item_id: "doumaobang", description: "逗猫棒：撞伤整行老鼠", display_name: "逗猫棒" });
-    register_goods("honeytrap", { type: "card", cost: "200000", unlock_item_id: "honeytrap", description: "蜜糖陷阱：吸引强力蜜蜂集火攻击鼠军", display_name: "蜜糖陷阱" });
-    register_goods("huanyingshe", { type: "card", cost: "120000", unlock_item_id: "huanyingshe", description: "幻影蛇：大范围发射可追踪的投掷类子弹", display_name: "幻影蛇" });
+    register_goods("honeytrap", { type: "card", cost: "110000", unlock_item_id: "honeytrap", description: "蜜糖陷阱：吸引强力蜜蜂集火攻击鼠军", display_name: "蜜糖陷阱" });
+    register_goods("huanyingshe", { type: "card", cost: "1700", unlock_item_id: "huanyingshe", description: "幻影蛇：大范围发射可追踪的投掷类子弹", display_name: "幻影蛇" });
+    register_goods("yinghuoshe", { type: "card", cost: "45000", unlock_item_id: "yinghuoshe", description: "萤火蛇：产火并照亮全场，伤害3*3范围内老鼠", display_name: "萤火蛇" });
+    register_goods("guiyuanma", { type: "card", cost: "80000", unlock_item_id: "guiyuanma", description: "归元马：将前方3行范围内距离最近的普通老鼠送回起点并初始还原，斩杀低血量百分比精英", display_name: "归元马" });
+    register_goods("xingqiongma", { type: "card", cost: "85000", unlock_item_id: "xingqiongma", description: "星穹马：复活5*5范围内1张死亡的卡片", display_name: "星穹马" });
+    register_goods("tianxie", { type: "card", cost: "100000", unlock_item_id: "tianxie", description: "天蝎座精灵：猩红毒针，一行连续4格穿透伤害（无视障碍）", display_name: "天蝎座精灵" });
+    register_goods("yuansushe", { type: "card", cost: "95000", unlock_item_id: "yuansushe", description: "元素蛇：向本行前方发射1发带不同效果的穿透子弹（黄定身 / 紫毒气 / 蓝冰冻减速 / 红暴击）", display_name: "元素蛇" });
+    register_goods("galaxy_horse", { type: "card", cost: "115000", unlock_item_id: "galaxy_horse", description: "银河马：召唤1颗陨石对本行老鼠进行海陆空全方位打击，击杀灰烬", display_name: "银河马" });
+    register_goods("jingangma", { type: "card", cost: "90000", unlock_item_id: "jingangma", description: "金刚马：全屏索敌最远目标，发射追踪穿透音波，可伤害幽灵鼠", display_name: "金刚马" });
+    register_goods("qiedanlong", { type: "card", cost: "80000", unlock_item_id: "qiedanlong", description: "窃蛋龙：向前方3行投掷带溅射的龙蛋，未命中也会爆炸", display_name: "窃蛋龙" });
+    register_goods("qishui", { type: "card", cost: "80000", unlock_item_id: "qishui", description: "弹珠汽水：直线弹命中后产生2倍伤害的弹射子弹，向周围3*3最近目标弹射，共3只", display_name: "弹珠汽水" });
+    register_goods("sheshejiu", { type: "card", cost: "120000", unlock_item_id: "sheshejiu", description: "蛇蛇酒：为3*3范围内卡片随机升星或者降星，持续一段时间后恢复", display_name: "蛇蛇酒" });
+    register_goods("shiguangji", { type: "card", cost: "60000", unlock_item_id: "shiguangji", description: "13周年时光机：随机为本格卡片升星或者降星", display_name: "13周年时光机" });
+    register_goods("snowrabbit", { type: "card", cost: "100000", unlock_item_id: "snowrabbit", description: "雪球兔：召唤雪球同时攻击全屏最多5只老鼠", display_name: "雪球兔" });
+    register_goods("tanhuanghu", { type: "card", cost: "150000", unlock_item_id: "tanhuanghu", description: "弹簧虎：连续发射2发带溅射的子弹攻击本行，优先空中，子弹可穿过岩浆和障碍", display_name: "弹簧虎" });
+    register_goods("yuanqiniu", { type: "card", cost: "40000", unlock_item_id: "yuanqiniu", description: "元气牛：连续散发全方位伤害气泡波，场上每多1张同类卡伤害提升1次", display_name: "元气牛" });
+    register_goods("zhuanlonghu", { type: "card", cost: "105000", unlock_item_id: "zhuanlonghu", description: "转龙壶：缩减3*3范围内正在冷却的美食的冷却时间30%", display_name: "转龙壶" });
 }

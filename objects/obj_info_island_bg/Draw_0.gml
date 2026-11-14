@@ -118,6 +118,9 @@ if (info_button_select == 1 && open_focus_id != ""){
     for (var _fk = 0; _fk < array_length(info_view); _fk++){
         if (global.player_deck[| info_view[_fk]] == open_focus_id){ select_card_index = _fk; break; }
     }
+    // 从背包右键直接定位到这张卡 → 详情面板已经把它显示出来了，同样算「看过情报」
+    // （open_focus_id 下面立刻清空，所以只会触发一次；card_info_task_complete 本身也幂等）
+    card_info_task_complete(open_focus_id);
     open_focus_id = "";
 }
 
@@ -650,6 +653,11 @@ if (scroll_max > 0) {
         scrollbar_dragging = false;
     }
 }
+
+// 搜索框右侧「清空」按钮（2026-11-08 用户口径：情报岛只要清空，不要「下一个」）
+//   位置 = 搜索框 (130,118,384×40) 右边再留 8px；面板收起时随 surface 一起淡出
+//   2026-11-09：跟其他界面统一 —— **有输入才出现**（原来是常驻一块空按钮）
+if (info_search_text != "") mod_search_clear_btn_draw(522, 118, 70, 40, true);
 
 // 重置绘制设置
 draw_set_halign(fa_left);

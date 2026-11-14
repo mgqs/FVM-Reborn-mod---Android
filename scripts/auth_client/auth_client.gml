@@ -205,12 +205,12 @@ function auth_verify_code(_code) {
 }
 
 function auth_file_path() {
-    // Android 沙盒：用相对路径，落在游戏自身存档目录里
-    // （get_path_in_local_appdata 是 Windows 专属的目录拼接，移动端不可用）
+    // Android 沙盒：直接写相对路径，落到游戏自己的存档目录里。
+    // get_path_in_local_appdata 在移动端会拼到应用私有目录，用相对路径最稳。
     if (os_type == os_android) {
         return "auth.dat";
     }
-    return global.native_util.get_path_in_local_appdata("\\FVM_Reborn_makk") + "\\auth.dat";
+    return global.native_util.get_path_in_local_appdata("\\FVM_Reborn_makk\\auth.dat");
 }
 
 /// 本地绑定记录的自校验，防止手改 auth.dat 塞一个别人的码

@@ -104,11 +104,15 @@ for(var i = 0 ; i < slot_rows ; i++){
             var _fly_back = fly_active && !fly_add && fly_pool_i == card_index;
             for (var _fi = 0; _fi < array_length(fly_batch); _fi++) if (fly_batch[_fi].pool_i == card_index && !fly_batch[_fi].add) _fly_back = true;
             if (_fly_back) { is_unlocked = false; is_selected = true; }
+            // 搜索中：没命中的卡灰掉（2026-11-08 用户要的「可选增强」）
+            var _dim    = rrm_nav.active && !mod_search_nav_hit(rrm_nav, card_id);
+            var _tint   = _dim ? c_gray : c_white;
+            var _tint_a = _dim ? 0.35 : 1;
             if (is_unlocked) {
                 // 已解锁的卡片正常绘制
 				var _slot_spr = is_fusion_card(card_id) ? spr_slot_2 : ((ds_map_find_value(card_data, "is_gold") == 1) ? spr_slot_1 : spr_slot);
-				draw_sprite_ext(_slot_spr, 0, card_x, card_y-3, 0.25, 0.25, 0, c_white, 1);
-                draw_sprite_ext(card_data[? "sprite"], 0, card_x, card_y+15, 0.7, 0.7, 0, c_white, 1);
+				draw_sprite_ext(_slot_spr, 0, card_x, card_y-3, 0.25, 0.25, 0, _tint, _tint_a);
+                draw_sprite_ext(card_data[? "sprite"], 0, card_x, card_y+15, 0.7, 0.7, 0, _tint, _tint_a);
 				draw_set_color(c_black);
 				draw_set_halign(fa_center);
 				draw_set_valign(fa_bottom);
@@ -125,7 +129,7 @@ for(var i = 0 ; i < slot_rows ; i++){
 				}
 				var level = global.save_data.unlocked_cards[info_index].level
 				if level > 0{
-					draw_sprite_ext(spr_star_slot,  level - 1,  card_x-25,  card_y-35, 0.7, 0.7, 0, c_white, 1);
+					draw_sprite_ext(spr_star_slot,  level - 1,  card_x-25,  card_y-35, 0.7, 0.7, 0, _tint, _tint_a);
 				}
                 // 检查鼠标是否悬停在卡片上
                 var spr_width = 84;
@@ -422,16 +426,11 @@ for(var i = deck_first_slot_index; i < deck_first_slot_index+11;i++){
 	if global.level_file.version != "1.0.0"{
 		if array_get_index(global.save_data.completed_levels,global.level_data.id) == -1{
 			draw_text(100,780,"关卡奖励（首通）")
-			var _is_cs_ready = (string_pos("ancient_castle_", global.level_data.id) == 1);
-			if (_is_cs_ready) {
-					var _cs_silver_arr_rd = [350, 400, 181, 240, 280, 395, 635, 875];
-					var _cs_lv_idx_rd = real(string_delete(global.level_data.id, 1, string_length("ancient_castle_")));
-					var _cs_silver_rd = _cs_silver_arr_rd[min(_cs_lv_idx_rd, array_length(_cs_silver_arr_rd) - 1)];
-					var _cs_gold_medal_rd = [90, 120, 181, 240, 280, 395, 635, 875][min(_cs_lv_idx_rd, 7)];
-					var _cs_gold_coins_rd = [60000, 84000, 104000, 129000, 140000, 160000, 190000, 220000][min(_cs_lv_idx_rd, 7)];
-					draw_text(100,820,"白银徽章（"+string(_cs_silver_rd)+"）");
-					draw_text(100,860,"黄金徽章（"+string(_cs_gold_medal_rd)+"）");
-					draw_text(100,900,"金币（"+string(_cs_gold_coins_rd)+"）");
+			var _cs_rw_rd = cross_server_reward(global.level_data.id, true);
+			if (_cs_rw_rd != undefined) {
+					draw_text(100,820,"白银徽章（"+string(_cs_rw_rd.silver)+"）");
+					draw_text(100,860,"黄金徽章（"+string(_cs_rw_rd.gold_medal)+"）");
+					draw_text(100,900,"金币（"+string(_cs_rw_rd.coins)+"）");
 				} else {
 				draw_text(100,820,"金币（"+string(global.level_file.rewards[1].gold)+"）")
 				draw_text(100,860,"技能："+string(global.level_file.rewards[1].skill_level)+"级")
@@ -472,16 +471,11 @@ for(var i = deck_first_slot_index; i < deck_first_slot_index+11;i++){
 		}
 		else{
 			draw_text(100,780,"关卡奖励")
-			var _is_cs_ready_r = (string_pos("ancient_castle_", global.level_data.id) == 1);
-			if (_is_cs_ready_r) {
-					var _cs_silver_arr_rr = [105, 149, 169, 203, 209, 203, 157, 113];
-					var _cs_lv_idx_rr = real(string_delete(global.level_data.id, 1, string_length("ancient_castle_")));
-					var _cs_silver_rr = _cs_silver_arr_rr[min(_cs_lv_idx_rr, array_length(_cs_silver_arr_rr) - 1)];
-					var _cs_gold_rr = [27, 35, 55, 71, 83, 119, 191, 263][min(_cs_lv_idx_rr, 7)];
-					var _cs_gold_coins_rr = [30000, 42000, 52000, 64500, 70000, 80000, 95000, 110000][min(_cs_lv_idx_rr, 7)];
-					draw_text(100,820,"白银徽章（"+string(_cs_silver_rr)+"）");
-					draw_text(100,860,"黄金徽章（"+string(_cs_gold_rr)+"）");
-					draw_text(100,900,"金币（"+string(_cs_gold_coins_rr)+"）");
+			var _cs_rw_rr = cross_server_reward(global.level_data.id, false);
+			if (_cs_rw_rr != undefined) {
+					draw_text(100,820,"白银徽章（"+string(_cs_rw_rr.silver)+"）");
+					draw_text(100,860,"黄金徽章（"+string(_cs_rw_rr.gold_medal)+"）");
+					draw_text(100,900,"金币（"+string(_cs_rw_rr.coins)+"）");
 				} else {
 				draw_text(100,820,"金币（"+string(global.level_file.rewards[0].gold)+"）")
 				var item_string = ""
@@ -543,3 +537,12 @@ draw_set_halign(fa_right);
 draw_set_valign(fa_bottom);
 draw_set_font(font_yuan)
 draw_text(1820,1080,"右键点击或按ESC退出")
+
+// ── 搜索：命中光圈 + 清空 / 下一个按钮（2026-11-08，改走通用导航器）──────────
+//   卡片都画在 surface 里，光圈必须画在 draw_surface 之后；坐标与 hover 判定同源。
+//   2026-11-09：「清空 / 下一个」改由搜索框实例自己画（SearchBox.set_on_draw_extra），这里不再画。
+if (rrm_nav.hit_t > 0) rrm_nav.hit_t--;
+
+// 2026-11-08 用户口径：**不再画命中光圈**（未命中整片灰掉已经够醒目），只保留滚动定位
+draw_set_color(c_white);
+draw_set_alpha(1);

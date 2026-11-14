@@ -60,6 +60,7 @@ function card_category_data()
         ["fenjima", "直射类", "特殊直线类", ""],
         ["double_blade_snake", "直射类", "直线穿透类", ""],
         ["yufengma", "直射类", "直线穿透类", ""],
+        ["yuansushe", "直射类", "直线穿透类", ""],   // 2026-11-13 新卡：元素蛇（四色循环弹）
         ["laipishe", "直射类", "固定轨迹类", ""],
         ["pizza_oven", "直射类", "固定轨迹类", ""],
         ["gongjiang_god", "直射类", "固定轨迹类", ""],
@@ -110,6 +111,7 @@ function card_category_data()
         ["haiyang_god", "增幅类", "名单类增幅", "喷壶增幅"],
         ["yinhema", "增幅类", "名单类增幅", "固定轨迹增幅"],
         ["fushengcha", "增幅类", "名单类增幅", "固定轨迹增幅"],
+        ["xinggui_god", "增幅类", "名单类增幅", "固定轨迹增幅"],   // 2026-11-13 新卡：星轨神·阿斯特
         ["mixian", "辅助类", "地形类", ""],
         ["yanyantu", "增幅类", "名单类增幅", "产能增幅"],
         ["zhanqima", "增幅类", "全能增幅", ""],
@@ -193,6 +195,7 @@ function card_category_data()
         ["iron_fishbone", "非远程类", "鱼刺类", ""],
         ["fishbone", "非远程类", "鱼刺类", ""],
         ["chocolate_cannon", "灰烬类", "轰炸类", ""],
+        ["galaxy_horse", "灰烬类", "轰炸类", ""],   // 2026-11-13 新卡：银河马（陨石）
         ["ronghedapao", "灰烬类", "轰炸类", ""],
         ["ronghekafei", "直射类", "传统直线类", ""],
         ["gaia", "灰烬类", "轰炸类", ""],
@@ -248,8 +251,19 @@ function card_category_data()
         ["huojianzhu", "追踪类", "群轰追踪", ""],
         ["doumaobang", "灰烬类", "瞬发类", "冲撞类"],
         ["honeytrap", "追踪类", "集火追踪", ""],
-        ["huanyingshe", "投掷类", "多线投手", ""]
-    ];
+        ["huanyingshe", "投掷类", "多线投手", ""],
+        ["tianxie", "直射类", "直线穿透类", ""],
+        ["shiliu_baobao_bing", "灰烬类", "瞬发类", "爆炸类"],
+        ["jingangma", "喷壶类", "旋转喷壶类", ""],
+        ["qiedanlong", "投掷类", "多线投手", ""],
+        ["qishui", "直射类", "特殊直线类", ""],
+        ["sheshejiu", "辅助类", "变星类", ""],
+        ["shiguangji", "辅助类", "变星类", ""],
+        ["snowrabbit", "追踪类", "散点追踪", ""],
+        ["tanhuanghu", "专业防空类", "陆空兼备类", ""],
+        ["yuanqiniu", "喷壶类", "旋转喷壶类", ""],
+        ["zhuanlonghu", "辅助类", "冷却类", ""],
+];
 }
 
 /// @func card_category_index_add(_name, _id)
@@ -410,6 +424,10 @@ function mod_apply_category_buff_map()
     //   次类型 tracker_advanced = 宴飨女神（散点追踪整体那一档），两者取较高倍率
     // ⚠️ 必须写在上面「散点追踪」循环之后：那条循环会把 cold_drew 覆盖成 tracker_advanced，
     //    导致莓果点心的格子写了却没人读（2026-10-22 修复）
+    // 2026-11-13 用户口径：雪球兔和冷萃机一致，也要吃莓果点心 / 香料虎（tracker 那一档），
+    //   主类型仍是散点追踪（宴飨女神），副类型补 tracker，结算时取较高倍率
+    ds_map_set(global.plant_buff_map_2, "snowrabbit", "tracker");
+
     ds_map_set(global.plant_buff_map, "cold_drew", "tracker_berry");
     ds_map_set(global.plant_buff_map_2, "cold_drew", "tracker_advanced");
     ds_map_set(global.plant_buff_map, "power_god", "tracker_advanced");
@@ -419,6 +437,16 @@ function mod_apply_category_buff_map()
     ds_map_set(global.plant_buff_map, "hufa_god", "sprayer");
     ds_map_set(global.plant_buff_map, "gaia", "thrower");
     ds_map_set(global.plant_buff_map_2, "gaia", "tracker");
+
+    // 2026-11-13 用户口径：汽水（直射类·特殊直线）吃「喷壶档」增幅 —— 魔杖蛇（含本行整行）、榨汁机。
+    //   海洋女神那边单独按「附加类 5×1」算，见 ocean_god_buff.gml 的 mod_get_ocean_buff_type。
+    ds_map_set(global.plant_buff_map, "qishui", "sprayer");
+
+    // 银河马（灰烬·轰炸）：数值表 115 行脚注原文「受精灵龙&宴飨女神增幅」，
+    //   但它的分类是「灰烬类·轰炸类」，不在 tracker 的自动扫描组里 → 2026-11-14 用户报
+    //   「银河马没有吃到宴飨女神增伤」。按用户口径直接归入追踪类，吃 tracker 这一格
+    //   （与莓果点心 / 香料虎 / 塔利亚同格，2026-11-14 用户明确「不用新建 type」）。
+    ds_map_set(global.plant_buff_map, "galaxy_horse", "tracker");
 
     show_debug_message("增幅分组按分类重建：" + string(_total) + " 条");
     return _total;

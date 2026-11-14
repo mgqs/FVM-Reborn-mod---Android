@@ -9,6 +9,7 @@ live_timer++;
 anim_t = (anim_t + 1) mod 60;
 if (anim_t < anim_idle_max) image_index = ((anim_t div 3) mod (idle_anim + 1));
 else                        image_index = atk_start + (anim_t - anim_idle_max);
+external_animation_sync_native(id, (anim_t < anim_idle_max ? 3 : 1), anim_t, "anim_t");
 
 // 到「放电那一帧」（卡片第 24 帧）才把电弧点亮，播一遍就熄 —— 放下后、两次放电之间都不显示
 if (anim_t == fx_start_frame){
@@ -63,8 +64,10 @@ if (_do_hit){
         //   rotate 名单本身含 dance / invisible，所以这里按**敌人类型**再剔一次
         //   🔴 2026-11-06 二次修：with 里 `other` 是电鳗自己，`other.target_type` 拿到的是卡片的 "rotate"，
         //      拿它去比 dance / invisible 永远不成立（等于没剔）；必须用**裸变量** target_type（= 敌人的）。
-        if (!can_hit(other.target_type, target_type)) continue;
-        if (target_type == "dance" || target_type == "invisible") continue;
+        //   🔴 2026-11-11 三次修：改用 can_hit_ash —— 灰烬类卡片对「dance(走行/腾空)」也应该生效
+        //      （高跷鼠、非主流鼠走行）。幽灵(invisible)仍由卡面口径剔除。
+        if (!can_hit_ash(other.target_type, target_type)) continue;
+        if (target_type == "invisible") continue;
 
         // 伤害照常（2026-11-06 用户口径：BOSS 也要吃伤害）
         damage_amount = other.atk;

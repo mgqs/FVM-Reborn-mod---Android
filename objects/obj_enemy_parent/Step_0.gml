@@ -110,9 +110,6 @@ if is_frozen || is_scare || is_stun{
 timer++;
 if (climb_cooldown > 0) climb_cooldown--;
 
-// 本实例的「能上梯 / 能翻障碍」标记；with 块内读不到 self 的实例变量，先取到局部变量备用
-var _can_use_ladder = can_use_ladder;
-
 // ================= 上梯越过植物（梯子功能）=================
 // 说明：
 //   - climb_stage 0 = 未越障
@@ -284,61 +281,7 @@ switch(state) {
 			}
 		}
         
-        // 检测前方植物
-        var plant_in_range = noone;
-		
-		var plant_order_list = [noone,noone,noone,noone]
-        
-		
-        // 使用碰撞检测查找攻击范围内的植物
-        with (obj_card_parent) {
-			// 高跷鼠只把三种高大面包视为可攻击目标，其余低矮植物直接忽略
-			if (other.mouse_id == "longyuan_gaoqiao"
-				&& plant_id != "chocolate_bread"
-				&& plant_id != "pineapple_explosive_bread"
-				&& plant_id != "mianbao"
-				&& plant_id != "lightning_baguette") continue;
-			var dx = x - other.x;
-			var dy = y - other.y;
-			var is_in_front = false
-			if other.attack_range > 0{
-				is_in_front = (dx < 0 && dx > -other.attack_range);
-			}
-			else{
-				is_in_front = (dx > 0 && dx < -other.attack_range);
-			}
-
-            // 检查是否在攻击范围内
-            // 若该植物身上挂着梯子，则跳过（改由「上梯」逻辑处理），不啃它
-            var _skip_by_ladder = false;
-            if (_can_use_ladder && instance_number(obj_ladder) > 0) {
-                var _this_plant_id = id;
-                with (obj_ladder) {
-                    if (host_plant == _this_plant_id) _skip_by_ladder = true;
-                }
-            }
-            if (is_in_front && zombie_grid.row == grid_row && !_skip_by_ladder && (feature_type!="dwarf" || (feature_type=="dwarf" && other.giant_type))) {
-                // 按铲除顺序优先选择
-                for (var i = 0; i < ds_list_size(global.eat_order); i++) {
-                    var tar_type = ds_list_find_value(global.eat_order, i);
-
-                    if (plant_type == tar_type) {
-                        plant_order_list[i] = id;
-                        break;
-                    }
-                }
-
-
-                if (plant_in_range != noone) break;
-            }
-        }
-
-		for(var i = 0 ; i < 4 ; i++){
-			if plant_order_list[i] != noone{
-				plant_in_range = plant_order_list[i]
-				break
-			}
-		}
+        var plant_in_range = combat_enemy_find_plant(id);
 
         // 如果找到目标植物，进入攻击状态
         if (plant_in_range != noone) {
@@ -405,59 +348,7 @@ switch(state) {
 		        }
 			}
 		}
-        // 攻击动画
-        // 检测前方植物
-        var plant_in_range = noone;
-        
-		var plant_order_list = [noone,noone,noone,noone]
-		
-        // 使用碰撞检测查找攻击范围内的植物
-        with (obj_card_parent) {
-			// 高跷鼠只把三种高大面包视为可攻击目标，其余低矮植物直接忽略
-			if (other.mouse_id == "longyuan_gaoqiao"
-				&& plant_id != "chocolate_bread"
-				&& plant_id != "pineapple_explosive_bread"
-				&& plant_id != "mianbao"
-				&& plant_id != "lightning_baguette") continue;
-			var dx = x - other.x;
-			var dy = y - other.y;
-			var is_in_front = false
-			if other.attack_range > 0{
-				is_in_front = (dx < 0 && dx > -other.attack_range);
-			}
-			else{
-				is_in_front = (dx > 0 && dx < -other.attack_range);
-			}
-
-            // 检查是否在攻击范围内
-            // 若该植物身上挂着梯子，则跳过（改由「上梯」逻辑处理），不啃它
-            var _skip_by_ladder = false;
-            if (_can_use_ladder && instance_number(obj_ladder) > 0) {
-                var _this_plant_id = id;
-                with (obj_ladder) {
-                    if (host_plant == _this_plant_id) _skip_by_ladder = true;
-                }
-            }
-            if (is_in_front && zombie_grid.row == grid_row && !_skip_by_ladder && (feature_type!="dwarf" || (feature_type=="dwarf" && other.giant_type))) {
-                // 按铲除顺序优先选择
-                for (var i = 0; i < ds_list_size(global.eat_order); i++) {
-                    var tar_type = ds_list_find_value(global.eat_order, i);
-                    
-                    if (plant_type == tar_type) {
-                        plant_order_list[i] = id;
-                        break;
-                    }
-                }
-                
-                if (plant_in_range != noone) break;
-            }
-        }
-		for(var i = 0 ; i < 4 ; i++){
-			if plant_order_list[i] != noone{
-				plant_in_range = plant_order_list[i]
-				break
-			}
-		}
+        var plant_in_range = combat_enemy_find_plant(id);
 		if (plant_in_range != noone) {
             target_plant = plant_in_range;
         }
@@ -475,7 +366,10 @@ switch(state) {
             with (target_plant) {
 				if !invincible{
 					// 海克斯第二批：反伤 / 防御类击退 / 火苗护盾 / 炼金龙魂抗性 统一走这里
-					hex_batch2_card_take_hit(id, other.id, hex_card_incoming_damage(other.atk));
+					// 海克斯「食指的指令」：鼠军全属性 +30% 的攻击面要**实时**读，
+					// 不能只在出场那一刻乘一次 —— 标记是中途挂上的，出场时乘就永远吃不到。
+					hex_batch2_card_take_hit(id, other.id,
+						hex_card_incoming_damage(other.atk * hex_b3_enemy_mark_atk_mult()));
 					// 「现炒现卖」：受伤后再流失一部分最大生命，但不低于基础生命的 40%
 					var _dr = hex_card_drain_pct();
 					if (_dr > 0 && hp > 0) {

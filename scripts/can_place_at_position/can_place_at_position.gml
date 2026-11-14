@@ -68,8 +68,9 @@ function can_place_at_position(x, y, plant_type,feature_type,target_card,card_id
     // 获取该网格的植物列表
     var plant_list = ds_grid_get(global.grid_plants, col, row);
 
-    // 同一格最多放一张海洋女神和一张战旗马，二者可以互相叠放。
-    if ((card_id == "haiyang_god" || card_id == "zhanqima") && !global.replace_placement)
+    // 同一格最多放一张海洋女神 / 一张战旗马 / 一张星轨神，三者可互相叠放。
+    //   2026-11-13：星轨神（阿斯特家族）加入本规则 —— 它是悬浮增幅卡，同一格重复放没有意义。
+    if ((card_id == "haiyang_god" || card_id == "zhanqima" || card_id == "xinggui_god") && !global.replace_placement)
     {
         for (var i = 0; i < ds_list_size(plant_list); i++)
         {
@@ -100,6 +101,21 @@ function can_place_at_position(x, y, plant_type,feature_type,target_card,card_id
         }
     }
     
+    // 放置互斥类（2026-11-08 用户口径）：蜜糖陷阱 / 仙笛马归为一类，**同类之间不能同格叠加**。
+    //   规则：本卡有类 → 同格只要已经有同类卡就拒绝（同名卡自然也算同类，无需再单独写）。
+    //   不同类的卡、没登记的卡照旧可叠（不占格卡的原行为不变）。
+    //   放在 chunsun / xiandima 那段之前：仙笛马原来那条「只拦同名」被这条更严的规则覆盖，那段留着不影响。
+    var _pcls = place_mutex_class(card_id);
+    if (_pcls != "" && !global.replace_placement)
+    {
+        for (var _pm_i = 0; _pm_i < ds_list_size(plant_list); _pm_i++)
+        {
+            var _pm_plant = ds_list_find_value(plant_list, _pm_i);
+            if (!instance_exists(_pm_plant) || !variable_instance_exists(_pm_plant, "plant_id")) continue;
+            if (place_mutex_class(_pm_plant.plant_id) == _pcls) return false;
+        }
+    }
+
     // 不占格卡可与其他卡叠放，但同一格不能重复放置自身。
     if ((card_id == "chunsun" || card_id == "xiandima") && !global.replace_placement)
     {

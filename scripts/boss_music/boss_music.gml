@@ -15,8 +15,7 @@
 ///      id 调 audio_stop_sound，销毁早了会报「索引不映射到音频资产」
 
 /// 沙盒相对路径：GM 会自动映射到 %LOCALAPPDATA%\<项目名>\boss_music\
-/// 用绝对路径喂 file_find_first / audio_create_stream 在沙盒模式下会失败，这是
-/// 「开关打开了却没声音」的根因。
+/// 优先使用沙盒相对路径；绝对路径兜底通过 join_path 拼接，确保 Windows 沙盒能识别。
 #macro kBossMusicRelDir "boss_music"
 
 /// 绝对路径只用于「打开文件夹」这类给玩家看的场景

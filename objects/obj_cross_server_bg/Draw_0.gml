@@ -30,6 +30,7 @@ if (!ds_map_exists(global.maps_map, cross_server_page_map_ids[selected_page])) {
 }
 
 var _active_map_id = cross_server_page_map_ids[selected_page];
+var _active_uses_star_gate = (_active_map_id == "cross_server_water_fire" || _active_map_id == "cross_server_voodoo_lab");
 var _active_has_data = ds_map_exists(global.maps_map, _active_map_id);
 var _active_levels = _active_has_data ? ds_map_find_value(global.maps_map, _active_map_id).levels_data : [];
 var _active_level_count = array_length(_active_levels);
@@ -43,9 +44,13 @@ var k = 0;
 //   梦魇天空 —— 专用 8 帧缩略图 spr_mod_cs_level_icon_nightmare，第 k 帧对应第 k 关；
 //   灼热地域 —— 直接放地图底图 spr_zhuorediyu（只有 1 帧，等比缩到图标框大小；
 //               该精灵 origin 在左上角，需要补一个半宽半高的偏移才能居中）；
+//   水火之间 —— 底图 2 帧：_0 给 0~3 关、_1 给 4~7 关（循环内按 k 选图）；
+//   巫毒研究所 —— 底图 8 帧 spr_wuduyanjiusuo_0..7，第 k 关用第 k 帧；
 //   其它章节 —— 沿用通用图标（1 帧）。
 var _icon_is_nightmare = (_active_map_id == "cross_server_nightmare_sky");
 var _icon_is_zhuore = (_active_map_id == "cross_server_hot_hell");
+var _icon_is_water_fire = (_active_map_id == "cross_server_water_fire");
+var _icon_is_voodoo = (_active_map_id == "cross_server_voodoo_lab");
 var _level_icon_spr = spr_mod_cs_level_icon;
 var _level_icon_frame = 0;
 var _level_icon_xs = 1.2;
@@ -68,6 +73,24 @@ for (var j = 0; j < 2; j++)
     for (var i = 0; i < 4; i++)
     {
         if (k >= _active_level_count) break;
+        // 本关实际使用的图标（水火/巫毒按 k 换图换帧，其余章节用公共值）
+        var _icon_use_spr = _level_icon_spr;
+        var _icon_use_frame = _icon_is_nightmare ? k : _level_icon_frame;
+        var _icon_use_xs = _level_icon_xs;
+        var _icon_use_ys = _level_icon_ys;
+        var _icon_use_dx = _level_icon_dx;
+        var _icon_use_dy = _level_icon_dy;
+        if (_icon_is_water_fire || _icon_is_voodoo){
+            _icon_use_spr = _icon_is_water_fire
+                ? (k < 4 ? spr_shuihuozhijian_0 : spr_shuihuozhijian_1)
+                : (k >= 0 && k <= 7 ? asset_get_index("spr_wuduyanjiusuo_" + string(k)) : spr_mod_cs_level_icon);
+            if (_icon_use_spr == -1) _icon_use_spr = spr_mod_cs_level_icon;
+            _icon_use_frame = 0;
+            _icon_use_xs = 1.2 * 108 / sprite_get_width(_icon_use_spr);
+            _icon_use_ys = _icon_use_xs;
+            _icon_use_dx = -sprite_get_width(_icon_use_spr) * _icon_use_xs * 0.5;
+            _icon_use_dy = -sprite_get_height(_icon_use_spr) * _icon_use_ys * 0.5;
+        }
         if (k >= level_unlocked)
         {
             draw_sprite_ext(spr_mod_cs_level, 0, (x - 608) + (405 * i), (y - 170) + (400 * j), 1.8, 1.8, 0, c_gray, 1);
@@ -79,17 +102,23 @@ for (var j = 0; j < 2; j++)
             draw_set_valign(fa_middle);
             draw_text_ext_transformed(233 + (405 * i), 202 + (400 * j), level_name[k], 25, 1920, 1, 1, 0);
             draw_sprite_ext(spr_star_slot, 7 + k, 508 + (405 * i), 204 + (400 * j), 1.8, 1.8, 0, c_gray, 1);
-            draw_sprite_ext(_level_icon_spr, _icon_is_nightmare ? k : _level_icon_frame, (228 + (405 * i)) + _level_icon_dx, (478 + (400 * j)) + _level_icon_dy, _level_icon_xs, _level_icon_ys, 0, c_gray, 1);
+            draw_sprite_ext(_icon_use_spr, _icon_use_frame, (228 + (405 * i)) + _icon_use_dx, (478 + (400 * j)) + _icon_use_dy, _icon_use_xs, _icon_use_ys, 0, c_gray, 1);
             draw_set_alpha(1);
             draw_set_color(c_black);
             draw_roundrect((228 + (405 * i)) - 67, (478 + (400 * j)) - 67, 228 + (405 * i) + 65, 478 + (400 * j) + 65, true);
             draw_set_font(font_yuan);
             draw_set_color(c_ltgray);
-            draw_text_ext_transformed(312 + (405 * i), 390 + (400 * j), "通过以下关卡后开启：", 25, 1920, 1.2, 1.2, 0);
-            if (k > 0) {
-                draw_set_font(font_hei);
-                draw_set_color(c_black);
-                draw_text_ext_transformed(412 + (405 * i), 422 + (400 * j), level_name[k - 1], 25, 1920, 1, 1, 0);
+            if (_active_uses_star_gate) {
+                // 星级解锁章节：锁定原因就是背包最高星级不够，直接写清所需星级。
+                draw_text_ext_transformed(312 + (405 * i), 390 + (400 * j),
+                    "背包最高星级达到 " + string(cross_server_star_require(k)) + " 星后开启", 25, 1920, 1.2, 1.2, 0);
+            } else {
+                draw_text_ext_transformed(312 + (405 * i), 390 + (400 * j), "通过以下关卡后开启：", 25, 1920, 1.2, 1.2, 0);
+                if (k > 0) {
+                    draw_set_font(font_hei);
+                    draw_set_color(c_black);
+                    draw_text_ext_transformed(412 + (405 * i), 422 + (400 * j), level_name[k - 1], 25, 1920, 1, 1, 0);
+                }
             }
         }
         else
@@ -103,7 +132,7 @@ for (var j = 0; j < 2; j++)
             draw_set_valign(fa_middle);
             draw_text_ext_transformed(233 + (405 * i), 202 + (400 * j), level_name[k], 25, 1920, 1, 1, 0);
             draw_sprite_ext(spr_star_slot, 7 + k, 508 + (405 * i), 204 + (400 * j), 1.8, 1.8, 0, c_white, 1);
-            draw_sprite_ext(_level_icon_spr, _icon_is_nightmare ? k : _level_icon_frame, (228 + (405 * i)) + _level_icon_dx, (478 + (400 * j)) + _level_icon_dy, _level_icon_xs, _level_icon_ys, 0, c_white, 1);
+            draw_sprite_ext(_icon_use_spr, _icon_use_frame, (228 + (405 * i)) + _icon_use_dx, (478 + (400 * j)) + _icon_use_dy, _icon_use_xs, _icon_use_ys, 0, c_white, 1);
             draw_set_alpha(1);
             draw_set_color(c_dkgray);
             draw_roundrect((228 + (405 * i)) - 67, (478 + (400 * j)) - 67, 228 + (405 * i) + 65, 478 + (400 * j) + 65, true);

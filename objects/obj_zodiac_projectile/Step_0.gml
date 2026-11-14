@@ -100,13 +100,17 @@ if (_do_hit && _decoy_count > 0) {
     }
 }
 // 御风马二转秒杀表只在风弹路径中建立，避免其他投射物每步分配临时数组。
+// 2026-11-11：补入跨服·梦魇天空的两种滑翔系僵尸鼠 —— 滑翔僵尸鼠(kuafu_glider)、
+//   路障僵尸鼠(kuafu_barrier)。它们免疫灰烬，只能靠这条 true 伤害通道处理。
 var wind_execute_ids = undefined;
-if (kind == "wind") wind_execute_ids = ["glider_mouse","waste_flying_mouse","kamikaze_glider_mouse","flight_barrier_mouse","paratrooper_mouse","machine_bomb_mouse"];
+if (kind == "wind") wind_execute_ids = ["glider_mouse","waste_flying_mouse","kamikaze_glider_mouse","flight_barrier_mouse","paratrooper_mouse","machine_bomb_mouse","kuafu_glider","kuafu_barrier"];
 for (var i = 0; i < array_length(enemies); i++) {
     var e = enemies[i];
     if (array_contains(hit_ids,e.id)) continue;
     if (kind == "return" && e.object_index == obj_kuileima_decoy) continue; // 归元马忽略傀儡马，绝不攻击傀儡马代理
-    if (e.target_type != "normal" && e.target_type != "air") continue;
+    // 2026-11-11：归元马(return)额外放行 dance —— 高跷鼠 / 非主流鼠走行虽然不可被普通攻击锁定，
+    //   但属于「陆地上真实存在的鼠」，应能被归元马回收转化（原版机制）。
+    if (e.target_type != "normal" && e.target_type != "air" && !(kind == "return" && e.target_type == "dance")) continue;
     // 星弹只打地面：五星弹是扇形发出去的，原逻辑会顺路打空军（卡片本身不对空）
     if (kind == "star" && e.target_type != "normal") continue;
     var collision = false;
@@ -239,7 +243,8 @@ for (var i = 0; i < array_length(enemies); i++) {
                 var rm_rows_n = array_length(global.grid_terrains);
                 var rm_row_ok = (rm_rows_n > 0) && (rm_row >= 0) && (rm_row < rm_rows_n);
                 if (rm_row_ok) rm_row_ok = (rm_col >= 0) && (rm_col < array_length(global.grid_terrains[rm_row]));
-                if (!gy_returned && rm_row_ok && e.target_type == "normal"
+                // 2026-11-11：dance（高跷鼠 / 非主流鼠走行）同样允许变身归元马呆呆鼠
+                if (!gy_returned && rm_row_ok && (e.target_type == "normal" || e.target_type == "dance")
                     && instance_exists(e) && e.hp > 0 && !e.is_boss) {
                     // 送回第9列变为归元马呆呆鼠：仅非BOSS敌人才会变身，能力同平民鼠，继承原老鼠50%最大生命，动画由专属对象接管
                     var rm_pos = get_world_position_from_grid(rm_col,rm_row);
@@ -293,11 +298,29 @@ for (var i = 0; i < array_length(enemies); i++) {
         case "star":
             {
                 var st_dmg = damage;
+                // 溅射要用的格子 / 数值**先取出来**：event_user(0) 可能把目标打死或销毁，
+                //   之后再读 e.grid_col 就不安全了；数值走实例变量（with 里取不到 var 局部变量）
+                var _sp_col = e.grid_col;
+                var _sp_row = e.grid_row;
+                star_splash_dmg = round(st_dmg * 0.3);
                 with (e) {
                     damage_amount = st_dmg;
                     // 2026-11-07 用户口径：星弹不穿透、也不穿盾 → 普通伤害（护盾先吃，破盾才掉血）
                     damage_type = "normal";
                     event_user(0);
+                }
+                // 30% 单格溅射（2026-11-09 补）：命中那一格里**其他**敌人各吃 30%，主目标仍是 100%
+                //   星星兔本身不穿透（下面立刻销毁），所以这里只补同格的其他老鼠
+                for (var _si = 0; _si < instance_number(obj_enemy_parent); _si++) {
+                    var _se = instance_find(obj_enemy_parent, _si);
+                    if (!instance_exists(_se) || _se == e || _se.hp <= 0) continue;
+                    if (_se.grid_col != _sp_col || _se.grid_row != _sp_row) continue;
+                    if (_se.target_type != "normal") continue;
+                    with (_se) {
+                        damage_amount = other.star_splash_dmg;
+                        damage_type = "normal";
+                        event_user(0);
+                    }
                 }
                 // 🔴 2026-11-07 用户口径：星星兔**不穿透** —— 命中一个就销毁（卡面只写「5 方向各发 1 颗」，没穿透）。
                 //   原来是「命中后继续飞、靠 hit_ids 防重复」，表现为一颗星弹串一整列老鼠。

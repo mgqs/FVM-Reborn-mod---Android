@@ -11,12 +11,12 @@
   "androidsourcedir":"",
   "author":"",
   "classname":"",
-  "copyToTargets":64,
+  "copyToTargets":66,
   "description":"",
   "exportToGame":true,
   "extensionVersion":"0.0.1",
   "files":[
-    {"$GMExtensionFile":"v1","%Name":"","constants":[],"copyToTargets":64,"filename":"FvmNativeSupport.dll","final":"","functions":[
+    {"$GMExtensionFile":"v1","%Name":"","constants":[],"copyToTargets":66,"filename":"FvmNativeSupport.dll","final":"","functions":[
         {"$GMExtensionFunction":"","%Name":"native_open_folder","argCount":0,"args":[1,],"documentation":"","externalName":"OpenFolder","help":"","hidden":false,"kind":1,"name":"native_open_folder","resourceType":"GMExtensionFunction","resourceVersion":"2.0","returnType":2,},
         {"$GMExtensionFunction":"","%Name":"native_folder_exists","argCount":0,"args":[1,],"documentation":"","externalName":"FolderExists","help":"","hidden":false,"kind":1,"name":"native_folder_exists","resourceType":"GMExtensionFunction","resourceVersion":"2.0","returnType":2,},
         {"$GMExtensionFunction":"","%Name":"native_file_exists","argCount":0,"args":[1,],"documentation":"","externalName":"FileExists","help":"","hidden":false,"kind":1,"name":"native_file_exists","resourceType":"GMExtensionFunction","resourceVersion":"2.0","returnType":2,},
@@ -30,10 +30,12 @@
         {"$GMExtensionFunction":"","%Name":"native_disable_ime","argCount":1,"args":[2,],"documentation":"/// @param {Real} hwnd 游戏窗口句柄\n/// @returns {Real} 屏蔽输入法(IME)，中文候选框不再弹出","externalName":"DisableIme","help":"","hidden":false,"kind":1,"name":"native_disable_ime","resourceType":"GMExtensionFunction","resourceVersion":"2.0","returnType":2,},
         {"$GMExtensionFunction":"","%Name":"native_enable_ime","argCount":1,"args":[2,],"documentation":"/// @param {Real} hwnd 游戏窗口句柄\n/// @returns {Real} 放开输入法(IME)，输入框获得焦点时调用","externalName":"EnableIme","help":"","hidden":false,"kind":1,"name":"native_enable_ime","resourceType":"GMExtensionFunction","resourceVersion":"2.0","returnType":2,},
         {"$GMExtensionFunction":"","%Name":"native_unzip_map_file","argCount":0,"args":[1,1,],"documentation":"/// @param {String} zip_path 压缩文件的完整路径\r\n/// @param {String}  parent_folder_full_path 解压目标父文件夹的完整路径\r\n/// @returns {Real} 错误码","externalName":"UnzipMapFile","help":"","hidden":false,"kind":1,"name":"native_unzip_map_file","resourceType":"GMExtensionFunction","resourceVersion":"2.0","returnType":2,},
-        {"$GMExtensionFunction":"","%Name":"native_start_mouse_limit","argCount":2,"args":[2,2,],"documentation":"/// @param {Real} hz 目标频率（上限 1000，建议 500）\n/// @param {Real} hwnd 游戏窗口句柄\n/// @returns {Real} 1 = 启动成功","externalName":"StartMouseLimit","help":"","hidden":false,"kind":1,"name":"native_start_mouse_limit","resourceType":"GMExtensionFunction","resourceVersion":"2.0","returnType":2,},
+        {"$GMExtensionFunction":"","%Name":"native_start_mouse_limit","argCount":2,"args":[2,2,],"documentation":"/// @param {Real} hz 目标频率（0 = 关闭，默认关闭；上限 1000，建议 250~500）\n/// @param {Real} hwnd 游戏窗口句柄\n/// @returns {Real} 1 = 启动成功","externalName":"StartMouseLimit","help":"","hidden":false,"kind":1,"name":"native_start_mouse_limit","resourceType":"GMExtensionFunction","resourceVersion":"2.0","returnType":2,},
         {"$GMExtensionFunction":"","%Name":"native_stop_mouse_limit","argCount":0,"args":[],"documentation":"/// @returns {Real} 停止限频并卸载钩子","externalName":"StopMouseLimit","help":"","hidden":false,"kind":1,"name":"native_stop_mouse_limit","resourceType":"GMExtensionFunction","resourceVersion":"2.0","returnType":2,},
         {"$GMExtensionFunction":"","%Name":"native_mouse_limit_stats","argCount":1,"args":[2,],"documentation":"/// @param {Real} which 1 = 被吞掉的条数，2 = 放行条数，3 = 重新注入条数\n/// @returns {Real} 累计计数","externalName":"MouseLimitStats","help":"","hidden":false,"kind":1,"name":"native_mouse_limit_stats","resourceType":"GMExtensionFunction","resourceVersion":"2.0","returnType":2,},
-      ],"init":"","kind":1,"name":"","origname":"","ProxyFiles":[],"resourceType":"GMExtensionFile","resourceVersion":"2.0","uncompress":false,"usesRunnerInterface":false,},
+      ],"init":"","kind":1,"name":"","origname":"","ProxyFiles":[
+        {"$GMProxyFile":"","%Name":"libFvmNativeSupport.dylib","name":"libFvmNativeSupport.dylib","resourceType":"GMProxyFile","resourceVersion":"2.0","TargetMask":1,},
+      ],"resourceType":"GMExtensionFile","resourceVersion":"2.0","uncompress":false,"usesRunnerInterface":false,},
     {"$GMExtensionFile":"v1","%Name":"","constants":[],"copyToTargets":64,"filename":"7z.dll","final":"","functions":[],"init":"","kind":1,"name":"","origname":"","ProxyFiles":[],"resourceType":"GMExtensionFile","resourceVersion":"2.0","uncompress":false,"usesRunnerInterface":false,},
   ],
   "gradleinject":null,

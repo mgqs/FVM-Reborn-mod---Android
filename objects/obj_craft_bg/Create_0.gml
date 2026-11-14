@@ -698,7 +698,7 @@ function tg_confirm_draw(){
         mod_tg_fill_confirm_draw(tg_confirm_hover, tg_fill_price, tg_fill_cur_name, tg_fill_name, tg_assure, tg_fill_currency);
         return;
     }
-    mod_tg_confirm_draw(tg_confirm_hover, tg_assure);
+    mod_tg_confirm_draw(tg_confirm_hover, tg_assure, tg_is_guaranteed());
 }
 // 「转职说明」弹窗（2026-10-28）：矩形判定与绘制都在表脚本里
 function tg_help_rect(){ return mod_tg_help_rect(); }
@@ -769,11 +769,25 @@ function tg_check(){
     return mod_tg_check(tg_card, tg_assure, global.save_data.player.gold, global.debug);
 }
 
+/// @func tg_is_guaranteed() 当前选的这张卡**这一次**转职是不是「必成轮」
+///   保底计数按卡存在存档里（mod_tg_pity_get），上限按目标形态的档位算（mod_tg_pity_max）
+///   用途（2026-11-11 用户要求）：必成轮 100% 成功，保险金只在失败时退凭证 → 勾着纯浪费，
+///   所以选中 / 累计到上限时自动取消勾选，并且不允许再勾上
+function tg_is_guaranteed(){
+    if (tg_card == "") return false;
+    var _shape = mod_tg_target_shape(tg_card);
+    var _tier  = transfer_credit_tier(tg_card, _shape);
+    return mod_tg_guaranteed(mod_tg_pity_get(tg_card), mod_tg_pity_max(_tier));
+}
+
 /// @func tg_do() 真转一次：掷骰 → **成功只登记待结算**（动画播完才扣钱/扣凭证/提形态）/ 失败立刻结算
 ///       ⚠️ 2026-10-26 用户口径：动画期间「凭证和卡都不变」，播完才 清槽 + 提示 + 卡回列表。
 ///          所以成功分支里**一样都不能改**（存档、形态、凭证、金币），全部塞进 tg_fx_pending，
 ///          由 Step_0 在特效收尾时调 tg_fx_commit() 一次做完。
 function tg_do(){
+    // 必成轮不带保险金（2026-11-11）：Step 那边已经会自动取消，这里再兜一次，
+    //   防止「确认窗开着的时候计数刚好到上限」之类的边角情况还把钱扣掉
+    if (tg_assure && tg_is_guaranteed()) tg_assure = false;
     var _r = tg_check();
     if (!_r.ok){
         tg_notice(_r.reason);
@@ -896,6 +910,23 @@ evo_rows_max      = 0      // Draw 每帧按卡数算（ceil(n/列) - 8），Ste
 //   状态各存一份（tg_sb / evo_sb），别共用 → 两页互不影响。
 tg_sb  = { on:false, y:0, off:0 }
 evo_sb = { on:false, y:0, off:0 }
+
+// ── 演出锁定（2026-11-11 用户口径）────────────────────────────────────────────
+//   融合演出 / 转职成功特效 / 金卡进化特效，这三种都是**播完那一帧才落账**
+//   （扣金币·融合剂·食谱 / 扣凭证·提形态 / 合卡给金卡）。
+//   → 演出期间**不许操作、不许退出**：页签、档位、升格按钮、右上角 X、ESC 全锁，
+//     保证演出一定播得完，不会出现「点 X 提前退出 = 白扣材料 / 白转」。
+//   ⚠️ 之前的「中途退出就算浪费」的口径已作废（用户 2026-11-11 明确：不要那种设定）。
+//   ⚠️ 窗口右上角那个系统 X 拦不了（LTS2026 运行时没有 window_set_close_button），
+//      Alt+F4 / 强退属于玩家主动杀进程，不在锁定范围。
+
+/// @func craft_anim_lock() 当前是否处于「演出锁定」
+function craft_anim_lock(){
+    if (fusion_phase == 1) return true;   // 食灵融合演出
+    if (tg_fx)             return true;   // 卡片转职成功特效
+    if (evo_fx)            return true;   // 金卡进化特效
+    return false;
+}
 
 /// @func craft_list_sb(top, h, max_row, cur, tgt, st) 画右侧列表滑块并处理拖动
 /// @param top,h   列表可视区（= 800 格的顶边 / 高）
@@ -1029,3 +1060,112 @@ panel_anim_kids(id, [obj_closecraft_btn, obj_craft_select_btn, obj_craft_confirm
 craft_parts = [[130,  15, 1096,  900, -1, 0],   // 左上板块（卡片/宝石强化台）：从左边
                [130, 900, 1096, 1065,  0, 1],   // 下面的道具条：从下边
                [1096, 15, 1790, 1065,  1, 0]]   // 右边的素材格：从右边
+
+// ── 卡片搜索（2026-11-08；改用通用模块 mod_search_nav_*）─────────────────
+//   只在「卡片宝石」(tab0) 和「金卡进化」(tab3) 生效；候选顺序由本界面自己的两个列表决定，
+//   搜索框配色 / 清空 / 下一个按钮 / 命中集合都在 scripts/mod_info_island_search 的通用层。
+craft_order    = [];   // 强化页卡片排序（= Draw_0 里 craft_sort_order 的同口径副本）
+craft_prev_tab = 0;    // 上一帧页签：变了就清空搜索
+
+/// 与 Draw_0 里 craft_sort_order 同口径：普卡 → 融合卡 → 金卡（改了要两边一起改）
+craft_card_order = function() {
+    var _order  = [];
+    var _fusion = [];
+    var _gold   = [];
+    var _n = array_length(global.save_data.unlocked_cards);
+    for (var i = 0; i < _n; i++) {
+        var _c    = global.save_data.unlocked_cards[i];
+        var _slot = deck_get_card_data(_c.id, _c.shape);
+        if (_slot != noone && ds_map_find_value(_slot, "is_fusion") == 1)      array_push(_fusion, i);
+        else if (_slot != noone && ds_map_find_value(_slot, "is_gold") == 1)   array_push(_gold, i);
+        else                                                                  array_push(_order, i);
+    }
+    for (var a = 0; a < array_length(_fusion); a++) array_push(_order, _fusion[a]);
+    for (var b = 0; b < array_length(_gold);   b++) array_push(_order, _gold[b]);
+    return _order;
+};
+
+// 🔧 搜索栏位置参数（改完重进一次合成屋生效）
+//   2026-11-09 用户口径：**挪到顶部页签行右侧**（「融合罐合」标签右边那段空白），
+//   位置跟着页签算 → 以后调标签间距 / 缩放，搜索栏自动跟着走，不用再手改坐标
+//   相对合成屋**窗口中心点**（本对象 x / y）：窗口顶 = y-525、右沿 = x+830、左沿 = x-830
+// 2026-11-09 用户圈定：放「卡片宝石」标签**正下方**那块深色空带（与标签左对齐）
+craft_search_x = tab_cardgem_x;
+craft_search_y = tab_cardgem_y + 31 * craft_tab_scale + 8;    // 标签底 + 8（嫌高/低就调这个 +8）
+craft_search_w = 300;
+craft_search_h = 40;
+craft_btn_w    = 56;    // 「清空」最小宽度（就俩字，别撑成一块大板子）
+craft_btn_gap  = 8;     // 按钮与搜索框的间距
+
+craft_nav = mod_search_nav_create(id, {
+    x: craft_search_x, y: craft_search_y, w: craft_search_w, h: craft_search_h,
+    clear_w: craft_btn_w, next_w: craft_btn_w, gap: craft_btn_gap,
+    clear_when_active: true,   // 有输入才出「清空」
+    clear_side: "right",       // 清空排在搜索框右边（左边是页签，不能压）
+    btn_pad: 16,               // 按钮宽度 =「清空」文字宽 + 16
+    depth: depth - 1,
+    placeholder: "搜索名称/[分类]（可拼音）",
+    collect: method({ h: id }, function(_groups){
+        var _h   = h;
+        var _out = [];
+        if (_h.craft_top_tab == 3) {
+            // 金卡进化页：右侧列表 = evo_list（行优先）
+            for (var e = 0; e < array_length(_h.evo_list); e++) {
+                if (mod_search_match_card(_h.evo_list[e], _groups)) array_push(_out, e);
+            }
+        }
+        else if (_h.craft_top_tab == 2) {
+            // 转职页：右侧列表 = tg_list（融合卡 / 已转满的卡在 tg_rebuild 里已经滤掉）
+            if (_h.tg_list_dirty) _h.tg_rebuild();
+            for (var t = 0; t < array_length(_h.tg_list); t++) {
+                var _tid = _h.tg_list[t];
+                if (_tid == _h.tg_card) continue;                              // 已进槽那张原位留空
+                if (!mod_search_match_card(_tid, _groups)) continue;
+                if (!variable_struct_exists(_h.tg_meta, _tid)) continue;        // 没有 deck 数据的卡画不出内容
+                array_push(_out, t);
+            }
+        }
+        else {
+            _h.craft_order = _h.craft_card_order();
+            for (var i = 0; i < array_length(_h.craft_order); i++) {
+                var _ci2 = global.save_data.unlocked_cards[_h.craft_order[i]];
+                if (!mod_search_match_card(_ci2.id, _groups)) continue;
+                // 只认「真的会画出来」的卡：deck_get_card_data 返回 noone 的卡 Draw 里不画
+                //   （下标照旧 push 进去的位置算，保证 jump 的格子与绘制顺序一致）
+                if (deck_get_card_data(_ci2.id, _ci2.shape) == noone) continue;
+                array_push(_out, i);
+            }
+        }
+        return _out;
+    }),
+    key_of: method({ h: id }, function(_i){
+        var _h = h;
+        if (_h.craft_top_tab == 3) return _h.evo_list[_i];
+        if (_h.craft_top_tab == 2) return _h.tg_list[_i];
+        return global.save_data.unlocked_cards[_h.craft_order[_i]].id;
+    }),
+    jump: method({ h: id }, function(_i){
+        var _h = h;
+        if (_h.craft_top_tab == 3) {
+            // 进化页滚动单位是「行」
+            var _erow = _i div _h.evo_gcols;
+            _h.evo_scroll_target = clamp(_erow - (_h.evo_grows div 2), 0, _h.evo_rows_max);
+        }
+        else if (_h.craft_top_tab == 2) {
+            // 转职页滚动单位也是「行」（滚轮 ±1 行），落点居中
+            //   上限自己算一次，不依赖 Draw 里的 tg_rows_max（Step 早于 Draw，首帧会是 0）
+            var _trows = max(1, ceil(array_length(_h.tg_list) / _h.tg_gcols));
+            var _tmax  = max(0, _trows - _h.tg_grows);
+            _h.tg_scroll_target = clamp(_i div _h.tg_gcols - (_h.tg_grows div 2), 0, _tmax);
+        }
+        else {
+            var _row  = _i div 7;
+            var _rows = max(20, ceil(array_length(_h.craft_order) / 7));
+            var _max  = max(0, 96 * _rows - 815);
+            _h.y_offset_target = clamp(_row * 96 - 96, 0, _max);
+        }
+    }),
+    should_correspond: method({ h: id }, function(){
+        return (h.craft_top_tab == 0 || h.craft_top_tab == 2 || h.craft_top_tab == 3);
+    })
+});

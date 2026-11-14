@@ -142,6 +142,7 @@ if (global.level_id == "test_level")
         {
             var enemy_data = global.enemy_map[? global.test_mouse_picker_id];
             var place_world = get_world_position_from_grid(place_pos.col, place_pos.row);
+            resource_enemy_prepare(global.test_mouse_picker_id);
 
             if (variable_global_exists("test_place_original") && global.test_place_original)
             {
@@ -340,13 +341,17 @@ if battle_time >= (global.level_file.first_wave_delay * 60) && level_stage == "r
 }
 var current_total_subwaves = 0
 var wave_data = {}
-if current_wave < total_wave{
+if current_wave < total_wave && is_array(global.level_file.waves) && current_wave < array_length(global.level_file.waves){
 	current_total_subwaves = array_length(global.level_file.waves[current_wave].subwaves)
 	wave_data = global.level_file.waves[current_wave]
 }
-else{
+else if (is_array(global.level_file.waves) && current_wave - 1 >= 0 && current_wave - 1 < array_length(global.level_file.waves)){
 	current_total_subwaves = array_length(global.level_file.waves[current_wave-1].subwaves)
 	wave_data = global.level_file.waves[current_wave-1]
+}
+else{
+	current_total_subwaves = 0
+	wave_data = {}
 }
 
 if wave_timer <= 0 && level_stage == "pre"{

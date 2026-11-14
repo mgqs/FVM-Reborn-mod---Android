@@ -87,19 +87,50 @@ if (!variable_instance_exists(id, "awake_mark_obj")) {
 }
 if (hp > 0 && variable_instance_exists(id, "plant_id") && plant_id != "player") {
 	// 清醒：awake_buff_timer 期间不可被催眠
+	// 该计时器是「共用字段」：桥头米线龙柱封印（longzhu_awake_touch）、咖啡粉唤醒、
+	// 海克斯落地沉睡豁免、玛丽系列 boss 都会写它。贴图必须按来源挑，
+	// 否则咖啡粉唤醒也会显示成米线印记（spr_mixian_effect2）。
 	if (awake_buff_timer > 0) {
-		if (!instance_exists(awake_mark_obj)) {
-			awake_mark_obj = instance_create_depth(x + 34, y - 62, depth - 40, obj_card_buff_mark);
-			awake_mark_obj.mark_owner = id;
-			awake_mark_obj.mark_kind = 0;
-			awake_mark_obj.sprite_index = spr_mixian_effect2;
-			awake_mark_obj.mark_off_x = 34;
-			awake_mark_obj.mark_off_y = -62;
-			awake_mark_obj.mark_rate = 6;
-			awake_mark_obj.mark_base_alpha = 1;
-			awake_mark_obj.mark_pulse = 0;
-			awake_mark_obj.image_xscale = 1.6;
-			awake_mark_obj.image_yscale = 1.6;
+		var _from_pillar = variable_instance_exists(id, "mixian_awake_source")
+		                && instance_exists(mixian_awake_source);
+		// 米线龙柱：spr_mixian_effect2（小图标，放大到 1.6 才看得清）
+		// 其它来源（咖啡粉唤醒等）：spr_coffee_grounds_icon，缩小到 0.55 当印记
+		var _want_spr = _from_pillar ? spr_mixian_effect2 : spr_coffee_grounds_icon;
+		var _want_scale = _from_pillar ? 1.6 : 0.55;
+		// spr_coffee_grounds_icon 只有 1 帧，靠 alpha 呼吸避免看着像贴图死板
+		var _want_alpha = _from_pillar ? 1 : 0.85;
+		var _want_pulse = _from_pillar ? 0 : 0.12;
+		// spr_coffee_grounds_icon 的画稿中心在原点左上（原点 52,56 / 绘图区 13~48），
+		// 缩小后要把原点补偿回卡片右上角，否则印记会贴到卡片外面。
+		var _want_off_x = _from_pillar ? 34 : 36;
+		var _want_off_y = _from_pillar ? -62 : -48;
+		// 咖啡粉本体不给自己挂唤醒印记（它只是施法者，身上那个计时没有实际意义）
+		if (plant_id == "coffee_grounds") {
+			if (instance_exists(awake_mark_obj)) {
+				instance_destroy(awake_mark_obj);
+				awake_mark_obj = noone;
+			}
+		}
+		else {
+			// 贴图或位置变了就重建（不要在旧实例上改，避免残留 alpha/xscale 状态）
+			var _need_rebuild = true;
+			if (instance_exists(awake_mark_obj)) {
+				_need_rebuild = (awake_mark_obj.sprite_index != _want_spr);
+			}
+			if (_need_rebuild) {
+				if (instance_exists(awake_mark_obj)) instance_destroy(awake_mark_obj);
+				awake_mark_obj = instance_create_depth(x + _want_off_x, y + _want_off_y, depth - 40, obj_card_buff_mark);
+				awake_mark_obj.mark_owner = id;
+				awake_mark_obj.mark_kind = 0;
+				awake_mark_obj.sprite_index = _want_spr;
+				awake_mark_obj.mark_off_x = _want_off_x;
+				awake_mark_obj.mark_off_y = _want_off_y;
+				awake_mark_obj.mark_rate = 6;
+				awake_mark_obj.mark_base_alpha = _want_alpha;
+				awake_mark_obj.mark_pulse = _want_pulse;
+				awake_mark_obj.image_xscale = _want_scale;
+				awake_mark_obj.image_yscale = _want_scale;
+			}
 		}
 	}
 	else if (instance_exists(awake_mark_obj)) {
@@ -156,7 +187,7 @@ var grid_pos = {
 
 if !(variable_instance_exists(id, "platform_grid_lock") && platform_grid_lock) {
     grid_col = clamp(grid_pos.col, 0, global.grid_cols - 1)
-    grid_row = clamp(grid_pos.row, 0, global.grid_rows - 1)
+    grid_row = combat_targets_row_value(id, clamp(grid_pos.row, 0, global.grid_rows - 1))
 }
 
 depth = calculate_plant_depth(grid_pos.col, grid_pos.row, plant_type)
@@ -181,9 +212,24 @@ if is_frozen{
 	exit
 }
 // 海克斯「疑神疑鬼」：攻击类美食（含人物）从放下的那一刻起就不停火。
-// 原来是「场上没有鼠军时才强制 ATTACK」，等于只在空场才空放；玩家要的是常驻空放
-if (hex_enabled() && state != CARD_STATE.SLEEP && hex_b3_no_stop_attack()
-    && (plant_id == "player" || hex_b3_attack_major(plant_id))) {
+// 关键约束：**只在「没有可打目标」时**才由父对象接管（强制攻击态 + 空放出弹）。
+// 有真实目标时必须完全放手，让卡片跑自己的状态机 —— 否则像法师蛇这类「出弹状态
+// 靠 state 从非攻击态切到攻击态那一刻重置」的卡，父对象每帧硬写 state=ATTACK 会
+// 绕过它的攻击段入口，fashishe_fired 永远卡在 true，动画照播但子弹一颗都不出。
+var _hex_ns_on = (hex_enabled() && state != CARD_STATE.SLEEP && hex_b3_no_stop_attack()
+                  && (plant_id == "player" || hex_b3_attack_major(plant_id)));
+var _hex_has_target = false;
+if (_hex_ns_on) {
+    // 这里 with 是「卡片自己发起」的，所以 other = 这张卡、不带 other. 的 target_type = 老鼠的：
+    // can_target_on(卡的 target_type, 鼠的 target_type) 正好是正确顺序
+    with (obj_enemy_parent) {
+        if (can_target_on(other.target_type, target_type)) {
+            _hex_has_target = true;
+            break;
+        }
+    }
+}
+if (_hex_ns_on && !_hex_has_target) {
     state = CARD_STATE.ATTACK;
 }
 // 海克斯「疑神疑鬼」：空场也要真的打出子弹，而不只是摆动作。
@@ -191,24 +237,11 @@ if (hex_enabled() && state != CARD_STATE.SLEEP && hex_b3_no_stop_attack()
 // 场上没老鼠时它们连 event_user(1) 都走不到，父对象这边只改了 state，
 // 于是玩家看到的就是「一直在做攻击动作，但一颗子弹也没有」。
 // 这里由父对象接管空放：没有可打目标时按自己的 cycle 调一次发射事件（Other_11）。
-if (hex_enabled() && hex_b3_no_stop_attack() && state != CARD_STATE.SLEEP
-    && (plant_id == "player" || hex_b3_attack_major(plant_id))) {
+if (_hex_ns_on && !_hex_has_target) {
     if (!variable_instance_exists(id, "b3_blank_cd"))      b3_blank_cd = 0;
     if (!variable_instance_exists(id, "b3_blank_allowed")) b3_blank_allowed = true;
     if (b3_blank_allowed) {
-        var _hex_has_target = false;
-        // 这里 with 是「卡片自己发起」的，所以 other = 这张卡、不带 other. 的 target_type = 老鼠的：
-        // can_target_on(卡的 target_type, 鼠的 target_type) 正好是正确顺序
-        with (obj_enemy_parent) {
-            if (can_target_on(other.target_type, target_type)) {
-                _hex_has_target = true;
-                break;
-            }
-        }
-        if (_hex_has_target) {
-            // 有真目标就交给卡片自己打，别抢
-            b3_blank_cd = max(1, cycle);
-        } else if (b3_blank_cd > 0) {
+        if (b3_blank_cd > 0) {
             b3_blank_cd -= 1;
         } else {
             b3_blank_cd = max(1, cycle);
@@ -258,3 +291,4 @@ if timer < current_flash_speed - 1 {
     }
     timer = 0;
 }
+external_animation_sync(id, current_flash_speed);

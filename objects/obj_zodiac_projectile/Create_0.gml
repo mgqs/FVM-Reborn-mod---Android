@@ -4,6 +4,7 @@ burnt = false;
 bounced = false;
 damage = 0;
 base_damage = 0;
+star_splash_dmg = 0;      // 星星兔单格溅射那一跳的伤害（命中时算，with 里靠它传值）
 shape = 0;
 move_x = 8;
 move_y = 0;
@@ -29,3 +30,8 @@ image_speed = 0.2;
 // 固定轨迹类弹（炎凰马/御风马/仙笛马/粉姬马/归元马/星兔）穿地形障碍，
 // 只影响 obj_obstacle 的拦截判定，不改变对老鼠的穿透次数。
 pierce_obstacle = true;
+
+// ── 环境交互（2026-11-10）：吃火 / 可反弹 + 需要的参数都在这里声明，碰撞事件由父类 obj_bullet_parent 统一处理
+hazard_fire = { scale:0 };   // 星弹：五发斜射，只 fire/star 反弹
+hazard_rebound = { axis:"move_x", judge:"none", kind_gate:true };   // 星弹：五发斜射，只 fire/star 反弹
+fire_mult = 1;           // 对象池会复用实例：不重置就会带着上一发的过火倍率出生，导致这一发点不着

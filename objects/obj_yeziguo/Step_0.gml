@@ -57,7 +57,7 @@ if (_search) {
 	var _best_dist = 999999;
 	with (obj_enemy_parent) {
 		if (hp > 0
-			&& can_target_on(other.target_type, target_type)
+			&& can_hit_ash(other.target_type, target_type)
 			&& grid_col >= _c0 && grid_col <= _c1
 			&& grid_row >= _r0 && grid_row <= _r1) {
 			var _d = point_distance(x, y, other.x, other.y);
@@ -138,7 +138,7 @@ if (yyz_phase == 1) {
 		//     + 不防爆的直接碾压销毁（同面粉袋：秒杀、不生成任何特效）
 		with (obj_enemy_parent) {
 			if (hp > 0
-				&& can_hit(other.target_type, target_type)
+				&& can_hit_ash(other.target_type, target_type)
 				&& abs(grid_row - _crow) <= _aoe
 				&& abs(grid_col - _ccol) <= _aoe) {
 
@@ -182,7 +182,7 @@ if (yyz_phase == 1) {
 			yyz_cell_col = _ccol;
 			yyz_cell_row = _crow;
 			grid_col = _ccol;
-			grid_row = _crow;
+			grid_row = combat_targets_row_value(id, _crow);
 
 			sort_plants_in_grid(_ccol, _crow);
 			sort_plants_in_grid(_old_col, _old_row);

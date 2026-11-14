@@ -78,7 +78,41 @@ $out/.codex-tmp/
 .codex-tmp/
 .codex-tmp/
 
+# 授权发放账本（含玩家 QQ 号，严禁提交到公开仓库）
+tools/qq_ledger.db
+tools/*.db
+tools/*.sqlite
+tools/qq_export*.csv
+
+# 授权码池与密钥（公开仓库里绝不能有真值：池子 + 密钥同时泄露 = 人人可造码）
+tools/codes_pool.txt
+tools/auth_secret.txt
+
+# 机器人配置（含 AppSecret，绝不可提交）
+bots/qq_auth_bot/config.json
+bots/qq_auth_bot/config.local.json
+
+# 云函数打包产物（内含码池副本）与本地调试账本、日志
+bots/qq_auth_bot/scf-qqauth.zip
+bots/qq_auth_bot/scf/_ledger_debug.json
+bots/qq_auth_bot/scf/_members_debug.json
+_members_debug.json
+_ledger_debug.json
+bots/qq_auth_bot/bot.log
+__pycache__/
+
 # 构建/转换产物（不应进入版本库）
 output/
 TDCore_uncompressed.swf
 flame_records.txt
+
+# Local macOS builds (the extension is built from FvmNativeSupport sources).
+.macos-build/
+dist/macos/
+extensions/WindowsNative/libFvmNativeSupport.dylib
+
+/.private/
+
+# Local Windows toolchain, staging, logs and portable packages.
+.windows-build/
+dist/windows/

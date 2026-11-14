@@ -13,7 +13,11 @@ if (fading)
 }
 
 // 过火外观（同 bbq 子弹：一律换成通用火弹贴图）
-if (burnt > 0)
+//   2026-11-10：融盆 2 转会把子弹改成冰弹（贴图 + 1.4 倍 + brazier_list 插哨兵 -9999），
+//   这里必须让路，否则每帧被改回火球，冰弹外观等于没有
+var _is_ice_bullet = (variable_instance_exists(id, "brazier_list")
+                   && ds_list_find_index(brazier_list, -9999) != -1);
+if (burnt > 0 && !_is_ice_bullet)
 {
     sprite_index = spr_fire_bullet;
     image_index  = (life div 4) mod sprite_get_number(spr_fire_bullet);
@@ -21,17 +25,17 @@ if (burnt > 0)
     image_yscale = 1.6;
 }
 
-x += move_speed * move_dir;
+// 过火后提速（同 bbq：burnt_speed / move_speed，一比一照抄它的取法）
+var _spd = (burnt > 0) ? burnt_speed : move_speed;
+x += _spd * move_dir;
 life++;
 
 // 普通状态按帧轮播：1~4 帧是飞行，5 帧起是消散（不在这里播）
 if (burnt == 0) image_index = (life div 4) mod 4;
 
-// 蛇形轨迹：只在向右飞时摆，被反弹后走直线
-if (move_dir > 0)
-    y = base_y + sin(life * wave_speed + phase) * wave_amp;
-else
-    y = lerp(y, base_y, 0.2);
+// 2026-11-10 用户口径：取消正弦摆动，改直线平射（y 恒在出膛中线上）
+//   原来：向右飞时 y = base_y + sin(life*wave_speed+phase)*wave_amp，被反弹后 lerp 回中线
+y = base_y;
 
 // ── 出界 ──
 if ((move_dir > 0 && x >= end_x) || (move_dir < 0 && x <= end_x_left))
@@ -77,6 +81,7 @@ if (variable_global_exists("enemy_by_type"))
             if (precise_bbox_collision(id, _e))
             {
                 ds_list_add(hitted, _e.id);
+                if (ds_list_size(hitted) == 1) audio_play_sound(snd_hit1, 0, 0);   // 2026-11-12 补：每发只响一次
                 with (_e)
                 {
                     damage_amount = other.damage;

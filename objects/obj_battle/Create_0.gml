@@ -1,3 +1,4 @@
+combat_targets_begin_step();
 
 surface_set_target(application_surface);
 draw_clear_alpha(c_black, 0);
@@ -214,6 +215,12 @@ for(var i = 0 ; i < global.grid_rows ; i++){
 current_wave = 0
 current_subwave = 0
 total_wave = global.level_file.total_waves
+// 防御：total_waves 必须等于 waves 数组长度，否则 Step_0 里 waves[current_wave] 会越界
+if (!is_array(global.level_file.waves)) {
+	total_wave = 0
+} else if (total_wave > array_length(global.level_file.waves)) {
+	total_wave = array_length(global.level_file.waves)
+}
 level_stage = "ready"
 current_total_hp = 0
 current_wave_hp = 0
@@ -269,7 +276,7 @@ function enemy_subwave_summon(){
 
 	current_wave_max_time = wave_timer
 
-	if current_wave >= total_wave || current_subwave >= array_length(global.level_file.waves[current_wave].subwaves){
+	if current_wave >= total_wave || !is_array(global.level_file.waves) || current_wave < 0 || current_wave >= array_length(global.level_file.waves) || current_subwave >= array_length(global.level_file.waves[current_wave].subwaves){
 		return
 	}
 
