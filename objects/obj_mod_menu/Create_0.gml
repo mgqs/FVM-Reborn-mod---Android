@@ -9,6 +9,10 @@ list_top = y - 192;
 list_bottom = y + 205;
 mods = [];
 status_text = "";
+import_close_when_done = false;
+if (is_struct(global.external_mod_import_job) && !instance_exists(global.external_mod_import_job.owner)) {
+    global.external_mod_import_job.owner = id;
+}
 notify_result = function(message) {
     status_text = message;
     // 安卓上 show_message 是模态阻塞，会卡住主循环，必须用 async 版。
@@ -98,6 +102,7 @@ scan_mod_folders = function() {
 };
 
 refresh_mods = function(persist_state = true) {
+    if (is_struct(global.external_mod_import_job) && !global.external_mod_import_job.done) persist_state = false;
     var previous = mods;
     mods = [];
     // 安卓：启动时若新目录还是空的、或外部目录整体不可用，会落到旧目录 / 沙盒 "mod"。

@@ -202,6 +202,22 @@
   yyp 与 folders 三处注册齐备
 
 ## 优化与修复
+- 修复 `obj_xiao_long_bao` 等 18 个直射卡在 Step 里抛「Unable to find any instance for object index」（2026-11-14）：
+  根因是 `scripts/combat_targets` 把实例 id 当「一定活着」用。① `combat_enemy_in_rows` 的跨帧缓存
+  `_card.combat_row_target` 在目标被其它子弹打死后没有存活校验，下一帧直接 `with (过期 id)`，
+  GM 会把该 id 当对象索引解析并报错（实测 101063）；② `combat_targets_row` 的行桶是「本 step
+  首次调用时」的快照，同一 step 内后续被击杀的敌人仍留在数组里，因此 `combat_enemy_in_rows` /
+  `combat_enemy_nearest_in_row` 的 `with (_candidates[i])` 有同样风险。
+  修法：三处在 `with` 之前补 `instance_exists(x) && !object_exists(x)`（`instance_exists` 对对象索引
+  恒为 true，必须两条一起判才排得干净，写法同 `precise_bbox_collision` 里的 `bullet_sap_type_list`）。
+- 元素蛇三张卡的商城描述补上命中口径（2026-11-14）：`mod_shop_init` 里「…发射1发带不同效果的穿透子弹…」
+  改为与卡槽 / 情报岛一致的「可穿过障碍物但不穿透老鼠」。至此四处玩家可见文案
+  （卡面 `mod_cards_init`、卡槽 `mod_slots_init`、情报岛 `mod_info_island_init`、商城 `mod_shop_init`）
+  口径统一 —— 穿透指的是**弹道穿障碍**，命中第一只老鼠即消散，不再让玩家误以为子弹会穿透老鼠。
+- 优化 Mod 开关与删除：开启只分步检查配置、素材版本和冲突，不重复扫描 PNG；关闭仅在后台保存开关。
+  删除先移出安装目录，再后台清理文件；操作结束直接更新列表，保留失败回滚和卡片进度，仍需重启游戏生效。
+- 优化大体积 Mod 导入：后台解压并显示阶段、进度和耗时，支持取消；动画校验分步执行，
+  复用解压时缓存的 PNG 头部，避免再次逐个打开图片。校验完成后整体安装，失败或取消在后台清理，保留原包格式和重启生效规则。
 - 跨服所有关卡不再享受难度等级奖励倍率（2026-11-14 用户口径）：新增唯一出口
   `cross_server_reward_mult()`（`scripts/cross_server_level_index`），只保留海克斯的「关卡奖励倍率」
   （达摩克里斯之剑 ×10 / 搏一搏），非海克斯模式恒 1.0；`obj_battle_pause_manager/Step_2.gml` 的

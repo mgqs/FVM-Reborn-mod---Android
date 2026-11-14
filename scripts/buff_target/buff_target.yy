@@ -1,0 +1,13 @@
+{
+  "$GMScript":"v1",
+  "%Name":"buff_target",
+  "isCompatibility":false,
+  "isDnD":false,
+  "name":"buff_target",
+  "parent":{
+    "name":"mod",
+    "path":"folders/脚本/mod.yy",
+  },
+  "resourceType":"GMScript",
+  "resourceVersion":"2.0",
+}

@@ -1,9 +1,9 @@
 {
   "$GMScript":"v1",
-  "%Name":"mod_buff_init",
+  "%Name":"external_mod_import",
   "isCompatibility":false,
   "isDnD":false,
-  "name":"mod_buff_init",
+  "name":"external_mod_import",
   "parent":{
     "name":"mod",
     "path":"folders/脚本/mod.yy",

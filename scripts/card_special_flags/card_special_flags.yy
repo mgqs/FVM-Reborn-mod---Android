@@ -1,9 +1,9 @@
 {
   "$GMScript":"v1",
-  "%Name":"mod_get_buff_type",
+  "%Name":"card_special_flags",
   "isCompatibility":false,
   "isDnD":false,
-  "name":"mod_get_buff_type",
+  "name":"card_special_flags",
   "parent":{
     "name":"mod",
     "path":"folders/脚本/mod.yy",
