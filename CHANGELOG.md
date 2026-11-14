@@ -1,3 +1,14 @@
+# v2.7.6
+## 优化与修复
+- 修复同步上游 external_mod_import 带来的编译错误 GM1008 变量 'path_index' 是只读的（2026-11-14）：
+  - path_index 是 GML 内置的只读路径变量，上游在
+    scripts/external_mod_import/external_mod_import.gml:127 的冲突比对状态结构体里
+    拿它当成员名（{... path_index: 0 ...}），随后 :153 与 :170 赋值 → 编译期直接报错。
+  - 全仓只有这一处命中：把该结构体成员统一改名 path_cursor（共 6 处：127/153/161/162/170/172），
+    语义不变。其它 *_path_index（如 longyuan_bridge_path_index）是自定义变量名，不受影响。
+  - **上游同源 bug**：D:\gameProject\FVM-Reborn-mod 的同名文件 L127/L153 一字不差，
+    需要在源工程同步改名，否则下一轮同步会把它带回来。
+
 # v2.7.5
 ## 优化与修复
 - 补齐「用存下来的实例 id 直接 `with`」的存活守卫（2026-11-14 续 v2.7.4）：
