@@ -15,7 +15,7 @@ inst.original_damage = atk;
 inst.row = grid_row;
 inst.thrower_y = y;
 
-if (target_instance != -4 && instance_exists(target_instance))
+if (target_instance != -4 && combat_targets_is_live(target_instance, obj_enemy_parent))
 {
     var enemy_x = target_instance.x;
     var enemy_y = target_instance.y;

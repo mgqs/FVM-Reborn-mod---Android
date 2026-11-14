@@ -40,7 +40,7 @@ if (instance_exists(target_id) && target_id.hp > 0)
         var _dmg  = damage;
         var _mult = boss_mult;
 
-        with (_e)
+        with (combat_live_or_noone(_e, obj_enemy_parent))
         {
             damage_amount = _dmg * (_e.is_boss ? _mult : 1);
             damage_type   = "normal";

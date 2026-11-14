@@ -46,7 +46,7 @@ if (hit_tick >= hit_interval)
 
 		if (_hit_e != noone)
 		{
-			with (_hit_e)
+			with (combat_live_or_noone(_hit_e, obj_enemy_parent))
 			{
 				if other.burnt == 1{
 					audio_play_sound(snd_fire_hit,0,0)

@@ -173,6 +173,7 @@ function obj_pool_release(_inst) {
 
     var _obj = _inst.object_index;
     if (!obj_pool_is_poolable(_obj)) {
+        combat_targets_invalidate(_obj);
         instance_destroy_origfunc(_inst);
         return;
     }
@@ -186,6 +187,10 @@ function obj_pool_release(_inst) {
 
     var _ik = string(_inst);
     if (!ds_map_exists(global._obj_pool_busy, _ik)) ds_map_add(global._obj_pool_busy, _ik, true);
+    // 缓存失效不能依赖被回收对象的 Destroy 事件：97 个敌人子对象的
+    // Destroy_0.gml 都没有写 event_inherited()，obj_enemy_parent/Destroy_0.gml:1
+    // 那句 combat_targets_invalidate 根本不执行。这里显式失效，与事件无关。
+    combat_targets_invalidate(_obj);
     with (_inst) {
         instance_change(obj_pool_holder, true);
 
@@ -224,6 +229,9 @@ function obj_pool_release(_inst) {
 function obj_pool_destroy_native(_inst) {
     var _k = string(_inst);
     if (!ds_map_exists(global._obj_pool_busy, _k)) ds_map_add(global._obj_pool_busy, _k, true);
+    // 同理：这一支会真销毁，Destroy 事件里未必有人调 combat_targets_invalidate
+    //（97 个敌人子对象的 Destroy_0 没有 event_inherited），缓存会留下死 id。
+    if (instance_exists(_inst)) combat_targets_invalidate(_inst.object_index);
     instance_destroy_origfunc(_inst);
     ds_map_delete(global._obj_pool_busy, _k);
 }
@@ -264,6 +272,10 @@ function obj_pool_instance_destroy() {
 
 function obj_pool_clear() {
     if (!variable_global_exists("_obj_pool_ready")) return;
+    // 池里躺着的都是 obj_pool_holder，清空后行缓存里若还留着它们的 id，
+    // 同一步内再查就是 "Unable to find instance"。清池 = 全体失效。
+    combat_targets_invalidate(obj_enemy_parent);
+    combat_targets_invalidate(obj_card_parent);
 
     var _keys = ds_map_keys_to_array(global._obj_pool_lists);
     for (var i = 0; i < array_length(_keys); i++) {

@@ -1,3 +1,117 @@
+# v2.7.5
+## 优化与修复
+- 补齐「用存下来的实例 id 直接 `with`」的存活守卫（2026-11-14 续 v2.7.4）：
+  - `combat_enemy_in_rows` / `combat_enemy_nearest_in_row` 内部已不再 `with` 任何外部 id
+    （逐个直读 `grid_row/grid_col/target_type`，扫到死 id 才 `combat_targets_row_compact` 整理该行），
+    但**其它卡把命中目标存成实例变量、下一帧再用 `with (target)` 结算**的地方还有一批没守卫，
+    池回收（`instance_change(obj_pool_holder, true)`）后同一 id 会被复用，`with` 一进就崩。
+  - 本轮统一改成 `with (combat_live_or_noone(X, obj_enemy_parent))` 共 16 处：
+    `obj_honeytrap_bee/Step_0.gml:43`、`obj_fangkongmiao_bullet/Step_0.gml:60`、
+    `obj_zeus_bolt_bullet/Step_0.gml:140`、`obj_juxie_bullet_1/Step_0.gml:105`、
+    `obj_juxie_bullet_2/Step_0.gml:138`、`obj_moon_god_bullet/Step_0.gml:13`、
+    `obj_moon_god_bullet_super/Step_0.gml:105`、`obj_power_god_bullet/Step_0.gml:72`、
+    `obj_power_god_bullet_1/Step_0.gml:65`、`obj_tanghulu_bullet/Step_0.gml:72`、
+    `obj_takoyaki_bullet/Step_0.gml:129`、`obj_caihongshe_bullet/Step_0.gml:48`、
+    `obj_zhuzhuliaoliji_bullet/Step_0.gml:70`、`obj_coalstarfish_bullet/Step_0.gml:49`、
+    `obj_eightcake_bullet/Step_0.gml:81`、`obj_yinghuoshe/Step_0.gml:32`。
+  - 候选表是「本 step 早段快照」的两处加循环内守卫（前一条结算可能打死下一条）：
+    `obj_zodiac_projectile/Step_0.gml:112`、`obj_yinghuoshe/Step_0.gml:24` 与 `:55`，
+    进循环先 `if (!combat_targets_is_live(X, obj_enemy_parent)) continue;`。
+  - 全工程 `combat_live_or_noone` 现共 32 处。
+  - 已核对但不动：`obj_*_bullet` 的 `_e.hp > 0 && precise_bbox_collision(id, _e)` 形态
+    （`precise_bbox_collision` 开头已判 `undefined` / `noone` / `instance_exists`）、
+    `bullet_sap_type_list` 与 `obj_battle/Step_2.gml` 的 `enemy_by_type` 重建循环
+    （自带 `!instance_exists || object_exists` 双判）、`GuiStack` 与各 manager 的 `with`
+    （对象索引或同帧不可能失效）。
+
+# v2.7.4
+## 优化与修复
+- 修复「战斗偶发崩溃：`Unable to find instance for object index …`，栈顶 `combat_enemy_nearest_in_row`」（2026-11-14）：
+  - 触发对象是臭豆腐投手（`objects/obj_stinky_tofu_pult/Step_0.gml:27`），但根因与这张卡无关 ——
+    `combat_targets_row()` 的按行索引缓存只在 `instance_number()` 变化时重建，而**对象池
+    「回收一个 + 取用一个」计数不变**，缓存里因此留着已经被换成 `obj_pool_holder` 或已销毁的 id；
+    `combat_enemy_nearest_in_row` / `combat_enemy_in_rows` 用 `with (_candidates[i])` 一进就报错。
+  - 补齐缓存失效：`obj_pool_release()` 走 `instance_change(obj_pool_holder, true)`，
+    依赖敌人 `Destroy` 事件来调 `combat_targets_invalidate`，但 **97 个敌人子对象的 `Destroy_0.gml`
+    没有写 `event_inherited()`**（实测 313 个敌人里 97 个），父对象那句失效根本不执行。
+    现在 `obj_pool_release()` / `obj_pool_destroy_native()` / `obj_pool_clear()` 三处显式失效。
+  - `scripts/combat_targets/combat_targets.gml` 新增 `combat_targets_is_live(_inst, _base)`
+    （先 `is_real` 卡类型，再存活判定，再排除对象索引，最后按 `object_index` / `object_is_ancestor` 判身份）、
+    `combat_targets_prune()`（返回 `undefined` 表示无变化）、
+    `combat_targets_row_compact()`（只整理命中死 id 的那一行）、
+    `combat_live_or_noone(_inst, _base)`（`with` 的安全包装，`with (noone)` 是空操作）。
+    `combat_enemy_in_rows` / `combat_enemy_nearest_in_row` / `combat_enemy_find_plant` 改为逐个直读字段，
+    不再 `with` 外部 id；扫到死 id 才顺手整理该行，正常帧零额外开销。
+  - 存下来的目标 id 统一包一层：`with (target_plant)` 14 处（含 `obj_enemy_parent/Step_0.gml:366`、
+    7 种滑板鼠 / 忍者鼠 / 火影鼠等）、`with (target_instance)`（`obj_ice_god_bullet/Step_0.gml:15`）、
+    `with (target_enemy)`（`obj_rongheshuanggu_bullet_air/Step_0.gml:34`），
+    以及 20 处 `instance_exists(target_instance)`（池回收后该 id 可能已指向别的对象，必须判身份）。
+
+# v2.7.3
+## 优化与修复
+- 修复「安卓上 Mod 已生效、但 Mod 管理器列表里没有这个包」（2026-11-14）：
+  - 根因：界面和加载器各扫一遍目录，`external_mod_load_all()`（`objects/obj_mod_manager/Create_0.gml:54`）
+    能枚举并注册卡片，`obj_mod_menu` 的 `refresh_mods()` 却可能盯着另一个目录 ——
+    新目录空壳、旧目录回退、缓存未刷新时三者不同源，卡片生效而列表为空。
+  - `objects/obj_mod_menu/Create_0.gml` 抽出 `scan_mod_folders()`：empty 时补一次 `fa_directory`
+    枚举（安卓 `external_mod_find_flags()` 退化为 0，子目录未必被带出）；
+    `refresh_mods()` 补三路来源 —— 磁盘扫描 / `global.external_mod_loaded`（加载器实际注册成功的包）/
+    `global.external_mod_errors`（加载失败的包），只要加载器见过就一定出现在列表里。
+  - 界面顶部常驻显示当前扫描目录（`objects/obj_mod_menu/Draw_0.gml`），
+    路径不同源时玩家能自己看出来；`list_top` 由 `y - 205` 调到 `y - 192` 让出这一行。
+  - 状态文件里记过、这次没扫到的包不再静默消失：文件夹还在就列出并标注
+    「还在旧目录（Android/data）里」或「扫描不到这个文件夹」；连同加载失败的包一律
+    `missing`/`failed` 占位（状态「—」、不可开关、不可删除，点击看原因），且**不写回状态文件**
+    （否则 `enabled=false` 会被下次启动当成玩家选择读回来，把能用的 Mod 静默关掉）。
+  - 新扫到的包默认开启改为 `!state_read_failed`：原先用 `state_default_enabled`，
+    它在状态文件存在时恒为 false，导致安卓手动投放的新包一进来就是「已关闭」，
+    玩家点开启还得重启两次才生效。加载阶段报错的包强制显示关闭。
+  - `save_state()` 只写 `{folder, enabled}` 两项，过滤掉占位条目。
+  - `scripts/external_mod_system/external_mod_system.gml` 的 `external_mod_load_all()`
+    在非 Windows 平台补一次 `fa_directory` 枚举，与界面扫描保持同一套兜底。
+  - `scripts/NativeUtil/NativeUtil.gml` 新增 `get_mod_root_legacy_hint()`，
+    旧目录提示里给出完整路径而不是让玩家自己拼。
+  - 调试输出：`[Mod menu] root=… folders=… listed=… loaded=…` 与
+    `[NativeUtil] android mod root = …` 两行对照即可判断是不是路径不同源。
+
+# v2.7.2
+## 新内容
+- 安卓 Mod 目录改到 `Android/media`（2026-11-14）：
+  - 新落点 `/storage/emulated/0/Android/media/com.company.game/files/mod`。
+    `/Android/media/<包名>/` 不需要任何存储权限（系统只屏蔽 `/Android/data/`），
+    与 `filesDir` 同级仍属应用私有，且**任意文件管理器 / USB / MTP 都能直接看到**，
+    玩家不用再靠 `adb push` 才能投放 Mod。改动前只有 `Android/data` 一条路，
+    Android 11+ 的第三方文件管理器一律进不去，这是「文件夹建得一模一样却读不到」的主因之一。
+  - `scripts/NativeUtil/NativeUtil.gml` 新增 `android_storage_base()`（挂载点探测）、
+    `android_mkdirs()`（逐级建目录 —— `directory_create` 一次只建一级，
+    `Android/media/<包名>/files` 的中间层往往不存在，直接建末级会失败）、
+    `android_dir_usable()`（建目录 + 列一次 + 写 `.probe` 探针，可写性另记
+    `global._android_last_dir_writable`）、`android_legacy_files_root()`（旧落点只作回退）、
+    `android_dir_entry_count()`（判断新目录是不是空壳）、`android_copy_tree()`
+    （纯 GML 递归复制，文件先 `file_copy`、失败再 `buffer_load`/`buffer_save` 整块搬）、
+    `android_migrate_legacy_mods()`（老安装首次启动时把旧目录的 Mod 自动复制进新目录，
+    只在「新目录为空 + 旧目录有货」时执行，旧包不删）、
+    `get_mod_root_hint_lines()`（给界面逐行画的投放说明）。
+  - `get_mod_root()` 改为两段择优：新目录里有包 → 用新目录；新目录空而旧目录
+    `Android/data/<包名>/files/mod` 有包 → 先自动迁移到新目录，迁移失败才继续用旧目录
+    （老安装的 Mod 不会因升级凭空消失）；两处都不可用才降级沙盒相对路径 `"mod"`。
+    探测结果多记 `global._android_mod_root_primary` / `_legacy` / `_android_mod_migrated`，
+    调试行同时打印来源、两侧条目数与迁移条数。
+  - `get_external_files_root()` 同步改为返回 `Android/media/<包名>/files`（失败回退旧路径）。
+  - `objects/obj_mod_menu/Create_0.gml`：建目录改走 `android_mkdirs`；
+    `refresh_mods()` 的重探条件从「当前是沙盒 `mod`」放宽为「当前不在首选 `Android/media` 目录」，
+    玩家把包投进新目录后点「刷新列表」即生效，不必重启。
+  - `objects/obj_mod_menu/Step_0.gml`：安卓「刷新列表」的提示改用
+    `get_mod_root_hint_lines()`，同时给当前生效目录与推荐投放位置。
+  - `objects/obj_mod_menu/Draw_0.gml`：空列表引导从固定三行改为按
+    `get_mod_root_hint_lines()` 逐行绘制，并按像素宽度截断加 `…`，绝对路径不会画出面板。
+  - 同步更新 `Android适配改造位置清单.md` §5.7、`docs/mod-system-design.md`「Android 端差异」、
+    `.trae/rules/android设置.md` 的路径规范与已落地登记表。
+
+## 优化与修复
+- Mod 目录探测不再只靠 `directory_exists`：分区存储下不存在的绝对路径也可能返回 `true`，
+  统一改用 `android_dir_usable()` 实际列目录 + 写探针，避免「判定为可用却一个包都扫不到」。
+
 # v2.7.1
 ## 新内容
 - 「水火之间 / 巫毒研究所」改为**按星级解锁**（2026-11-14）：
@@ -88,6 +202,13 @@
   yyp 与 folders 三处注册齐备
 
 ## 优化与修复
+- 跨服所有关卡不再享受难度等级奖励倍率（2026-11-14 用户口径）：新增唯一出口
+  `cross_server_reward_mult()`（`scripts/cross_server_level_index`），只保留海克斯的「关卡奖励倍率」
+  （达摩克里斯之剑 ×10 / 搏一搏），非海克斯模式恒 1.0；`obj_battle_pause_manager/Step_2.gml` 的
+  4 处跨服结算分支（抽卡礼盒路径首通/重复 + 普通路径首通/重复，共 12 行）由 `reward_multiplier`
+  改乘该函数。档位表 `cross_server_reward()` 里的银徽章 / 金徽章 / 金币现在就是实发数，
+  不再随 美味1 / 火山1 / 浮空2 / 星际3 / 永恒4 / 不朽7 放大。准备室与结算面板原本显示的就是档位原值，
+  改动后「显示 = 实发」，无需再改 UI。
 - 跨服「水火之间 / 巫毒研究所」16 关按水路红线重排编队（`tools/shuihuo_wudu_levels.py` 重写，
   2026-11-14）：口径全部照本体既有跨服章节实测（`cross/castle-0..7.json`）——
   ① 总敌数由「每关固定 100」改为逐关爬升 100/120/140/160/180/200/220/250；

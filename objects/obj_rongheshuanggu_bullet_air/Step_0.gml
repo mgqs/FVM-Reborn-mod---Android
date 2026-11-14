@@ -31,7 +31,7 @@ if (homing){
 		x += lengthdir_x(move_speed, _dir);
 		y += lengthdir_y(move_speed, _dir);
 		if (target_enemy.hp > 0 && precise_bbox_collision(id, target_enemy)){
-			with (target_enemy){
+			with (combat_live_or_noone(target_enemy, obj_enemy_parent)){
 				if other.burnt == 1 audio_play_sound(snd_fire_hit, 0, 0)
 				else audio_play_sound(hit_sound, 0, 0)
 				damage_amount = other.damage

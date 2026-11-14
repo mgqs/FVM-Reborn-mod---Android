@@ -62,7 +62,7 @@ if (target_enemy != -4 && instance_exists(target_enemy))
     && precise_bbox_collision(id, _e))
     {
         var _hit_id = _e.id;
-        with (_e)
+        with (combat_live_or_noone(_e, obj_enemy_parent))
         {
             audio_play_sound(hit_sound, 0, 0);
 

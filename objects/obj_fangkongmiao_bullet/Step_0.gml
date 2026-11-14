@@ -57,7 +57,7 @@ if (instance_exists(target_enemy) && target_enemy.hp > 0 && precise_bbox_collisi
     var _dmg = damage;
     var _slow = slow_frames;
 
-    with (_e)
+    with (combat_live_or_noone(_e, obj_enemy_parent))
     {
         damage_amount = _dmg;
         damage_type   = "normal";

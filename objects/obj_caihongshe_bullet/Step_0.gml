@@ -45,7 +45,7 @@ if (variable_global_exists("enemy_by_type") && bullet_enemy_reachable(id) && pre
         }
     }
     if (_hit != noone){
-        with (_hit){
+        with (combat_live_or_noone(_hit, obj_enemy_parent)){
             damage_amount = other.damage;
             damage_type = other.damage_type;
             event_user(0);

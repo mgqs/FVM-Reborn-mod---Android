@@ -241,7 +241,7 @@ switch(state) {
 	        attack_timer++;
 	        if (attack_timer >= current_atk_cycle) {
 	            // 对目标植物造成伤害
-	            with (target_plant) {
+	            with (combat_live_or_noone(target_plant, obj_card_parent)) {
 					if !invincible{
 						hp -= other.atk;
 					}

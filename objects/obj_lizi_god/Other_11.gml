@@ -114,11 +114,11 @@ else
     inst.deep_boom_damage = deep_boom_damage;
 
     var final_col = _far_col;
-    if (target_instance != -4 && instance_exists(target_instance))
+    if (target_instance != -4 && combat_targets_is_live(target_instance, obj_enemy_parent))
         final_col = target_instance.grid_col;      // 不夹列：老鼠在哪一列就丢哪一列
 
     // 提前量（同糖炒栗子 / 生煎锅）
-    if (target_instance != -4 && instance_exists(target_instance)
+    if (target_instance != -4 && combat_targets_is_live(target_instance, obj_enemy_parent)
         && variable_instance_exists(target_instance, "move_speed") && target_instance.move_speed > 0)
     {
         var _ft0 = clamp(30 + ((get_world_position_from_grid(final_col, grid_row).x - inst.x) / 1000) * 45, 30, 75);
