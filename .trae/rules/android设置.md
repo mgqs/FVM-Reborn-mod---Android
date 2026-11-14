@@ -65,18 +65,20 @@
 
 | 用途 | 位置 | 写法 | 说明 |
 |------|------|------|------|
-| 玩家要投放 / 取回的文件 | `/storage/emulated/0/Android/data/<包名>/files/<子目录>`（**应用外部私有目录**） | 绝对路径，由 `get_external_files_root()` 拼接 | 零权限、无需 root、USB/MTP/`adb push` 可投放、GML 可读写 |
+| 玩家要投放 / 取回的文件 | `/storage/emulated/0/Android/media/<包名>/files/<子目录>`（**应用外部媒体目录**） | 绝对路径，由 `get_external_files_root()` 拼接 | 零权限、无需 root、**任意文件管理器 / USB / MTP 都能直接看到**、GML 可读写 |
 | 程序自己写、玩家不需要看的 | 沙盒相对路径（如 `saves/saveN.json`、`mod_state.json`、`auth.dat`） | 直接相对路径，不要拼 `%LOCALAPPDATA%` | 引擎映射到保存区；Windows 是 `%LOCALAPPDATA%\FVM_Reborn_makk`，Android 是 `/data/<包名>`（未 root 不可见） |
 
-公共目录（`/storage/emulated/0/Download/` 等）**不采用**：需要 `MANAGE_EXTERNAL_STORAGE`（弹「访问所有文件」授权）；而 `WRITE_EXTERNAL_STORAGE` 在 API 30+ 已被系统忽略，本项目 targetSdk 35 下打开也无效。
+`/Android/data/<包名>/files/` 是**旧落点**：功能等价但 Android 11+ 文件管理器看不进去（只能 `adb push` / MTP）。新代码一律写 `Android/media`；旧路径只在「新目录为空而旧目录有包」时先被 `android_migrate_legacy_mods()` 复制进新目录（旧包不删），复制失败才作为回退继续加载，避免老安装的 Mod 升级后消失。
+
+公共目录（`/storage/emulated/0/Download/` 等）**不采用**：需要 `MANAGE_EXTERNAL_STORAGE`（弹「访问所有文件」授权）；而 `WRITE_EXTERNAL_STORAGE` 在 API 30+ 已被系统忽略，本项目 targetSdk 35 下打开也无效。`Android/media/<包名>/` 不属于公共目录，任何权限都不需要。
 
 ### 新增跨平台路径时必须照此写
 
 1. **路径拼接一律收敛到 `scripts/NativeUtil/NativeUtil.gml`**，不要散落在业务代码里。先加 getter，业务只调 getter。
 2. **不得为安卓改动而变更 Windows 行为**：Windows 侧继续 `get_path_in_local_appdata("\\FVM_Reborn_makk\\...")`。
 3. **禁止**把 `%LOCALAPPDATA%`、盘符、反斜杠绝对路径直接喂给安卓的 `file_*` / `directory_*` / `audio_create_stream`。喂错会静默返回 −1 / 空串，`audio_create_stream` 更会**直接抛致命异常崩游戏**（2026-11 已踩，`gml_Script_boss_music_resolve`）。
-4. **目录探测不要依赖 `directory_create` 的返回值**（它只在保存区生效，对绝对路径多为空操作）。正确顺序：`directory_exists` → 写探针文件验证可写 → 成功后 `file_delete` 探针。
-5. **探测结果必须缓存**到 `global._*`（如 `global._android_mod_root` / `_writable` / `_usable`），并保留 `_force` 参数供玩家中途建好目录后重探；每次刷新都写探针会明显拖慢界面。
+4. **目录探测不要依赖 `directory_create` 的返回值**（它只在保存区生效，对绝对路径多为空操作）。正确顺序：`android_mkdirs()`（逐级建，`Android/media/<包名>/files` 的中间层往往不存在）→ 列一次 `file_find_first` → 写探针文件验证可写 → 成功后 `file_delete` 探针。封装为 `android_dir_usable()`，不要每处重写。
+5. **探测结果必须缓存**到 `global._*`（如 `global._android_mod_root` / `_writable` / `_usable` / `_primary` / `_legacy`），并保留 `_force` 参数供玩家中途建好目录后重探；每次刷新都写探针会明显拖慢界面。界面「刷新」时若当前不在首选目录，必须 `get_mod_root(true)` 重探一次，否则玩家投放完还得重启才看得到。
 6. **`file_find_first` 的 `fa_directory` / `fa_archive` / `fa_readonly` 只在 Windows 有效**，其他平台必须传 `0`，否则永远扫到空列表（安卓表现为「目录里明明有文件却一个都读不到」）。封装成按平台返回的 helper 再调用。
 7. **`file_find_first` 无匹配返回空字符串**（不是 −1），循环条件写 `while (f != "")`。
 8. **拿不到外部私有目录时必须降级到沙盒相对路径**并在界面给提示，不允许抛异常、不允许白屏。
@@ -85,16 +87,17 @@
     - `get_open_filename` / `get_save_filename` 仅桌面 → 换成「刷新列表」或界面内选择
     - `native_unzip_map_file` / `native_open_folder` / `native_delete_folder` 是 Windows DLL 导出 → 换成纯 GML 实现（递归删除）或复制路径到剪贴板
     - 工程内**无任何 `.so`**，Lua / 7z / 输入法后端全部是 Windows PE → 安卓上一律走「能力降级 + 界面提示」，不得静默失败
-11. **Android 11+ 部分机型禁止文件管理器直达 `/Android/data/`**：界面必须同时给「复制路径到剪贴板」和文字引导（含 `manifest.json` 之类的落地要求），不能只画一个路径就当玩家能投放。
+11. **Android 11+ 部分机型禁止文件管理器直达 `/Android/data/`**（`/Android/media/` 没有这个限制，这是选它作首选落点的原因）：界面必须同时给「复制路径到剪贴板」和文字引导（含 `manifest.json` 之类的落地要求），不能只画一个路径就当玩家能投放。
 12. **新增跨平台路径改造后必须双处登记**：本节末尾表格 + 项目根目录《Android适配改造位置清单.md》。漏登记的下次合并会被整份覆盖掉。
+13. **安卓上跨目录搬文件只能纯 GML**：没有 `shutil` / `cp`，`native_*` 全是 Windows PE 导出。目录递归 + 文件用 `file_copy`，失败再 `buffer_load` → `buffer_save` 整块搬（工程先例 `scripts/FileUtil/FileUtil.gml:130`）。**不要用 `file_bin_*` 逐字节循环**（大 PNG 会卡住主循环），也不存在 `buffer_read(…, buffer_binary)` 这个数据类型常量。迁移逻辑只在「新目录为空 + 旧目录有货」时触发，旧包不删，复制完新目录非空即天然不重复。
 
 ### 已落地登记
 
 | 子目录 / 文件 | 位置 | Windows | Android | 说明 |
 |---------------|------|---------|---------|------|
-| Mod 根目录 | `scripts/NativeUtil/NativeUtil.gml` `get_mod_root()` | `%LOCALAPPDATA%\FVM_Reborn_makk\mod` | `<外部私有目录>/mod`，不可用降级 `"mod"` | 玩家投放解压好的 Mod 文件夹；探测结果缓存 `global._android_mod_root{,_writable,_usable}` |
+| Mod 根目录 | `scripts/NativeUtil/NativeUtil.gml` `get_mod_root()` | `%LOCALAPPDATA%\FVM_Reborn_makk\mod` | `/storage/emulated/0/Android/media/<包名>/files/mod`（首选）；旧目录有包时先由 `android_migrate_legacy_mods()` 复制过来，复制失败才回退 `/Android/data/<包名>/files/mod`；都不可用降级 `"mod"` | 玩家投放解压好的 Mod 文件夹；探测结果缓存 `global._android_mod_root{,_writable,_usable,_primary,_legacy}`，迁移条数记 `global._android_mod_migrated` |
 | Mod 开关状态 | `scripts/external_mod_system/external_mod_system.gml` `external_mod_state_path()` | `<mod>/mod_state.json` | 沙盒 `mod_state.json` | 外部私有目录未必可写，状态固定落沙盒 |
-| 应用外部私有目录基础路径 | `scripts/NativeUtil/NativeUtil.gml` `get_external_files_root()` | `%LOCALAPPDATA%\FVM_Reborn_makk` | 依次试 `EXTERNAL_STORAGE` → `/storage/emulated/0` → `/sdcard` → `/storage/self/primary`，拼 `/Android/data/<包名>/files` | 包名由 `get_android_package()` 提供，必须与 `options_android.yy` 的 domain/company/product 一致 |
+| 应用外部私有目录基础路径 | `scripts/NativeUtil/NativeUtil.gml` `get_external_files_root()` | `%LOCALAPPDATA%\FVM_Reborn_makk` | 依次试 `EXTERNAL_STORAGE` → `/storage/emulated/0` → `/sdcard` → `/storage/self/primary`，拼 `/Android/media/<包名>/files`（失败回退 `/Android/data/<包名>/files`） | 包名由 `get_android_package()` 提供，必须与 `options_android.yy` 的 domain/company/product 一致 |
 | 存档 | `scripts/save_file/save_file.gml` / `scripts/load_file/load_file.gml` | 保存区 `saves/saveN.json` | 保存区 `saves/saveN.json` | 相对路径，GML 零平台分支（已有，供参照） |
 | 授权文件 | `scripts/auth_client/auth_client.gml` `auth_file_path()` | 保存区 | 相对路径 `auth.dat` | 落盘一律 `file_text_*` + `json_stringify` |
 

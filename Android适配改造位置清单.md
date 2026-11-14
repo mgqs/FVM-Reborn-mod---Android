@@ -132,35 +132,48 @@
 | 文件 | 位置 | 说明 |
 |------|------|------|
 | `scripts/NativeUtil/NativeUtil.gml` | `get_android_package()` | 返回 `com.company.game`，必须与 `options/android/options_android.yy` 的 domain / company / product 三字段一致 |
-| `scripts/NativeUtil/NativeUtil.gml` | `get_external_files_root()` | 安卓返回 `/storage/emulated/0/Android/data/<包名>/files`（`EXTERNAL_STORAGE` 取不到时兜底 `/storage/emulated/0`）；桌面回落 `%LOCALAPPDATA%\FVM_Reborn_makk` |
-| `scripts/NativeUtil/NativeUtil.gml` | `get_mod_root()` | Windows 行为不变；安卓先探测外部私有目录（建目录 + 写 `.probe` 验证可写），读得到就用它，完全拿不到才降级沙盒相对路径 `"mod"`；结果缓存在 `global._android_mod_root` |
-| `scripts/NativeUtil/NativeUtil.gml` | `mod_root_is_writable()` / `mod_root_is_user_visible()` / `get_mod_root_hint()` | 目录能力与提示文案查询 |
+| `scripts/NativeUtil/NativeUtil.gml` | `android_storage_base()` | 用户存储根，按 `EXTERNAL_STORAGE` → `/storage/emulated/0` → `/sdcard` → `/storage/self/primary` 取第一个存在的挂载点（不带尾斜杠） |
+| `scripts/NativeUtil/NativeUtil.gml` | `android_mkdirs(_dir)` | 逐级建目录。`directory_create` 一次只建一级，而 `Android/media/<包名>/files` 的中间层往往不存在，直接建末级会失败 |
+| `scripts/NativeUtil/NativeUtil.gml` | `android_dir_usable(_dir)` | 建目录 + 列一次 + 写 `.probe` 探针，返回「GML 真的能用」；只看 `directory_exists` 不够（分区存储下不存在也可能返回 true）。可写性另记在 `global._android_last_dir_writable` |
+| `scripts/NativeUtil/NativeUtil.gml` | `android_dir_readable(_dir)` | 只判断「已存在的目录能否读到」，**不建目录**。旧落点回退用它，免得没装过 Mod 的机器被凭空造出 `/Android/data/<包名>/files/mod` |
+| `scripts/NativeUtil/NativeUtil.gml` | `android_legacy_files_root()` | 旧落点 `…/Android/data/<包名>/files`，仅作回退（Android 11+ 文件管理器看不到，adb 仍可投放） |
+| `scripts/NativeUtil/NativeUtil.gml` | `android_copy_tree(_src, _dst)` | 纯 GML 递归复制目录：目录递归，文件先 `file_copy`、失败再 `buffer_load`/`buffer_save` 整块搬。**不要用 `file_bin_*` 逐字节循环**（大 PNG 会卡主循环） |
+| `scripts/NativeUtil/NativeUtil.gml` | `android_migrate_legacy_mods()` | 老安装升级后首次启动，把旧落点里已有的 Mod 复制进新落点；只在「新目录为空 + 旧目录有货」时执行，旧包**不删**，复制完新目录非空，天然不会重复搬。条数记在 `global._android_mod_migrated` |
+| `scripts/NativeUtil/NativeUtil.gml` | `get_external_files_root()` | 安卓返回 `/storage/emulated/0/Android/media/<包名>/files`（免权限 + 文件管理器/MTP 可见）；该目录建不出来时回退 `/Android/data/<包名>/files`；桌面回落 `%LOCALAPPDATA%\FVM_Reborn_makk` |
+| `scripts/NativeUtil/NativeUtil.gml` | `get_mod_root()` | Windows 行为不变；安卓先调 `android_migrate_legacy_mods()` 尝试把旧目录的包搬进新目录，再按 `Android/media/<包名>/files/mod` → 旧 `Android/data/<包名>/files/mod` 顺序择优（新目录有包就用新目录，新目录空而旧目录有包则先迁移、迁移失败才继续用旧目录，避免升级后老 Mod 消失），两处都不可用才降级沙盒相对路径 `"mod"`；结果缓存在 `global._android_mod_root`，同时记 `_android_mod_root_primary/_legacy/_writable/_usable/_android_mod_migrated`，并打 `[NativeUtil] android mod root = …` 调试行 |
+| `scripts/NativeUtil/NativeUtil.gml` | `mod_root_is_writable()` / `mod_root_is_user_visible()` / `get_mod_root_hint()` / `get_mod_root_hint_lines()` | 目录能力与提示文案查询；`_lines` 版本给界面逐行画（当前生效目录 + 推荐投放位置 + 旧位置/adb 提示） |
 | `scripts/external_mod_system/external_mod_system.gml` | `external_mod_state_path()` | 安卓开关状态固定写沙盒相对路径 `mod_state.json`（外部私有目录未必可写）；Windows 仍是 `<mod>/mod_state.json` |
 | `scripts/external_mod_system/external_mod_system.gml` | `external_mod_find_flags()` | `file_find_first` 属性常量按平台返回（Windows `fa_directory`，其他 `0`） |
 | `scripts/external_mod_system/external_mod_system.gml` | `external_mod_delete_folder()` | Windows 先走 `native_delete_folder`，失败或非 Windows 走纯 GML 递归删除 |
 | `scripts/external_mod_system/external_mod_system.gml` | `external_mod_validate()` | 安卓上行为脚本可选：缺失 / 非 `.lua` 时 `has_script = false`，`source` 置空不再抛「文件不存在」 |
 | `scripts/external_mod_system/external_mod_system.gml` | `external_mod_load_all()` | 根目录改用 `get_mod_root()`；Lua probe 加 `d.has_script && os_type != os_android` 守卫 |
 | `objects/obj_external_mod_card/Create_0.gml` | L30 | Lua 句柄创建包进 `mod_definition.has_script && os_type != os_android`，安卓声明式卡片不再尝试建句柄 |
-| `objects/obj_mod_menu/Create_0.gml` | L1-L3 / L13 | 根目录与状态文件同源；`notify_result` 的 `show_message` 换 `show_message_async`（安卓模态会卡主循环）；`refresh_mods()` 全部改用 `/` 与 `external_mod_find_flags()` |
-| `objects/obj_mod_menu/Step_0.gml` | L26-L32 | 安卓「导入」变「刷新列表」（没有 `get_open_filename` / `native_unzip_map_file`） |
-| `objects/obj_mod_menu/Step_0.gml` | L84-L91 | 安卓「打开目录」变「复制目录到剪贴板」（沙盒目录文件管理器进不去） |
-| `objects/obj_mod_menu/Step_0.gml` | L117 | 删除 Mod 统一走 `external_mod_delete_folder`，去掉「仅支持 Windows」限制 |
-| `objects/obj_mod_menu/Draw_0.gml` | L68-L77 | 列表为空时安卓额外画三行投放引导（目标路径 + 用 USB/文件管理器投放 + 回来点刷新） |
-| `objects/obj_game_init/Create_0.gml` | L75-L77 | 安卓分支主动调 `get_mod_root()`，启动时就建好 / 探测好目录 |
+| `objects/obj_mod_menu/Create_0.gml` | L1-L4 / L13 / L66-L96 / L108-L225 | 根目录与状态文件同源；建目录改走 `android_mkdirs`；`notify_result` 的 `show_message` 换 `show_message_async`（安卓模态会卡主循环）；`scan_mod_folders()` 在空结果时补一次 `fa_directory` 枚举；`refresh_mods()` 合并三路来源（磁盘扫描 / `global.external_mod_loaded` / `global.external_mod_errors`），并在「当前不在首选 `Android/media` 目录」或「扫到 0 个包」时用 `get_mod_root(true)` 重探；`save_state()` 过滤 `missing`/`failed` 占位行，只写 `{folder, enabled}` |
+| `objects/obj_mod_menu/Step_0.gml` | L23-L77 | 安卓「导入」变「刷新列表」（没有 `get_open_filename` / `native_unzip_map_file`），提示文本改用 `get_mod_root_hint_lines()` 拼当前目录 + 推荐目录 |
+| `objects/obj_mod_menu/Step_0.gml` | L79-L89 | 安卓「打开目录」变「复制目录到剪贴板」（沙盒目录文件管理器进不去） |
+| `objects/obj_mod_menu/Step_0.gml` | L91-L113 | 行点击：占位行（`missing`/`failed`）只弹原因不同步开关；旧目录残留行给出 `get_mod_root_legacy_hint()` 完整路径与目标目录 |
+| `objects/obj_mod_menu/Step_0.gml` | L131 | 删除 Mod 统一走 `external_mod_delete_folder`，去掉「仅支持 Windows」限制 |
+| `objects/obj_mod_menu/Draw_0.gml` | L24-L39 | 列表顶部常驻「目录：`<mod_root>`」，路径不同源时玩家能自查；`list_top` 因此从 `y-205` 调到 `y-192` |
+| `objects/obj_mod_menu/Draw_0.gml` | L41-L83 | 四类行状态：正常开启/关闭、加载失败（红字点名）、旧目录残留（橙字「需要搬到新目录」）、扫描不到（红字）；占位行状态栏画「—」 |
+| `objects/obj_mod_menu/Draw_0.gml` | L96-L123 | 列表为空时安卓额外画投放引导：标题 + `get_mod_root_hint_lines()` 逐行（按像素宽度截断加 `…`，绝对路径不会画到面板外）+ 回来点刷新；外部目录不可用时改为只提示「无法访问外部目录」 |
+| `scripts/NativeUtil/NativeUtil.gml` | `get_mod_root_legacy_hint()` | 返回旧落点完整路径，供「你的 Mod 还在旧目录里」提示使用 |
+| `objects/obj_game_init/Create_0.gml` | L67-L77 | 安卓分支主动调 `get_mod_root()`，启动时就建好 / 探测好目录（含 `Android/media` 中间层建立） |
 
 安置位置的三类对照（为什么选第二类）：
 
 | 位置 | 需 root | 需权限 | 玩家怎么放 | GML 能否读写 |
 |------|---------|--------|-----------|--------------|
 | `/data/data/com.company.game/`（引擎保存区） | 否，但玩家看不见 | 无 | 只能游戏内导入 | 能读写 |
-| `/storage/emulated/0/Android/data/com.company.game/files/`（应用外部私有目录，**当前采用**） | 否 | 无 | USB / MTP 拖拽、`adb push` | 能读写 |
+| `/storage/emulated/0/Android/media/com.company.game/files/`（应用外部私有目录的 media 分支，**当前采用**） | 否 | 无 | 任意文件管理器 / USB / MTP 直接可见，也能 `adb push` | 能读写 |
+| `/storage/emulated/0/Android/data/com.company.game/files/`（旧落点，**保留为回退**） | 否 | 无 | Android 11+ 文件管理器看不到，只能 `adb push` / MTP | 能读写 |
 | `/storage/emulated/0/Download/` | 否 | `MANAGE_EXTERNAL_STORAGE` | 任意文件管理器 | 有权限才通 |
 
-注意：`WRITE_EXTERNAL_STORAGE` 在 API 30+ 被系统忽略，本项目 targetSdk 35 下即使打开也拿不到公共目录；要公共目录只能申请 `MANAGE_EXTERNAL_STORAGE`（会弹「访问所有文件」授权）。
+注意：`WRITE_EXTERNAL_STORAGE` 在 API 30+ 被系统忽略，本项目 targetSdk 35 下即使打开也拿不到公共目录；要公共目录只能申请 `MANAGE_EXTERNAL_STORAGE`（会弹「访问所有文件」授权）。`/Android/media/<包名>/` 不需要任何权限，这是把它作为首选落点的原因。
 
 安卓端功能边界（改造后仍然的限制）：
 - Lua 行为脚本不执行（后端是 Windows PE DLL，工程内无 `.so`），卡片退化为「纯 JSON 声明式」——属性、子弹、动画都正常，只有自定义行为没有。
-- 压缩包导入不可用（无 `get_open_filename`、无 ZIP 解包）：玩家必须在 PC 上解压好，把文件夹整体投放进 `/Android/data/com.company.game/files/mod/`。
+- 压缩包导入不可用（无 `get_open_filename`、无 ZIP 解包）：玩家必须在 PC 上解压好，把文件夹整体投放进 `/storage/emulated/0/Android/media/com.company.game/files/mod/`。
+- 老安装上放在 `/Android/data/<包名>/files/mod/` 的 Mod 会在首次启动时**自动复制**进 `/Android/media/com.company.game/files/mod/`（旧包不删，确认无误后可手动清理）；若复制失败（如旧目录只读），仍会回退旧目录继续加载。
 - 目录若被系统拒绝写入，`mod_state.json` 仍会落在沙盒，界面会提示「Mod 目录只读」。
 
 ---

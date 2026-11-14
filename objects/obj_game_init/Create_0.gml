@@ -65,8 +65,9 @@ init_native_log()
 move_files()
 
 // Mod 包目录：Windows = %LOCALAPPDATA%\FVM_Reborn_makk\mod；
-// 安卓 = /storage/emulated/0/Android/data/<包名>/files/mod（零权限，玩家可用 USB/文件管理器直接投放），
-// 该目录不可写时 get_mod_root() 会自动降级到沙盒相对路径 "mod"。
+// 安卓 = /storage/emulated/0/Android/media/<包名>/files/mod（零权限，文件管理器/MTP 直接可见），
+// 旧落点 Android/data/<包名>/files/mod 保留为回退（老安装的 Mod 不会因升级消失），
+// 两处都不可用时 get_mod_root() 自动降级到沙盒相对路径 "mod"。
 if (os_type != os_android) {
     var _mod_folder = global.native_util.get_path_in_local_appdata("\\FVM_Reborn_makk\\mod")
     if (native_folder_exists(_mod_folder) == 0) {

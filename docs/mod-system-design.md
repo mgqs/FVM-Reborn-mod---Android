@@ -190,9 +190,13 @@ SWF 适配器可通过 `api.shoot` 传入 `speed_y`、`vertical_distance` 和 `b
 
 目录与状态文件：
 
-- Mod 根目录在安卓上是 `/storage/emulated/0/Android/data/com.company.game/files/mod`（应用外部私有目录，零权限，玩家可用 USB/MTP 或文件管理器直接投放）。`global.native_util.get_mod_root()` 负责探测；探测不到时降级为沙盒相对路径 `"mod"`（玩家看不见，但不崩）。
+- Mod 根目录在安卓上是 `/storage/emulated/0/Android/media/com.company.game/files/mod`（应用外部私有目录的 media 分支，零权限，玩家可用任意文件管理器 / USB / MTP 直接投放）。旧落点 `/storage/emulated/0/Android/data/com.company.game/files/mod` 保留为回退：启动时 `android_migrate_legacy_mods()` 先把旧目录里已有的包**复制**进新目录（只在「新目录为空 + 旧目录有货」时执行，旧包不删，复制完新目录非空所以不会重复搬），迁移失败或新目录不可用时才继续用旧目录，所以老安装的 Mod 不会因升级消失。`global.native_util.get_mod_root()` 负责探测；两处都不可用才降级为沙盒相对路径 `"mod"`（玩家看不见，但不崩）。探测结果、来源与迁移条数打在 `[NativeUtil] android mod root = …` 调试行里。
+- 目录判定不能只看 `directory_exists`：分区存储下不存在的绝对路径也可能返回 `true`。统一走 `android_dir_usable()`（逐级建目录 `android_mkdirs` + 列一次 + 写 `.probe` 探针），可写性另记在 `global._android_last_dir_writable`。
 - 开关状态固定写沙盒相对路径 `mod_state.json`（`external_mod_state_path()`），因为外部私有目录未必可写；目录只读时界面会提示，功能不受影响。
-- `file_find_first` 的属性常量（`fa_directory` / `fa_archive` / `fa_readonly`）只在 Windows 有效，安卓必须传 `0`，统一走 `external_mod_find_flags()`。
+- `file_find_first` 的属性常量（`fa_directory` / `fa_archive` / `fa_readonly`）只在 Windows 有效，安卓必须传 `0`，统一走 `external_mod_find_flags()`。但 `0` 是否会把子目录带出来取决于运行时实现，所以**加载器和 Mod 管理器各自在空结果时再按 `fa_directory` 枚举一遍**，两个都空才算真的没有包——否则「包在里面但列表为空」会退化成查不出来的黑箱。
+- **界面与加载器必须同源**。`external_mod_load_all()` 在 `room_init` 阶段就把包枚举并注册好（卡片因此生效），`obj_mod_menu.refresh_mods()` 是第二次独立扫描，两者可能因为目录缓存、迁移、降级而看到不同目录。所以列表以三路并集为准：磁盘扫描 ∪ `global.external_mod_loaded`（加载器真正注册成功的包） ∪ `global.external_mod_errors`（加载失败但存在的包）。界面顶部常驻 `目录：<mod_root>`，路径不同源时玩家能自查；调试行 `[Mod menu] root=… folders=… listed=… loaded=…` 与 `[NativeUtil] android mod root = …` 对照即可定位。
+- **占位行不写回状态**：`missing`（状态记录里有、磁盘枚举不到）与 `failed`（校验未过）的行只用于显示，`save_state()` 会过滤掉它们。它们带着 `enabled=false`，一旦落盘，下次启动会被当成玩家的真实选择读回来，把本来能用的 Mod 静默关掉。
+- 新扫到的包默认开启用 `!state_read_failed`，不用 `state_default_enabled` —— 后者在状态文件存在时恒为 `false`，会让安卓手动投放的新包一进列表就显示「已关闭」。
 
 功能边界：
 
@@ -206,7 +210,8 @@ SWF 适配器可通过 `api.shoot` 传入 `speed_y`、`vertical_distance` 和 `b
 | 位置 | 需 root | 需权限 | 玩家怎么放 | GML 能否读写 |
 |------|---------|--------|-----------|--------------|
 | `/data/data/com.company.game/`（引擎保存区） | 否，但玩家看不见 | 无 | 只能游戏内导入 | 能读写 |
-| `/storage/emulated/0/Android/data/com.company.game/files/`（当前采用） | 否 | 无 | USB / MTP 拖拽、`adb push` | 能读写 |
+| `/storage/emulated/0/Android/media/com.company.game/files/`（当前采用） | 否 | 无 | 任意文件管理器 / USB / MTP 直接可见，也能 `adb push` | 能读写 |
+| `/storage/emulated/0/Android/data/com.company.game/files/`（旧落点，保留为回退） | 否 | 无 | Android 11+ 文件管理器看不到，只能 `adb push` / MTP | 能读写 |
 | `/storage/emulated/0/Download/` | 否 | `MANAGE_EXTERNAL_STORAGE` | 任意文件管理器 | 有权限才通 |
 
 `WRITE_EXTERNAL_STORAGE` 在 API 30+ 被系统忽略，本项目 targetSdk 35 下即使打开也拿不到公共目录；要用公共目录只能申请 `MANAGE_EXTERNAL_STORAGE`（会弹「访问所有文件」授权）。

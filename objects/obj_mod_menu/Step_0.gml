@@ -26,8 +26,11 @@ if (point_in_rectangle(mouse_x, mouse_y, x - 420, y - 305, x - 245, y - 270) && 
     if (os_type == os_android) {
         refresh_mods();
         audio_play_sound(snd_button, 0, 0);
-        notify_result("已重新扫描 Mod 目录。\n把解压后的 Mod 文件夹（含 manifest.json 或 card.json）放到：\n"
-            + global.native_util.get_mod_root() + "\n然后点「刷新」并重启游戏。");
+        var _lines = global.native_util.get_mod_root_hint_lines();
+        var _msg = "已重新扫描 Mod 目录，共 " + string(array_length(mods)) + " 个包。\n"
+            + "把解压后的 Mod 文件夹（含 manifest.json 或 card.json）放到：\n";
+        for (var _i = 0; _i < array_length(_lines); _i++) _msg += _lines[_i] + "\n";
+        notify_result(_msg + "投放后点「刷新列表」并重启游戏。");
         exit;
     }
     var selected = get_open_filename("Mod package|*.fvmmod;*.zip|All files|*.*", "");
@@ -88,12 +91,26 @@ if (point_in_rectangle(mouse_x, mouse_y, x - 230, y - 305, x - 35, y - 270) && m
 for (var i = 0; i < array_length(mods); i++) {
     var row_y = list_top + i * row_height - scroll_offset + 26;
     if (row_y - 25 < list_top || row_y + 25 > list_bottom) continue;
+    var _row_missing = variable_struct_exists(mods[i], "missing") && mods[i].missing;
+    var _row_failed = variable_struct_exists(mods[i], "failed") && mods[i].failed;
     if (point_in_rectangle(mouse_x, mouse_y, x - 430, row_y - 25, x + 235, row_y + 25) && mouse_check_button_pressed(mb_left)) {
         if (variable_global_exists("external_mod_errors") && variable_struct_exists(global.external_mod_errors, mods[i].folder)) {
             notify_result("Mod 运行或加载时发现问题：" + mods[i].name + "\n" + global.external_mod_errors[$ mods[i].folder] + "\n修正文件后请重新启动游戏。");
+        } else if (_row_missing) {
+            var _legacy_only = variable_struct_exists(mods[i], "legacy_only") && mods[i].legacy_only;
+            if (_legacy_only) {
+                notify_result("这个 Mod 还在旧目录里：\n" + global.native_util.get_mod_root_legacy_hint()
+                    + "\n\n把它整个文件夹移到下面的新目录，然后点「刷新列表」：\n" + mod_root);
+            } else {
+                notify_result("这个包的状态记录还在，但当前 Mod 目录里找不到文件夹：\n" + mod_root + "/" + mods[i].folder
+                    + "\n\n如果刚才把文件夹移到别处，请放回上面的路径后点「刷新列表」。");
+            }
         }
         exit;
     }
+    // 「不可见 / 加载失败」的占位行不允许切换开关或删除：操作目标根本不存在，
+    // 真要清理请玩家去文件管理器删，别让这里给出「删除失败」这种误导性反馈。
+    if (_row_missing || _row_failed) continue;
     if (point_in_rectangle(mouse_x, mouse_y, x + 245, row_y - 17, x + 325, row_y + 17) && mouse_check_button_pressed(mb_left)) {
         if (!mods[i].enabled) {
             try {

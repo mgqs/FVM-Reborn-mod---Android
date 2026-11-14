@@ -532,6 +532,17 @@ function external_mod_load_all() {
         f = file_find_next();
     }
     file_find_close();
+    // 安卓的 external_mod_find_flags() 退化成 0（fa_directory 只在 Windows 有效）。
+    // 万一运行时不把子目录带出来，这里按 fa_directory 再枚举一遍，两个都空才算真的没包——
+    // 加载器和 Mod 管理器各扫一次，任何一边漏枚举都会表现为「包在半路消失」。
+    if (os_type != os_windows && array_length(folders) == 0) {
+        f = file_find_first(root + "/*", fa_directory);
+        while (f != "") {
+            if (f != "." && f != ".." && directory_exists(global.native_util.join_path(root, f))) array_push(folders, f);
+            f = file_find_next();
+        }
+        file_find_close();
+    }
     array_sort(folders, function(a, b) { return a == b ? 0 : (a < b ? -1 : 1); });
     if (!variable_struct_exists(global.save_data, "external_card_ids")) global.save_data.external_card_ids = [];
     for (var i = 0; i < array_length(folders); i++) {
