@@ -106,6 +106,10 @@ var wind_execute_ids = undefined;
 if (kind == "wind") wind_execute_ids = ["glider_mouse","waste_flying_mouse","kamikaze_glider_mouse","flight_barrier_mouse","paratrooper_mouse","machine_bomb_mouse","kuafu_glider","kuafu_barrier"];
 for (var i = 0; i < array_length(enemies); i++) {
     var e = enemies[i];
+    // 候选表是本 step 早段建好的快照：上一条 e 的 event_user(0) 结算可能把这一条的
+    // 实例打死（或被对象池换成 obj_pool_holder），直接读 e.id / e.object_index 会抛
+    // "Unable to find instance for object index"。整条循环都先过一遍存活判定。
+    if (!combat_targets_is_live(e, obj_enemy_parent)) continue;
     if (array_contains(hit_ids,e.id)) continue;
     if (kind == "return" && e.object_index == obj_kuileima_decoy) continue; // 归元马忽略傀儡马，绝不攻击傀儡马代理
     // 2026-11-11：归元马(return)额外放行 dance —— 高跷鼠 / 非主流鼠走行虽然不可被普通攻击锁定，

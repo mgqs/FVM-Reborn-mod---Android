@@ -104,7 +104,7 @@ if (shape >= 2)
 else
 {
     // ===== shape 0-1：单行投掷 =====
-    var _t = (target_instance != noone && instance_exists(target_instance)) ? target_instance : -4;
+    var _t = (target_instance != noone && combat_targets_is_live(target_instance, obj_enemy_parent)) ? target_instance : -4;
     var _col = (_t != -4) ? _t.grid_col : _last_col;
 
     for (var _n = 0; _n < 2; _n++)

@@ -1,6 +1,6 @@
 // obj_dangdanghu 投出糕饼（event_user(1)）
 var _col = min(grid_col + range, global.grid_cols);
-if (target_instance != noone && instance_exists(target_instance)) _col = target_instance.grid_col;
+if (target_instance != noone && combat_targets_is_live(target_instance, obj_enemy_parent)) _col = target_instance.grid_col;
 var _cell = get_world_position_from_grid(_col, grid_row);
 
 var _b = instance_create_depth(x + 10, y - 60, depth - 500, obj_dangdanghu_bullet);

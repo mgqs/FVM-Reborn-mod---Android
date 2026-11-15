@@ -196,6 +196,19 @@ function external_mod_import_finish(job, native_state) {
         if (!external_mod_state_save(job.state_path, job.previous)) job.error += "\n无法恢复 Mod 开关状态，请检查目录权限";
     }
     if (success) {
+        // 收尾降噪：包刚解压完，png 还在被媒体扫描的目录里 —— 立刻搬进 <包>/.assets
+        // 并给 mod 根补 .nomedia，避免相册把刚导入的立绘/帧图收进去。
+        // 搬动根用 resolve 之后的包根（允许一层外目录），与 external_mod_path 的查找口一致。
+        try {
+            if (os_type == os_android) {
+                var _assets_root = job.target;
+                try { _assets_root = external_mod_root(job.target) } catch (_resolve_error) { _assets_root = job.target }
+                external_mod_hide_assets(_assets_root);
+            }
+        } catch (_hide_error) {
+            show_debug_message("[Mod import] hide assets failed: " + string(_hide_error));
+        }
+        try { global.native_util.android_write_nomedia(job.mod_root, 2) } catch (_nomedia_error) {}
         global.external_mods = job.next_entries;
         job.publish_ms = (get_timer() - job.phase_started) / 1000;
         var prefix = job.enabled ? "已导入并开启：" : "已导入，保持关闭：";

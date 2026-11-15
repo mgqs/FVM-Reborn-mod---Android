@@ -1,0 +1,77 @@
+{
+  "api_version": 1,
+  "id": "demo.sample_card",
+  "name": "示例卡片",
+  "description": "安卓导入演示用。放进来就能在背包里看到，用来验证 Mod 目录是否接通。",
+  "is_gold": false,
+  "icon": "images/icon.png",
+  "script": "logic.lua",
+  "plant_type": "normal",
+  "feature_type": "normal",
+  "target_type": "normal",
+  "hp": [
+    120,
+    130,
+    140,
+    150,
+    160,
+    175,
+    190,
+    205,
+    220,
+    240,
+    260,
+    285,
+    310,
+    340,
+    370,
+    400,
+    430
+  ],
+  "atk": [
+    24,
+    26,
+    28,
+    30,
+    33,
+    36,
+    39,
+    42,
+    45,
+    49,
+    53,
+    57,
+    62,
+    67,
+    72,
+    78,
+    84
+  ],
+  "cost": 100,
+  "cooldown": 420,
+  "cycle": 120,
+  "range": 10,
+  "initial_unlock": {
+    "level": 0,
+    "shape": 0,
+    "skill": 0
+  },
+  "behavior_params": {
+    "range_pixels": 1000,
+    "bullet_speed": 8,
+    "offset_x": 40,
+    "offset_y": -75
+  },
+  "animations": {
+    "idle": {
+      "frames": [
+        "images/card_01.png",
+        "images/card_02.png"
+      ],
+      "fps": 6,
+      "loop": true,
+      "origin": "bottom_center",
+      "events": []
+    }
+  }
+}

@@ -34,16 +34,10 @@ function external_mod_delete_folder(path) {
     }
     try {
         if (!directory_exists(path)) return 0;
-        var _names = [];
-        var _f = file_find_first(path + "/*", 0);
-        while (_f != "") {
-            if (_f != "." && _f != "..") array_push(_names, _f);
-            _f = file_find_next();
-        }
-        file_find_close();
-        for (var _i = 0; _i < array_length(_names); _i++) {
-            var _child = path + "/" + _names[_i];
-            if (directory_exists(_child)) external_mod_delete_folder(_child);
+        var _entries = global.native_util.android_list_dir(path, false);
+        for (var _i = 0; _i < array_length(_entries); _i++) {
+            var _child = _entries[_i].path;
+            if (_entries[_i].is_dir) external_mod_delete_folder(_child);
             else file_delete(_child);
         }
         directory_destroy(path);
@@ -98,6 +92,65 @@ function external_mod_read(path) {
     return raw;
 }
 
+/// 图片在包内的隐藏根目录。以 "." 开头 → MediaProvider 扫描时整个目录跳过，
+/// 不依赖 .nomedia（.nomedia 只对「之后」的扫描生效，且部分机型/已入库过的目录不认）。
+/// 包本身的 manifest / card.json / lua 仍留在可见目录，玩家照样能投放与维护。
+function external_mod_assets_dir(root) {
+    return root + "/.assets";
+}
+
+/// 按扩展名判断是不是会被相册收录的媒体文件。
+function external_mod_is_media_relative(relative) {
+    if (!is_string(relative) || relative == "") return false;
+    var _ext = string_lower(filename_ext(relative));
+    return (_ext == ".png" || _ext == ".jpg" || _ext == ".jpeg"
+        || _ext == ".gif" || _ext == ".webp" || _ext == ".bmp");
+}
+
+/// 把一个包里所有图片搬进 <包>/.assets/<原相对路径> 并删除原文件。
+/// 为什么必须搬走而不是只写 .nomedia：相册看到的条目来自 MediaStore 的 images 表，
+/// .nomedia 只阻止「下一次扫描入库」，已经入过库的行不会消失，而多数机型的相册
+/// 就是靠这些行显示缩略图；把文件挪进以 "." 开头的目录，扫描器直接不下钻，才是确定性做法。
+/// 返回搬动数量；失败（rename 不了）就保留原文件，不会让包坏掉。
+function external_mod_hide_assets(root) {
+    if (!is_string(root) || root == "") return 0;
+    var _asset_root = external_mod_assets_dir(root);
+    var _moved = external_mod_hide_assets_walk(root, "", _asset_root);
+    if (_moved > 0) {
+        try { show_debug_message("[Mod assets] hidden=" + string(_moved) + " root=" + root) } catch (_e) {}
+    }
+    return _moved;
+}
+
+function external_mod_hide_assets_walk(absolute_dir, relative_prefix, asset_root) {
+    var _moved = 0;
+    var _entries = global.native_util.android_list_dir(absolute_dir, false);
+    for (var _i = 0; _i < array_length(_entries); _i++) {
+        var _name = _entries[_i].name;
+        // ".assets" / ".nomedia" 这类自建项跳过，防止把刚搬进去的又搬一遍。
+        if (string_copy(_name, 1, 1) == ".") continue;
+        var _rel = relative_prefix == "" ? _name : relative_prefix + "/" + _name;
+        if (_entries[_i].is_dir) {
+            _moved += external_mod_hide_assets_walk(_entries[_i].path, _rel, asset_root);
+            continue;
+        }
+        if (!external_mod_is_media_relative(_rel)) continue;
+        var _dest_dir = relative_prefix == "" ? asset_root : asset_root + "/" + relative_prefix;
+        if (!global.native_util.android_mkdirs(_dest_dir)) continue;
+        var _dest = _dest_dir + "/" + _name;
+        try {
+            if (file_exists(_dest)) file_delete(_dest);
+            file_rename(_entries[_i].path, _dest);
+        } catch (_e1) {}
+        if (file_exists(_dest)) {
+            // rename 成功后原文件就不存在了；万一还留着，删掉才是「相册看不到」的关键。
+            try { if (file_exists(_entries[_i].path)) file_delete(_entries[_i].path) } catch (_e2) {}
+            _moved++;
+        }
+    }
+    return _moved;
+}
+
 function external_mod_path(root, relative) {
     if (!is_string(relative) || relative == "") throw "资源路径不能为空";
     var p = string_replace_all(relative, "\\", "/");
@@ -106,7 +159,13 @@ function external_mod_path(root, relative) {
     for (var i = 0; i < array_length(parts); i++) {
         if (parts[i] == ".." || parts[i] == "" || parts[i] == ".") throw "资源路径包含无效目录";
     }
-    return global.native_util.join_path(root, p);
+    // 原路径优先（玩家刚替换/新投放的文件一定在这里），没有再回退到隐藏资产目录：
+    // 图片被 external_mod_hide_assets 搬进 .assets 后原文件已被删除，这时才走 .assets。
+    var direct = global.native_util.join_path(root, p);
+    try { if (file_exists(direct)) return direct } catch (_e0) {}
+    var hidden = global.native_util.join_path(root, ".assets/" + p);
+    try { if (file_exists(hidden)) return hidden } catch (_e) {}
+    return direct;
 }
 
 function external_mod_id_valid(cid) {
@@ -220,15 +279,10 @@ function external_mod_root(folder) {
     folder = global.native_util.file_path(folder);
     if (file_exists(global.native_util.join_path(folder, "manifest.json")) || file_exists(global.native_util.join_path(folder, "card.json"))) return folder;
     var roots = [];
-    var names = [];
-    var n = file_find_first(folder + "/*", external_mod_find_flags());
-    while (n != "") {
-        if (n != "." && n != ".." && directory_exists(global.native_util.join_path(folder, n))) array_push(names, n);
-        n = file_find_next();
-    }
-    file_find_close();
-    for (var i = 0; i < array_length(names); i++) {
-        var p = global.native_util.join_path(folder, names[i]);
+    // 一层外目录（Mod 包常见结构）：枚举交给 android_list_dir，安卓返回完整路径时也不会拼坏。
+    var entries = global.native_util.android_list_dir(folder, true);
+    for (var i = 0; i < array_length(entries); i++) {
+        var p = entries[i].path;
         if (file_exists(global.native_util.join_path(p, "manifest.json")) || file_exists(global.native_util.join_path(p, "card.json"))) array_push(roots, p);
     }
     if (array_length(roots) != 1) throw "包内需要 manifest.json 或 card.json（允许一层外目录）";
@@ -533,24 +587,26 @@ function external_mod_load_all() {
     var state = state_result.entries;
     global.external_mod_state_notice = state_result.notice;
     var folders = [];
-    var f = file_find_first(root + "/*", external_mod_find_flags());
-    while (f != "") {
-        if (f != "." && f != ".." && directory_exists(global.native_util.join_path(root, f))) array_push(folders, f);
-        f = file_find_next();
-    }
-    file_find_close();
-    // 安卓的 external_mod_find_flags() 退化成 0（fa_directory 只在 Windows 有效）。
-    // 万一运行时不把子目录带出来，这里按 fa_directory 再枚举一遍，两个都空才算真的没包——
-    // 加载器和 Mod 管理器各扫一次，任何一边漏枚举都会表现为「包在半路消失」。
-    if (os_type != os_windows && array_length(folders) == 0) {
-        f = file_find_first(root + "/*", fa_directory);
-        while (f != "") {
-            if (f != "." && f != ".." && directory_exists(global.native_util.join_path(root, f))) array_push(folders, f);
-            f = file_find_next();
+    // 扫描只有一个口：NativeUtil.android_list_dir —— 安卓/iOS 的 file_find_* 返回完整路径，
+    // 自己拿条目名拼 目录 + "/" + 名字 会拼成 …/mod//storage/emulated/0/…，directory_exists 恒 false。
+    folders = global.native_util.android_list_subdirs(root);
+    // 兜底：万一运行时连 file_find 都枚举不出外部目录，就用状态文件里记过的包名，
+    // 逐个 directory_exists 复核（状态文件在沙盒里，不依赖目录枚举）。
+    // 只影响「已装过的包还能不能继续生效」，不影响新包被发现。
+    if (os_type == os_android && array_length(folders) == 0) {
+        for (var _st = 0; _st < array_length(state); _st++) {
+            var _sf = external_mod_field(state[_st], "folder", "");
+            if (!is_string(_sf) || _sf == "") continue;
+            if (directory_exists(global.native_util.join_path(root, _sf))) array_push(folders, _sf);
         }
-        file_find_close();
     }
     array_sort(folders, function(a, b) { return a == b ? 0 : (a < b ? -1 : 1); });
+    var _joined_names = "";
+    for (var _jf = 0; _jf < array_length(folders); _jf++) _joined_names += (_jf > 0 ? "|" : "") + folders[_jf];
+    show_debug_message("[Mod loader] root=" + root + " folders=" + string(array_length(folders))
+        + " (" + _joined_names + ") state=" + string(array_length(state)));
+    // 相册降噪第一层：Mod 根再补一遍 .nomedia（覆盖玩家手动拷入 / 手动删过标记的包）。
+    global.native_util.android_write_nomedia(root, 2);
     if (!variable_struct_exists(global.save_data, "external_card_ids")) global.save_data.external_card_ids = [];
     for (var i = 0; i < array_length(folders); i++) {
         var folder = folders[i];
@@ -560,7 +616,16 @@ function external_mod_load_all() {
         var registered = [];
         var assets = ds_list_create();
         try {
-            var pack = external_mod_validate(global.native_util.join_path(root, folder));
+            var _pack_root = global.native_util.join_path(root, folder);
+            // 先把图片挪进隐藏目录（相册看不到），再校验：校验走 external_mod_path，
+            // 会优先命中 .assets 里的新路径，所以搬动对校验是透明的。
+            // 搬动根必须是「resolve 之后」的包根（允许一层外目录），否则 .assets 会落在
+            // 外层目录上，而 external_mod_path 是按内层根拼 .assets 的，两处对不上就读不到图。
+            var _assets_root = _pack_root;
+            try { _assets_root = external_mod_root(_pack_root) } catch (_resolve_error) { _assets_root = _pack_root }
+            // 只在安卓搬：桌面端没有相册扫描问题，别把开发目录里的素材挪走。
+            if (os_type == os_android) external_mod_hide_assets(_assets_root);
+            var pack = external_mod_validate(_pack_root);
             if (pack.type == "animation_override") {
                 external_animation_register(pack, folder);
                 global.external_mod_loaded[$ folder] = array_length(pack.overrides);

@@ -140,6 +140,12 @@ if (status_text != "") {
     if (footer_text != string_replace_all(status_text, "\n", " ")) footer_text += "…";
     draw_text(x, y + 270, footer_text);
 }
+// 诊断行常驻：安卓上区分「没投放 / 放的是 zip / 包结构不对 / 已经认出来」全靠这一行。
+if (variable_instance_exists(id, "diag_text") && diag_text != "") {
+    draw_set_valign(fa_top);
+    draw_set_color(#17314C);
+    draw_text(x, y + 300, diag_text);
+}
 draw_set_halign(fa_left);
 draw_set_valign(fa_top);
 

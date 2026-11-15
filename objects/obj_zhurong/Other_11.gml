@@ -5,7 +5,7 @@ inst.row = grid_row;
 inst.thrower_y = y;
 var _max = (shape >= 1) ? 5 : 4;
 
-if (target_instance != -4 && instance_exists(target_instance))
+if (target_instance != -4 && combat_targets_is_live(target_instance, obj_enemy_parent))
 {
     var target_col = target_instance.grid_col;
     var max_col = grid_col + _max;

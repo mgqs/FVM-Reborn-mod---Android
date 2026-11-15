@@ -20,6 +20,8 @@ for (var yh_i = 0; yh_i < instance_number(obj_kuileima_decoy); yh_i++) {
 var radius = 1;
 for (var i = 0; i < array_length(yh1_list); i++) {
     var e = yh1_list[i];
+    // 列表是本帧快照：前一个目标的 event_user(0) 结算可能把后面这条打死
+    if (!combat_targets_is_live(e, obj_enemy_parent)) continue;
     if (e.target_type == "underground" || e.target_type == "non_mainstream"
         || e.target_type == "ghost" || e.target_type == "invisible") continue;
     if (array_contains(zodiac_firefly_hit_ids,e.id)) continue;
@@ -27,7 +29,7 @@ for (var i = 0; i < array_length(yh1_list); i++) {
     if (abs(eg.col-grid_col) <= radius && abs(eg.row-grid_row) <= radius) {
         array_push(zodiac_firefly_hit_ids,e.id);
         var yhs_dmg = atk;
-        with (e) {
+        with (combat_live_or_noone(e, obj_enemy_parent)) {
             damage_amount = yhs_dmg;
             damage_type = "pierce";
             event_user(0);
@@ -50,6 +52,7 @@ if (state == CARD_STATE.IDLE && zodiac_timer == 0) {
     var has_target = false;
     for (var j = 0; j < array_length(yh2_list); j++) {
         var e2 = yh2_list[j];
+        if (!combat_targets_is_live(e2, obj_enemy_parent)) continue;
         if (e2.target_type == "underground" || e2.target_type == "non_mainstream"
             || e2.target_type == "ghost" || e2.target_type == "invisible") continue;
         var eg2 = get_grid_position_from_world(e2.x,e2.y);

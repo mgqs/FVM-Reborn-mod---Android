@@ -36,7 +36,7 @@ if (state == UnknownEnum.Value_4)
     {
         if (instance_exists(target_plant))
         {
-            with (target_plant)
+            with (combat_live_or_noone(target_plant, obj_card_parent))
             {
                 if (!invincible)
                 {

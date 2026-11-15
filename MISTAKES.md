@@ -59,8 +59,14 @@
 | 换皮 BOSS（新精灵 + 照抄对象代码） | ① 同组身体精灵**统一锚点**：原版同组共用 origin，逐帧算锚点会让切换 sprite_index 时身体跳动；② 照抄代码里的**对象引用也要映射**（旧 BOSS 生成旧激光体/导弹/特效），`rg "obj_[a-z_0-9]+" 新对象目录` 清单里不许再出现旧 BOSS 专属对象；③ 新素材分段以 SWF FrameLabel 为准，输出帧数必须 resample 到与原版逐精灵一致（代码里 mod N 硬编码） | A20 |
 | 用户报「某只怪突然闪一下变成残血/脱甲」 | 先看血条数字有没有接近 `maxhp*hurt_rate`（没接近就与状态机无关），再用视频帧拟合「白覆盖 vs 整体透明」定位到受击闪光的画法：`obj_enemy_parent/Draw_0` 用 `hit_effect_2` 把 rgb 换成纯白再按 `flash_value/200` 叠自己 → 大体积怪会变白影 | A21 |
 | 要给关卡配鼠 / 判断某只鼠能不能放这张图 | 水陆只认 `register_enemy` 的 `feature`（`water` 只能落水行，`row` 写 -1 交给引擎），别按中文名猜；单行注册是 `"feature":"land"`，正则要容带引号的键 | C24 |
+| Mod 生效了但 Mod 管理器列表里没有那个包 | 界面和加载器各扫一遍目录，别只信界面那次 `file_find_first`：列表取「磁盘扫描 ∪ `global.external_mod_loaded` ∪ `global.external_mod_errors`」并集，同时把 `目录：<mod_root>` 画在界面上 | C25 |
+| 战斗偶发 `Unable to find instance for object index`，栈顶是 `combat_enemy_nearest_in_row` / `combat_enemy_in_rows` | 别只查敌人的 `Destroy_0`：`obj_pool_release()` 用 `instance_change` 回收，且 97 个敌人子对象的 `Destroy_0` 没写 `event_inherited()` → 先在池回收/销毁/清池三处显式 `combat_targets_invalidate`，再让查询函数用 `combat_targets_is_live` 剪枝，再把**所有**存下来的目标改成 `with (combat_live_or_noone(x, base))`（含子弹类 16 处与快照循环 3 处），最后确认玩家跑的不是旧 APK（改完源码 ≠ 修好） | C26 |
+| 安卓上目录里明明有 Mod 包，`file_find` 枚举出来 0 个 | 安卓/iOS 的 `file_find_*` 返回**完整路径**而不是名字：一律走 `global.native_util.android_list_dir()` / `android_list_subdirs()`，不要拿条目名拼 `目录 + "/" + 名字` | A26 |
+| 上一轮改的代码「凭空消失」、用户复测报「根本没这个文件」 | 先 `git reflog`：出现 `reset: moving to <sha>` 就是上游同步 `git reset --hard` 抹掉了**未提交**改动。动完立刻 `git diff > .codex-tmp/xxx.patch` 存快照或提交，别让改动以未提交状态过夜 | A27 |
+| 写完 `.nomedia`，相册照样显示 Mod 图片 | `.nomedia` 只挡之后的扫描，已入库的行不会消失。把图片搬进以 `.` 开头的子目录（MediaProvider 整目录跳过）并删原文件才是确定性做法 | C27 |
 | 写脚本扫 `objects/` 下所有 `.yy`，输出条数是 0 | `objects/` 没有直接放 `.yy`：用 `Get-ChildItem objects -Directory` 拼 `<目录>/<名>.yy`，或 `rg -l -g '*.yy' --pcre2 '"parentObjectId":\s*\{\s*"name":"obj_card_parent"' objects` | A23 |
 | 报 `Variable obj_xxx.<字段> not set before reading it`，而父对象 `Create_0` 里明明有这个字段 | 那个子对象 `Create_0` 没写 `event_inherited()`，父 `Create` 一行没执行。读取侧一律 `variable_instance_exists(_p,"字段") && _p.字段`；需要该字段就在子对象 `Create_0` 补默认值 | A24 |
+| 上游同步后某个 `.gml` 的 `os_type != os_android` 守卫「凭空消失」，编译不报错、安卓一进界面就炸 | 同步后立刻跑「HEAD 版本 vs 现值」的守卫标记比对：`git grep -l -F "os_type != os_android" HEAD` 逐文件数标记数，少了就补回 | A28 |
 | 想用 ffmpeg 从屏幕录像抽帧 / 裁一块 | 本机 ffmpeg 是裁剪版（无 image2 muxer、无 crop 滤镜），抽帧只能 WPF `MediaPlayer` + `RenderTargetBitmap`；`CroppedBitmap` 直接出图会静默 0 字节，必须全幅抓完再用 Pillow 裁；本机无网，别 `pip install` | A22 |
 
 ### A11 用 `Get-ChildItem -Recurse` 找文件 → 每次 15~22 秒
@@ -722,7 +728,55 @@
 - **正确路径**：水陆**只认 `global.enemy_map[? id].feature`**（`obj_battle/Create_0.gml:317-386` 按它强制分派行；`row=-1` 才走自动分派）。一次性导出全表：`rg -n 'register_enemy\(' scripts | ...` 抽 `feature`；注意单行式注册写的是 `"feature":"land"`（带引号的键），多行式是 `feature: "land"`，正则要写成 `"?feature"?\s*:\s*"([^"]*)"`，否则 200+ 条会被误判成「未登记」。实测 `assault_mouse`（突袭鼠）、`butterfly_mouse`（蝴蝶鼠）、`frog_prince_mouse`、`diver_mouse` 全是 `water`。
 - **证据**：2026-11-14 重排 `shuihuo_0..7` / `wudu_0..7`；`scripts/enemy_init/enemy_init.gml:23-24`（突袭鼠/青蛙王子 feature=water）。
 
+### C25 安卓上「Mod 卡片已生效，但 Mod 管理器列表里没有这个包」
+- **症状**：`external_mod_load_all()` 注册成功、卡片在战斗里能用，`obj_mod_menu` 打开的列表却是空的（或少了那几个包）。看起来像「管理器没扫到目录」，实际两条路径不同源。
+- **错路**：只盯 `get_mod_root()` 的探测结果，认为界面和加载器读同一个函数就必然同一个目录；反复改路径判定，列表照旧空。
+- **正确路径**：**列表取三路并集**，不要只信界面自己那次 `file_find_first` ——
+  ① 磁盘扫描 `scan_mod_folders()`（空结果时补一次 `fa_directory` 枚举，安卓 `external_mod_find_flags()` 退化为 `0`，子目录未必带出）；
+  ② `global.external_mod_loaded`（加载器真正注册成功的包名）；
+  ③ `global.external_mod_errors`（存在但校验失败）。
+  另外：界面顶部常驻 `目录：<mod_root>` 让玩家自查；`save_state()` 必须过滤 `missing`/`failed` 占位行，否则它们带着 `enabled=false` 落盘，下次启动把能用的 Mod 静默关掉；新包默认开启用 `!state_read_failed`，别用 `state_default_enabled`（有状态文件时恒 `false`）。
+- **证据**：2026-11-14；`objects/obj_mod_menu/Create_0.gml`（`scan_mod_folders()` / `refresh_mods()` 三路并集 / `save_state()` 过滤）、`objects/obj_mod_menu/Draw_0.gml:31`、`scripts/external_mod_system/external_mod_system.gml:529-545`、调试行 `[Mod menu] root=… folders=… listed=… loaded=…`。
+
 ---
+
+### A26 安卓 `file_find_*` 返回完整路径 → 所有「按名字拼路径」的枚举口全部失灵
+- **症状**：文件管理器里 `/Android/media/com.company.game/files/mod/<包>/manifest.json` 看得见，游戏里 Mod 管理器显示「还没有安装 Mod」，加载器也一个包都没注册；`directory_exists(<mod_root>)` 为真而 `android_dir_entry_count` 为 0。
+- **错路**：认定「路径选错 / 权限不够 / 目录没建出来」，反复改 `get_mod_root()` 探测、加 `fa_directory` 二次枚举、加加载器与界面并集——都不解决，因为这些写法都建立在「条目是名字」这个前提上。
+- **正确路径**：① 安卓/iOS 的 `file_find_first/next` 返回**带目录的完整路径**，Windows 只返回名字；任何 `_dir + "/" + _f` 在安卓上都会拼成 `…/mod//storage/emulated/0/…`。② 统一走 `NativeUtil.android_list_dir(_dir, _dirs_only)` → `[{name, path, is_dir}]`（`name` = 最后一段，`path` 直接用），只取子目录名用 `android_list_subdirs`。③ 掩码跑两遍 `[fa_directory, 0]` 再按名字去重：`fa_directory` 在非 Windows 无效，Windows 的 `0` 只带普通文件，单跑任一遍都会漏。④ 新增枚举口后 `rg -n "file_find_" scripts objects` 把所有「拿条目名拼路径」的地方换掉。
+- **证据**：2026-11-14 用户反馈「mod管理器还是看不到实际的mod」；`scripts/NativeUtil/NativeUtil.gml:109-208`（三个新口 + `.nomedia`）、`scripts/external_mod_system/external_mod_system.gml:35-46 / :275-291 / :590-615`、`objects/obj_mod_menu/Create_0.gml:78-90`。
+
+### A27 上游同步 `git reset --hard` 会抹掉未提交改动 → 用户复测「根本没这个文件」
+- **症状**：上一轮明确改过并自检通过的文件，下一轮 `git diff` 里没有；`rg` 搜不到自己刚写进去的函数名；用户复测时行为与改动完全无关。
+- **错路**：怀疑自己改错副本、怀疑 APK 没重打包，继续在原地重做一遍——大概率下一轮再被抹一次。
+- **正确路径**：① 先 `git reflog -8`，看到 `reset: moving to <sha>` 就是被硬重置；② 重做改动；③ 立刻 `git diff > .codex-tmp/<主题>-<日期>.patch` 留快照（不入库、不污染 git），需要时 `git apply`；④ 告诉用户「要长期保留必须提交」，提交由用户决定。
+- **证据**：2026-11-15 `git reflog`：`49ab6cc2b HEAD@{0}: commit: Revert ...`、`4770af7a1 HEAD@{1}: reset: moving to 4770af7a1`、`4770af7a1 HEAD@{4}: reset: moving to 4770af7a1`。
+
+### C26 `combat_targets_row()` 缓存里留着已回收的 id → `with (id)` 处 `Unable to find instance for object index`
+- **症状**：战斗中点出错框 `Unable to find instance for object index 100345`，栈顶是 `gml_Script_combat_enemy_nearest_in_row` → `gml_Object_obj_stinky_tofu_pult_Step_0`。对象池开着时偶发，关池就复现不了。**2026-11-15 第二次出现**：修好的提交 `135f733c6` 被 `49ab6cc2b` 整份 revert（同一批改动被上游 `git reset --hard` 抹过，见 A27），源码回到未修状态，于是原样复发。
+- **错路**：以为是敌人 `Destroy` 没清 `target_plant`／`enemy_by_type` 没注销，去查 `obj_enemy_parent/Destroy_0.gml`；那几处都正常。真正的入口是 `combat_targets_row()` 返回的 id 数组。
+- **正确路径**：三条一起做，缺一条仍会复发 ——
+  1. **缓存失效不能只靠 Destroy 事件**：`obj_pool_release()` 走的是 `instance_change(obj_pool_holder, true)`（**不会**触发 Destroy），而 **97 个敌人子对象的 `Destroy_0.gml` 没有写 `event_inherited()`**（`obj_enemy_parent/Destroy_0.gml:1` 的 `combat_targets_invalidate` 根本不执行）。在 `obj_pool_release()` 里显式 `combat_targets_invalidate(_obj)`；同理 `obj_pool_destroy_native()`（真销毁）与 `obj_pool_clear()` 也要补。
+  2. **查询函数不要 `with` 别人的 id**：`combat_targets_row()` 只用 `instance_number` 做重建判据，而「池回收一个 + 池取用一个」计数不变 → 缓存留着死 id。落地：新增 `combat_targets_is_live(_inst, _base)`（先 `is_real` 卡类型 → `instance_exists` → 用 `object_exists(_inst)` 排除对象索引 → 最后按 `object_index`/`object_is_ancestor` 判身份；**`instance_exists(对象索引)` 恒为真，不排掉下一行 `_inst.object_index` 必炸**）与 `combat_targets_prune()` / `combat_targets_row_compact()`，三个查询函数改成逐个直读字段、扫到死 id 才整理那一行。不要无条件每帧剪枝（每帧 × 每卡 × 每行都多一趟）。
+  3. **存下来的目标 id 一律用 `combat_live_or_noone(inst, base)` 包一层再 `with`**：`with (noone)` 是空操作，天然安全。已覆盖 `with (target_plant)` 14 处、`with (target_instance)` 1 处（`obj_ice_god_bullet/Step_0.gml:15`）、`with (target_enemy)` 1 处（`obj_rongheshuanggu_bullet_air/Step_0.gml:34`）及 20 处 `instance_exists(target_instance)`；另 16 处子弹/射线类 `with (存下来的 _e/_hit/_best)`，全工程共 32 处。**光改 `combat_targets` 的查询函数不够**：命中目标一旦被存成实例变量、下一帧再 `with`，池回收后同一 id 被复用，照样崩。候选表是「本 step 早段快照」的循环（`obj_zodiac_projectile/Step_0.gml:112`、`obj_yinghuoshe/Step_0.gml:24` 与 `:55`）要在进循环先 `if (!combat_targets_is_live(x, obj_enemy_parent)) continue;`，因为前一条的 `event_user(0)` 结算可能打死下一条。
+  4. **别指望「改了源码就修好」**：报错行内的 `with` 在当前工作区已为 0 时，说明玩家跑的是旧 APK。先核 `rg -c "with" scripts/combat_targets/combat_targets.gml` 与报错栈，再让用户重新打包复测，不要继续在源码里找第二条路径。改完立刻提交或 `git diff > .codex-tmp/…patch` 存快照（A27）。
+- **证据**：2026-11-14 首次崩溃（index 100563）、2026-11-15 复发（index 100345，同为 `obj_stinky_tofu_pult` / `combat_enemy_nearest_in_row`）；`scripts/combat_targets/combat_targets.gml:30-58`（`is_live` / `combat_live_or_noone`）、`:60-110`（`prune` / `row_compact`）、`:146-165`（`nearest_in_row` 直读）、`scripts/obj_pool/obj_pool.gml:175-196`（回收前失效）、`:224-239`（真销毁前失效）、`:272-281`（清池全体失效）；97 个缺 `event_inherited()` 的敌人 Destroy_0 由「解析 `.yy` 的 `parentObjectId` 遍历 313 个敌人」实测得出。
+
+### C27 `.nomedia` 不生效 ≠ 写失败：已入库的相册行不会消失，必须换存储位置
+- **症状**：`.nomedia` 写进去了（或没写成），相册里 Mod 的 png 依旧显示。
+- **错路**：反复增强 `.nomedia` 的递归深度、重试、清媒体库；换台机器又复现。
+- **正确路径**：把「被媒体扫描的目录里躺着 png」这件事本身消掉——`external_mod_hide_assets(root)` 把 `png/jpg/jpeg/gif/webp/bmp` 搬进 `<包>/.assets/<原相对路径>` 并删原文件；MediaProvider 扫描跳过以 `.` 开头的目录，这是确定性行为，不依赖机型与 `.nomedia` 支持。`external_mod_path()` 优先返回 `.assets` 路径，校验与 `sprite_add` 无需改动。
+- **证据**：2026-11-15 用户反馈「没有创建这个文件，还是被相册读取了」；`scripts/external_mod_system/external_mod_system.gml:101-166`（`external_mod_assets_dir` / `is_media_relative` / `hide_assets` / `_walk` / `external_mod_path` 的 `.assets` 优先）、`:614-620`（加载前搬动）、`scripts/external_mod_import/external_mod_import.gml:198-206`（导入收尾搬动）。
+
+### A28 上游同步把 `os_type != os_android` 守卫整段吃掉 → 编译通过、安卓才炸
+- **症状**：某轮同步后 `objects/obj_file_manager/Step_0.gml` 的 5 处 `os_type != os_android` 前缀消失（`git show HEAD:<path>` 有 5 处、现值 0 处），GMS 编译零报错，安卓真机调 `native_enable_ime` / `native_stop_mouse_limit` 这类 Windows-only 扩展函数。
+- **错路**：以为「编译过了就没事」，或以为 `global.ime_block` 会兜住全部调用点 —— `global.ime_block` 在 `objects/obj_game_init/Create_0.gml:190` 确实是 `os_type == os_windows && ini_read_bool(...)`（安卓恒 false），IME 那几处被短路，但 `native_stop_mouse_limit` 的两次调用（`:72` / `:104`）**不受 `ime_block` 保护**，必须自己加平台判定。
+- **正确路径**：每轮同步后固定跑两步 ——
+  1. `git grep -l -F "os_type != os_android" HEAD -- '*.gml'` 取 HEAD 的 10 个文件清单，逐文件比较「标记数 HEAD vs 现值」，少了就是被上游覆盖吃掉；
+  2. 再扫一遍「无守卫的 `native_*` 调用行数」：逐行看是否含 `os_type` / `os_android`，或处于 `if (os_type == os_windows)` / `if (global.ime_block ...)` 作用域内；本轮新增数必须为 0。
+  补守卫的写法：`if (os_type != os_android && global.ime_block && native_enable_ime != undefined)`、`if (os_type != os_android && native_stop_mouse_limit != undefined) native_stop_mouse_limit();`。
+  用 Python 精确替换时锚点必须唯一 —— `    if (native_stop_mouse_limit != undefined)` 在文件里出现 2 次，要在前面带 `ml_focus_count = 0;\n` 才能唯一定位。
+- **证据**：2026-11-15 第十三轮同步；`objects/obj_file_manager/Step_0.gml` HEAD 版 `os_guard=5` / 2973 B，SRC `337ee95861` 版 `os_guard=0` / 2848 B，SRC 工作区版 `os_guard=0` / 3262 B —— **上游本身就是无守卫版**，不是我们引入的；`extensions/WindowsNative/WindowsNative.yy` 的 `copyToTargets: 66`（Windows + macOS，无 Android）、`ProxyFiles` 只有 `libFvmNativeSupport.dylib`（TargetMask 1）；修复后全仓「无守卫 `native_*` 调用」新增 0（现存 36 处里 26 处是 HEAD 既有设计）。
 
 ## 追加模板
 

@@ -9,10 +9,10 @@ y += move_speed;
 
 if (y >= target_y)
 {
-    if (instance_exists(target_instance))
+    if (combat_targets_is_live(target_instance, obj_enemy_parent))
     {
         hitted_enemy = target_instance;
-        with (target_instance)
+        with (combat_live_or_noone(target_instance, obj_enemy_parent))
         {
             audio_play_sound(snd_ice_god, 0, 0);
             damage_amount = other.damage;

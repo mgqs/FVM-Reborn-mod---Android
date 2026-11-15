@@ -106,6 +106,109 @@ function NativeUtil() constructor {
         return directory_exists(_path)
     }
 
+    /// @func android_last_segment(_path)
+    /// @desc 取路径最后一段（分隔符 / 与 \ 都认）。
+    ///       **安卓/iOS 的 file_find_* 返回的是完整路径，不是名字**，而 Windows 只返回名字，
+    ///       所以拿条目当路径用之前必须先过这一层，不能直接 目录 + "/" + 条目。
+    /// @returns {String}
+    static android_last_segment = function(_path) {
+        if (!is_string(_path) || _path == "") return ""
+        var _p = string_replace_all(_path, "\\", "/")
+        while (string_length(_p) > 1 && string_copy(_p, string_length(_p), 1) == "/") {
+            _p = string_copy(_p, 1, string_length(_p) - 1)
+        }
+        var _cut = 0
+        for (var _i = string_length(_p); _i >= 1; _i--) {
+            if (string_char_at(_p, _i) == "/") { _cut = _i; break }
+        }
+        if (_cut == 0) return _p
+        return string_copy(_p, _cut + 1, string_length(_p) - _cut)
+    }
+
+    /// @func android_list_dir(_dir, _dirs_only)
+    /// @desc 目录枚举的唯一入口：返回 [{name, path, is_dir}]。
+    ///       name = 最后一段（可直接当包名用），path = 可直接读的绝对/拼接路径。
+    ///       掩码跑两遍再按名字去重：fa_directory 在非 Windows 无效（列不出东西），
+    ///       而 Windows 的掩码 0 只带普通文件，单跑任一遍都会漏一侧。
+    /// @returns {Array<Struct>}
+    static android_list_dir = function(_dir, _dirs_only = false) {
+        var _out = []
+        if (!is_string(_dir) || _dir == "") return _out
+        var _base = string_replace_all(_dir, "\\", "/")
+        while (string_length(_base) > 1 && string_copy(_base, string_length(_base), 1) == "/") {
+            _base = string_copy(_base, 1, string_length(_base) - 1)
+        }
+        var _seen = {}
+        var _masks = [fa_directory, 0]
+        for (var _m = 0; _m < array_length(_masks); _m++) {
+            var _entry = ""
+            try {
+                _entry = file_find_first(_base + "/*", _masks[_m])
+                while (_entry != "") {
+                    var _absolute = string_pos("/", _entry) > 0 || string_pos("\\", _entry) > 0
+                    var _name = _absolute ? self.android_last_segment(_entry) : _entry
+                    var _path = _absolute ? string_replace_all(_entry, "\\", "/") : _base + "/" + _name
+                    var _is_dir = false
+                    try { _is_dir = directory_exists(_path) } catch (_e1) { _is_dir = false }
+                    if (_name != "" && _name != "." && _name != ".." && !variable_struct_exists(_seen, _name)) {
+                        if (!_dirs_only || _is_dir) {
+                            _seen[$ _name] = true
+                            array_push(_out, {name: _name, path: _path, is_dir: _is_dir})
+                        }
+                    }
+                    _entry = file_find_next()
+                }
+            } catch (_e2) {
+                // 该掩码不支持就当没跑过；下一遍继续。
+            }
+            try { file_find_close() } catch (_e3) {}
+        }
+        return _out
+    }
+
+    /// @func android_list_subdirs(_dir)
+    /// @desc 只取子目录名，最常用的一层包装（加载器、Mod 管理器、递归都走它）。
+    /// @returns {Array<String>}
+    static android_list_subdirs = function(_dir) {
+        var _names = []
+        var _entries = self.android_list_dir(_dir, true)
+        for (var _i = 0; _i < array_length(_entries); _i++) array_push(_names, _entries[_i].name)
+        return _names
+    }
+
+    /// @func android_write_nomedia(_dir, _depth)
+    /// @desc 在目录（及往下 _depth 层子目录）写空 .nomedia，让 MediaProvider 不再入库。
+    ///       只影响媒体扫描，不影响 GML 读文件：sprite_add 照读。
+    ///       枚举走 android_list_subdirs（安卓 file_find_* 返回完整路径，自己拼必错）。
+    /// @returns {Real} 写入或已存在的标记数
+    static android_write_nomedia = function(_dir, _depth = 2) {
+        if (os_type != os_android) return 0
+        if (!is_string(_dir) || _dir == "") return 0
+        var _path = string_replace_all(_dir, "\\", "/")
+        var _tail = self.android_last_segment(_path)
+        if (_tail == "" || _tail == "mod") return 0
+        try { if (!directory_exists(_path)) return 0 } catch (_e) { return 0 }
+        var _written = 0
+        try {
+            var _marker = _path + "/.nomedia"
+            if (!file_exists(_marker)) {
+                var _handle = file_text_open_write(_marker)
+                if (_handle != -1) {
+                    file_text_write_string(_handle, "")
+                    file_text_close(_handle)
+                }
+            }
+            if (file_exists(_marker)) _written++
+        } catch (_e2) {}
+        if (_depth <= 0) return _written
+        var _names = self.android_list_subdirs(_path)
+        for (var _i = 0; _i < array_length(_names); _i++) {
+            if (string_copy(_names[_i], 1, 1) == ".") continue
+            _written += self.android_write_nomedia(_path + "/" + _names[_i], _depth - 1)
+        }
+        return _written
+    }
+
     /// @func android_dir_usable(_dir)
     /// @desc 目录能否真的用：先逐级建出来，再列一次，最后写探针文件（写失败只记录，不影响判定）。
     ///       返回 true 表示目录存在且能被 GML 看到 —— 只看 directory_exists 不够，
@@ -142,9 +245,7 @@ function NativeUtil() constructor {
     static android_dir_readable = function(_dir) {
         try {
             if (!directory_exists(_dir)) return false
-            var _f = file_find_first(_dir + "/*", 0)
-            file_find_close()
-            if (_f != "") return true
+            if (array_length(self.android_list_dir(_dir, false)) > 0) return true
         } catch (_e) {
             return false
         }
@@ -153,21 +254,15 @@ function NativeUtil() constructor {
     }
 
     /// @func android_dir_entry_count(_dir)
-    /// @desc 目录下第一层条目数（用来判断新目录是不是空壳）。
+    /// @desc 目录下第一层条目数（用来判断新目录是不是空壳）。走 android_list_dir，
+    ///       安卓上 file_find_* 返回完整路径也不会数错。
     /// @returns {Real}
     static android_dir_entry_count = function(_dir) {
-        var _count = 0
         try {
-            var _f = file_find_first(_dir + "/*", 0)
-            while (_f != "") {
-                if (_f != "." && _f != "..") _count++
-                _f = file_find_next()
-            }
-            file_find_close()
+            return array_length(self.android_list_dir(_dir, false))
         } catch (_e) {
-            _count = 0
+            return 0
         }
-        return _count
     }
 
     /// @func android_legacy_files_root()
@@ -188,17 +283,11 @@ function NativeUtil() constructor {
         try {
             if (!directory_exists(_src)) return false
             if (!self.android_mkdirs(_dst)) return false
-            var _names = []
-            var _f = file_find_first(_src + "/*", 0)
-            while (_f != "") {
-                if (_f != "." && _f != "..") array_push(_names, _f)
-                _f = file_find_next()
-            }
-            file_find_close()
-            for (var _i = 0; _i < array_length(_names); _i++) {
-                var _from = _src + "/" + _names[_i]
-                var _to = _dst + "/" + _names[_i]
-                if (directory_exists(_from)) {
+            var _entries = self.android_list_dir(_src, false)
+            for (var _i = 0; _i < array_length(_entries); _i++) {
+                var _from = _entries[_i].path
+                var _to = _dst + "/" + _entries[_i].name
+                if (_entries[_i].is_dir) {
                     if (!self.android_copy_tree(_from, _to)) return false
                 } else {
                     // 先用内置 file_copy（全平台可用）；它没有返回值，用 file_exists 复核。
@@ -245,19 +334,13 @@ function NativeUtil() constructor {
         if (self.android_dir_readable(_primary) && self.android_dir_entry_count(_primary) > 0) return 0
         if (!self.android_mkdirs(_primary)) return 0
         var _moved = 0
-        var _f = file_find_first(_legacy + "/*", 0)
-        var _names = []
-        while (_f != "") {
-            if (_f != "." && _f != "..") array_push(_names, _f)
-            _f = file_find_next()
-        }
-        file_find_close()
-        for (var _i = 0; _i < array_length(_names); _i++) {
-            var _name = _names[_i]
-            var _from = _legacy + "/" + _name
+        var _entries = self.android_list_dir(_legacy, false)
+        for (var _i = 0; _i < array_length(_entries); _i++) {
+            var _name = _entries[_i].name
+            var _from = _entries[_i].path
             var _to = _primary + "/" + _name
             if (directory_exists(_to) || file_exists(_to)) continue
-            if (directory_exists(_from)) {
+            if (_entries[_i].is_dir) {
                 if (self.android_copy_tree(_from, _to)) _moved++
             } else {
                 // file_copy 没有返回值，只能 copy 完再看目标在不在。
@@ -357,6 +440,19 @@ function NativeUtil() constructor {
         global._android_mod_root_legacy = _legacy
         global._android_mod_root_legacy_count = _legacy_count
         global._android_mod_root_primary_count = _primary_count
+
+        // 相册降噪第一层：给 files 根、首选目录与各包目录写 .nomedia（每会话一次）。
+        // 交给 android_write_nomedia 的深度 2：files/*、files/mod/*、mod/<包>/*。
+        // 真正的保障在 external_mod_path 那层的隐藏资产目录（见 external_mod_hide_assets），
+        // 这里只是顺手压掉其它散落文件的索引。
+        if (!variable_global_exists("_android_nomedia_done")) {
+            var _files_root = self.android_storage_base() + "/Android/media/" + self.get_android_package() + "/files"
+            var _marks = self.android_write_nomedia(_files_root, 2)
+            if (_root != "" && string_pos("/", _root) > 0) _marks += self.android_write_nomedia(_root, 2)
+            global._android_nomedia_count = _marks
+            if (_marks > 0) global._android_nomedia_done = true
+            try { show_debug_message("[NativeUtil] .nomedia=" + string(_marks)) } catch (_e0) {}
+        }
         // 拿得到就用外部目录；完全拿不到才降级到沙盒相对路径，保证不崩。
         global._android_mod_root = _readable ? _root : "mod"
         show_debug_message("[NativeUtil] android mod root = " + string(global._android_mod_root)

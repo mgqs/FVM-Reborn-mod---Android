@@ -27,7 +27,7 @@ if (instance_exists(target_enemy) && target_enemy.hp > 0)
     
     with (obj_enemy_parent)
     {
-        if (hp > 0 && can_hit(other.target_type, target_type) && target_type == "air")
+        if (hp > 0 && can_hit(other.target_type, target_type))
         {
             if (new_air_target == -4 || x < new_air_target.x)
                 new_air_target = id;
@@ -43,7 +43,7 @@ else
     
     with (obj_enemy_parent)
     {
-        if (hp > 0 && can_hit(other.target_type, target_type) && target_type == "air")
+        if (hp > 0 && can_hit(other.target_type, target_type))
         {
             if (air_enemy == -4 || x < air_enemy.x)
                 air_enemy = id;
@@ -69,7 +69,7 @@ if (target_enemy != -4 && instance_exists(target_enemy))
     if (_e.hp > 0
     && precise_bbox_collision(id, _e))
     {
-        with (_e)
+        with (combat_live_or_noone(_e, obj_enemy_parent))
         {
             audio_play_sound(hit_sound, 0, 0);
             damage_amount = other.damage;

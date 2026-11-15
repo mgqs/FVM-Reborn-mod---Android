@@ -363,7 +363,7 @@ switch(state) {
         attack_timer++;
         if (attack_timer >= current_atk_cycle) {
             // 对目标植物造成伤害
-            with (target_plant) {
+            with (combat_live_or_noone(target_plant, obj_card_parent)) {
 				if !invincible{
 					// 海克斯第二批：反伤 / 防御类击退 / 火苗护盾 / 炼金龙魂抗性 统一走这里
 					// 海克斯「食指的指令」：鼠军全属性 +30% 的攻击面要**实时**读，

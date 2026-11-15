@@ -10,7 +10,7 @@ inst.row = grid_row
 inst.thrower_y = y // 记录投手的Y坐标用于地面破裂判断
 
 // 如果有目标敌人，计算预测落点
-if (target_instance != noone && instance_exists(target_instance)) {
+if (target_instance != noone && combat_targets_is_live(target_instance, obj_enemy_parent)) {
     // 获取敌人当前位置和速度
     var enemy_x = target_instance.x
     var enemy_y = target_instance.y

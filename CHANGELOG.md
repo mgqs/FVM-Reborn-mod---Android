@@ -1,3 +1,113 @@
+# v2.8.0
+## 新内容
+- 同步上游 `22c8c911a2`（PR43 + 30217 / 30217优化，2026-11-15）：
+  - 任务看板「一键领取」：`objects/obj_task_claim_all_btn` + `sprites/spr_task_claim_all_btn`
+    （3 帧 144×48），发奖抽成 `scripts/task_edit/task_edit.gml` 的 `task_grant_rewards(task_id)`，
+    单个领取与一键领取共用一份分支；一键领取只 `save_file` 一次。
+  - 情报岛「可以攻击」白名单数据源 `scripts/card_attack_target`（6 个函数）。
+  - 变异战线重导：`spr_infected_zhanshen_*` 12 个精灵改为顶层 png 单层，
+    `spr_infected_arno_*` / `spr_infected_bingzha_fire_skill_1` / `spr_infected_pharaoh_skill_2` /
+    `spr_kf_wd_hulk_skill_1` 重导，旧的 `layers/` 分帧目录共 369 个文件删除。
+  - 跨服 40 个关卡 JSON（`datafiles/level_data/cross/*.json`）难度与奖励调整。
+  - `scripts/buff_target` / `scripts/card_special_flags` 承接上一轮的脚本重构；
+    新增 `fonts` 字形（`font_yuan` 6251 字 / `font_hei` 5972 字）。
+## 优化与修复
+- 恢复 `objects/obj_file_manager/Step_0.gml` 的 5 处安卓守卫（2026-11-15）：
+  - 现象：本轮同步后该文件丢掉了 `os_type != os_android` 前缀（上游 `30217优化` 把鼠标帧锁定整段
+    注释掉、顺手把 IME 三处的平台判定一起删了），安卓上会去调 Windows 扩展函数
+    `native_enable_ime` / `native_disable_ime` / `native_stop_mouse_limit`。
+  - 为什么危险：这三个是 `extensions/WindowsNative` 的 `FvmNativeSupport.dll` 导出函数，
+    `copyToTargets` 为 `66`（Windows + macOS），安卓包里没有对应 `.so`；
+    `global.ime_block` 在 `obj_game_init/Create_0.gml:190` 已经是
+    `os_type == os_windows && ini_read_bool(...)`（安卓恒 false），所以调用点本来就被短路，
+    但 `native_stop_mouse_limit` 的两处（L72 / L104）**不受 `global.ime_block` 保护**，必须显式加平台守卫。
+  - 本次改动：IME 三处补 `os_type != os_android &&`，`native_stop_mouse_limit` 两处补
+    `os_type != os_android &&`。全仓对照 HEAD 的「无守卫 `native_*` 调用」由 6 行回到 6 行，零新增。
+  - 上游同源问题：`D:\gameProject\FVM-Reborn-mod` 的同名文件同样没有这 5 处守卫，
+    下一轮同步会再把它带回来 —— 每次同步后需要跑一次「无守卫 native_* 调用」比对。
+
+# v2.7.9
+## 优化与修复
+- 重新落地「战斗偶发 `Unable to find instance for object index` 崩溃」的修复（2026-11-15）：
+  - 崩溃现象：战斗中弹出 `ERROR in action number 1 of Step Event0 for object obj_stinky_tofu_pult`
+    `Unable to find instance for object index 100345 at gml_Script_combat_enemy_nearest_in_row`。
+  - 为什么又出现：这套修复 2026-11-14 已经做过（提交 `135f733c6`，v2.7.4/v2.7.5），
+    随后被 `49ab6cc2b` 整份 revert（同一批改动被上游 `git reset --hard` 抹过，见 `MISTAKES.md` A27），
+    源码回到未修状态，于是原样复发。本次把该提交的**代码部分**（53 个文件）重新捡回，
+    `CHANGELOG` / `MISTAKES` 不复用旧条目，按当前状态重写。
+  - 根因两条叠加：① `obj_pool_release()` 用 `instance_change(obj_pool_holder, true)` 回收，
+    **不触发 Destroy 事件**，而 313 个敌人里有 97 个子对象的 `Destroy_0.gml` 没写 `event_inherited()`
+    → `obj_enemy_parent/Destroy_0.gml:1` 的 `combat_targets_invalidate` 实际不执行；
+    ② `combat_targets_row()` 只按 `instance_number` 判断是否重建，「池回收一个 + 池取用一个」计数不变
+    → 行缓存里留着已销毁 / 已被换成 `obj_pool_holder` 的 id，`with` 一进就报错。
+  - 本次改动：`scripts/obj_pool/obj_pool.gml` 在回收 / 真销毁 / 清池三处显式
+    `combat_targets_invalidate`；`scripts/combat_targets/combat_targets.gml` 新增
+    `combat_targets_is_live` / `combat_targets_prune` / `combat_targets_row_compact` /
+    `combat_live_or_noone`，三个查询函数（`combat_enemy_in_rows` / `combat_enemy_nearest_in_row` /
+    `combat_enemy_find_plant`）改为逐个直读字段、不再 `with` 外部 id，扫到死 id 才整理该行。
+    另有 32 处 `with (存下来的目标)` 统一包成 `with (combat_live_or_noone(x, base))`，
+    20 处 `instance_exists(target_instance)` 改为身份判定（池复用后同一 id 可能指向别的对象），
+    以及 3 处快照式候选循环补存活守卫（`obj_zodiac_projectile:112`、`obj_yinghuoshe:24/:55`）。
+  - 验证：53 个改动文件全部 UTF-8 无 BOM、LF、括号配平（`tools/verify_gml.ps1` 在本 Android
+    工作副本中不存在，按同口径内联校验）。**需要在真机重新打包后复测**，旧 APK 仍是崩的。
+
+
+## 优化与修复
+- 修复「`.nomedia` 根本没被创建、相册照样读取 Mod 图片」（2026-11-15）：
+  - 直接原因：上一轮 v2.7.6 / v2.7.7 的改动是**未提交状态**，被上游同步的
+    `git reset --hard 4770af7a1`（见 `git reflog`：`reset: moving to 4770af7a1` 出现两次）整份抹掉，
+    所以打出来的包里根本没有写 `.nomedia` 的代码。本次已全部重做，并把改动另存为补丁快照。
+  - 更根本的原因：`.nomedia` 只阻止「之后」的扫描入库，已经进了 MediaStore `images` 表的行不会消失，
+    相册显示的就是这些行。只靠 `.nomedia` 在「已入库过」的机器上必然看起来无效。
+  - 新机制（确定性）：`scripts/external_mod_system/external_mod_system.gml` 新增
+    `external_mod_assets_dir` / `external_mod_is_media_relative` / `external_mod_hide_assets` /
+    `external_mod_hide_assets_walk`：把包内 `png/jpg/jpeg/gif/webp/bmp` 全部搬进
+    `<包>/.assets/<原相对路径>` 并删除原文件。以 `.` 开头的目录 MediaProvider 扫描时整目录跳过，
+    不依赖 `.nomedia`、不依赖机型。
+  - `external_mod_path()` 优先命中 `.assets/<相对路径>`（不存在才回退原路径），
+    所以校验（`external_mod_animation_validate` 里的 PNG 存在性）与 `sprite_add` 读图都无需改动。
+  - 搬动发生在两处：`external_mod_load_all()` 每个包 `external_mod_validate()` **之前**
+    （`external_mod_system.gml:614-620`），以及导入收尾 `external_mod_import_finish()`
+    的 `if (success)` 分支（`scripts/external_mod_import/external_mod_import.gml:198-206`，
+    同时给 mod 根补 `.nomedia`）——后者保证「刚导入就进相册」这条也不再发生。
+  - 同时重做 v2.7.6 / v2.7.7 的全部内容（上一次被 reset 抹掉的部分）：
+    `NativeUtil.android_last_segment` / `android_list_dir` / `android_list_subdirs` /
+    `android_write_nomedia`（`scripts/NativeUtil/NativeUtil.gml:109-208`）、
+    枚举口改造（`android_dir_readable` / `android_dir_entry_count` / `android_copy_tree` /
+    `android_migrate_legacy_mods` / `external_mod_delete_folder` / `external_mod_root` /
+    `external_mod_load_all` / `obj_mod_menu.scan_root`）、
+    `.nomedia` 写入口（`NativeUtil.gml:444-455` + `external_mod_system.gml:606`）、
+    加载器状态文件兜底（`external_mod_system.gml:596-605`）、
+    `obj_mod_menu` 底部诊断行 `diag_text`（`objects/obj_mod_menu/Create_0.gml:213-224`、
+    `objects/obj_mod_menu/Draw_0.gml:142-147`）。
+
+# v2.7.7
+## 新内容
+- 补安卓 Mod 导入的完整落地材料（2026-11-14）：
+  - `templates/demo_card/` —— 已经补齐 PNG、可直接投放的示例包（1 张普通卡 `demo.sample_card`，
+    `hp`/`atk` 各 17 项，`animations.idle` 两帧，`icon` 存在）。安卓不需要压缩包，
+    把这个文件夹整个放进 `/storage/emulated/0/Android/media/com.company.game/files/mod/` 即可。
+  - `templates/demo_card.zip` / `demo_card.fvmmod` —— 同一份内容的压缩包，给 Windows 端「导入」按钮用；
+    **用 `pack_sample.py` 打的正斜杠分隔 ZIP**（`Compress-Archive` 会写成反斜杠，
+    在部分解压库下会变成名为 `images\card_01.png` 的单个文件）。
+  - `templates/validate_mod.py` —— 本地校验器，把 `external_mod_validate_card()`
+    （`scripts/external_mod_system/external_mod_system.gml:325-414`）的规则重放一遍：
+    数值数组长度（普通卡 17 / 金卡 19）、`id` 合法性（3–100 字符、含 `.`、字符集 `[A-Za-z0-9._-]`）、
+    `icon` 与动画帧是否存在、路径穿越（`..` / 绝对路径 / 盘符）、`target_type` 枚举、
+    `max_star` 与金卡约束、`animations.idle` 是否存在、`fps` 1–60、ZIP 内是否用了反斜杠。
+    支持传目录或 `.zip`。不用装游戏就能提前抓出「Mod 列表显示加载失败」的原因。
+  - `templates/pack_sample.py` —— 重新打标准 ZIP（正斜杠）。
+  - `templates/安卓Mod导入说明.md` —— 投放方式（文件管理器 / MTP / adb push）、包结构、
+    字段硬规则、目录落点、`adb logcat` 两行调试对照、常见问题表。
+  - `templates/ice_card_mod/使用说明.md` 补「安卓没有压缩包导入」一段（原文只写了 Windows 流程）。
+## 优化与修复
+- 记录一条当前实现的硬事实（**未改动代码**）：安卓上外部 Mod 卡**不会出弹**。
+  出弹链是 `obj_external_mod_card/Create_0.gml:30` 的 `os_type != os_android` 判定 →
+  `mod_lua_handle` 恒 `-1` → `external_mod_callback()`（`external_mod_system.gml:742-743`）直接 return →
+  `external_mod_command()` 唯一调用点在回调内部（`:750`）→ `obj_external_mod_bullet` 全工程唯一创建点
+  是 `:900` 的 `case "shoot":`。即 `projectiles` / `behavior_params` 在安卓无消费方。
+  另 `obj_external_mod_card` 事件表无 `Other_11`（user event 1），
+  `obj_card_parent/Step_0.gml:232-258` 的海克斯空放 `event_user(1)` 也对它无效。
 # v2.7.6
 ## 优化与修复
 - 修复同步上游 external_mod_import 带来的编译错误 GM1008 变量 'path_index' 是只读的（2026-11-14）：
@@ -95,6 +205,20 @@
 
 # v2.7.0
 ## 新内容
+- 任务看板新增「一键领取」（2026-11-15，位置：标题栏右侧、关闭按钮左边）：
+  一次领完**所有** `state == "completed"` 的任务奖励，**不限页签类别**（主线 / 支线 / 挑战 / 卡片情报）。
+  按钮文字带待领条数「一键领取（N）」，N = 0 时置灰不可点。
+  - 新增 `objects/obj_task_claim_all_btn`（Create / Step / Draw / Mouse_4 / Mouse_10 / Mouse_11）
+    与精灵 `sprites/spr_task_claim_all_btn`（3 帧 144×48：常态 / 按下 / 禁用）。
+    底板不带文字，文字用 `font_yuan` 叠画 —— 待领条数是动态的，烘进图里就改不了。
+    生成脚本 `tools/make_task_claim_all_btn.py`（Pillow 超采样画圆角，可幂等重跑）。
+  - 发奖逻辑抽成 `task_edit` 的 `task_grant_rewards(task_id)`：单个领取
+    （`obj_task_claim_btn/Mouse_4`）与一键领取共用一份分支，将来加奖励类型不会漏改一边。
+    一键领取**只 `save_file` 一次**（一批 50 条写 50 次会卡帧）。
+  - 统计口径与领取口径逐条对齐：`completed` + `get_task_data` 非 `undefined`（孤儿任务既不计入也领不到，
+    否则会出现「按钮显示 3、点下去只领到 2」）。
+  - `obj_task_bg/Create_0` 创建它并登记进 `panel_anim_kids`（入场动画跟着淡入，文字用
+    `ui_anim_text_alpha` 同步），`Destroy_0` 一并销毁。
 - 接入跨服新章节「水火之间 / 巫毒研究所」（2026-11-14）：
   - 关卡 JSON 16 个：`datafiles/level_data/cross/shuihuo_0..7.json`、`wudu_0..7.json`
     （生成器 `tools/shuihuo_wudu_levels.py`）。口径照既有跨服：2 波 × 10 subwave × 5 敌、
@@ -111,9 +235,10 @@
     暂落古堡同档兜底（`cross_server_reward` 注释已标注）。
   - `obj_cross_server_bg/Draw_0` 关卡图标：水火按关序选 `spr_shuihuozhijian_0/_1`，
     巫毒用 `spr_wuduyanjiusuo_0..7` 第 k 帧，等比缩放到图标框。
-  - 情报岛补注册 9 条（`mod_info_island_init`）：`kf_sh_rowboat` / `kf_sh_dragon_boat` /
-    `kf_sh_flagship` / `kf_sh_kof_submarine` / `kf_wd_garbage` / `special_armour_mouse` /
+  - 情报岛补注册 8 条（`mod_info_island_init`）：`kf_sh_rowboat` / `kf_sh_dragon_boat` /
+    `kf_sh_flagship` / `kf_sh_kof_submarine` / `special_armour_mouse` /
     `soar_mouse` / `kf_sh_iron_man` / `kf_wd_hulk`；拼音检索走全量表无需登记。
+    （`kf_wd_garbage` 原在此列，因与灼热版 `kf_zr_garbage` 同名重复已撤，见「优化与修复」首条。）
 - 新增跨服「水火之间 / 巫毒研究所」章节 BOSS 2 只（行为代码照抄本体同名 BOSS，素材为桌面新版画，SWF FrameLabel 分段对齐）：
   变异钢铁侠 `kf_sh_iron_man`（hp 90000，照抄 `obj_iron_man_mouse`）：技能1 摧毁 2 列不变；
   技能2 激光升级为十字范围摧毁（激光体克隆 `obj_kf_sh_iron_man_laser`，命中点 + 上下左右 1 格）；
@@ -176,6 +301,263 @@
   改为与卡槽 / 情报岛一致的「可穿过障碍物但不穿透老鼠」。至此四处玩家可见文案
   （卡面 `mod_cards_init`、卡槽 `mod_slots_init`、情报岛 `mod_info_island_init`、商城 `mod_shop_init`）
   口径统一 —— 穿透指的是**弹道穿障碍**，命中第一只老鼠即消散，不再让玩家误以为子弹会穿透老鼠。
+- 跨服·梦魇天空云层改为与棉花糖天空一致，同屏只剩一层（2026-11-15）：
+  - 症状：进关后云层看起来有两层——底图（`spr_mengyantiankong_N`）左两列画死的云墙占一层，
+    引擎铺的 `obj_cloud` 占另一层，且四处飘的云会直接压到画死的云墙上。
+  - 根因有三处，逐条修：
+    1. `objects/obj_battle/Draw_0.gml`：有 `bg_draw` 时先用 cover 比例把整张底图再画一遍兜底，
+       再画精确份。两份缩放 1.8090 vs 1.7833、水平错开 56.3 px → 底图里的云与六芒星各出现两次。
+       改为**只画精确那一份**，屏幕四边用「原图边缘 1 像素拉成条带」补（`draw_sprite_part_ext`，
+       条带与精确份共用同一条格线，不会重影）。
+    2. `datafiles/level_data/cross/nightmare_sky-0..7.json`：`spawn_interval` 5 秒 → **8 秒**、
+       `interval`（云洞周期）5 秒 → **30 秒**。
+       这是棉花糖天空的节奏（`obj_event_manager/Step_0.gml:328`/`:344` 的 `mod 1800` 与 `mod 480`）——
+       云以 0.25 px/帧 左移，走完一格 107 px 需 428 帧 ≈ 7.1 秒，补排间隔必须 ≥ 这个值，
+       否则补排快于消耗，同屏堆到 77 朵、前后三排叠在一起，看着就是第二层；
+       云洞 5 秒一个也太密（用户说的「慢慢飘会出现漏洞」），改 30 秒。
+    3. 同 8 个 JSON 增加 `"no_resident": true`（开局不铺 col2-8 的整屏云，避免「一开局全屏是云」）
+       与 `"fade_col": 1`（流动云飘到第 2 列格心才淡出 —— 与棉花糖天空的 `get_world_position_from_grid(1,0)`
+       完全一致，这样飘入的云正好接在底图左两列画死的云墙上，接成一整片，而不是中间留缝的两层）。
+  - 配套引擎开关（默认值保持原版行为，不影响其它关卡）：
+    - `objects/obj_event_manager/Step_0.gml:468` 的 `no_resident` 判断、`:473`/`:504` 的 `fade_col` 赋值；
+    - `objects/obj_cloud/Create_0.gml` 新增 `fade_col = 1`，`Step_0.gml:11` 由写死 `get_world_position_from_grid(1,0)`
+      改为读 `fade_col`。
+  - 实测存活云数（新配置，7 行全开）：1 秒 7 朵 / 10 秒 14 朵 / 30 秒 28 朵 / 50 秒起稳态 49 朵；
+    旧配置（常驻 + 5 秒补排 + 淡出于 col1）同期是 56 / 56 / 56 / 77 朵，前后三排叠在一起。
+  - 预览与模拟脚本：`tools/sky_preview.py`（底图合成）、`tools/_sky_v6_preview.py`（顶层节奏）、
+    `tools/_sky_v5_plans.py`（五套方案对照）、`tools/_sky_diff_double.py`（双画差分）、
+    `tools/_sky_deliver.py`（8 关成品 + 时间线）、`tools/_sky_regress_bgdraw.py`（另 4 张 bg_draw 底图回归）。
+    图在 `output/梦魇天空预览/`：`deliver_8levels.png`、`deliver_timeline.png`、`regress_bg_draw.png`、
+    `final_cloud_plans.png`、`v4_double_diff.png`。
+- 跨服 BOSS 变异护盾挪到身前、时长盖满减伤全过程（2026-11-15）：
+  - 症状：变异皮特 / 变异朱莉的蜂巢护盾画在**身后偏下**（皮特在右下方压住腿、朱莉直接盖住整个身体），
+    且技能动画一播完护盾就消失——皮特放钢爪时钢爪还在地上 2 秒，护盾已经没了。
+  - 位置：两只 BOSS 立绘都朝左，「身前」= 屏幕左侧。按用户参考图折算
+    （皮特 271×296 / origin(74,290)，朱莉 239×175 / origin(110,169)）：
+    皮特 `shield_dx -101 / dy -134 / sx 0.95 / sy 1.05`，朱莉 `-130 / -100 / 1.05 / 1.12`
+    （原来是 `+60/-145/2.0/1.45` 与 `+10/-82/1.8/1.0`，正 dx = 画到了身后，缩放也偏大）。
+  - 时长：`shield_active` 不再只看 `state`。
+    - 皮特：施法状态 **或** 自己放出的钢爪 / 尖刺 / 导弹还在场上（`owner_boss == id`）就保持展开，
+      钢爪存活 180 tick、导弹约 120 tick，减伤随之盖满「地面物体停留」全过程；隐身（钻地/现身）期间收起。
+    - 朱莉：技能状态 + 结束后 `shield_tail = 120` tick 尾期，覆盖召唤中尉落地与加血余波。
+  - 涉及：`objects/obj_kuafu_boss_pete{,_claw,_spike,_missile}`、`objects/obj_kuafu_boss_julie`。
+  - 新增 `tools/kuafu_shield_preview.py`：按 origin 对齐合成「立绘 + 护盾」，不进游戏就能调 shield_dx/dy/sx/sy。
+- 变异嗡嗡中尉放熊猫的位置与本体落点对齐（2026-11-15）：
+  - 症状：中尉技能2本体飞到 3~7 列的随机格，熊猫鼠却随机出现在 1~5 列，两者差好几列。
+  - 修法：`objects/obj_kuafu_boss_buzz/Step_0.gml` 的 `skill_timer == 1` 先定下本轮目标格
+    （`panda_col = jump_times` → 第 1~5 列），本体直接飞过去，`skill_timer == 91` 就在这一格生成变异熊猫；
+    悬停偏移去掉 `-80`，本体中心与熊猫同落格心。
+- 变异屎者的技能1召唤物改为变异幽灵（2026-11-15）：
+  - `objects/obj_kf_zrb_shi_ignis/Step_0.gml` 鬼火消失时由 `obj_ghost_mouse` 改为 `obj_kf_zr_ghost`
+    （`spr_kf_zr_ghost`，灼热地域的变异幽灵）。血量沿用原召唤物 280——
+    这一招已从 5 只加到 10 只，按小怪 1000 血会把难度抬爆。
+- 巫毒研究所的风洞整体上移 32 像素，与底图原铁笼重合（2026-11-15）：
+  - 症状：8 张巫毒底图上的铁笼已擦除、改由 `obj_wind_tunnel` 绘制后，风洞比原位置偏下约一格的三分之一，
+    每个格子都对不齐（用户截图标注红框 32px）。
+  - 量化：按列做「金属 + 网面」投影，底图备份（`output/_tmp/bak_wuduyanjiusuo_*`）里原铁笼底边在格心 **+40.6**，
+    游戏里风洞精灵内容底边在格心 **+72**，差 **31.4**，与截图红框一致。
+  - 修法：`objects/obj_wind_tunnel/Create_0.gml` 的巫毒专用对齐分支由 `y += 35`（回到格心）
+    改为 `y += 35 - 32`（回到格心再上移 32）。x 不动；`macchiato_port` / `tower_cake_15_*`
+    走 `obj_event_manager` 生成、地图不是 `spr_wuduyanjiusuo*`，不进入该分支，位置保持原样。
+  - 验证：`tools/wudu_windtunnel_align_sheet.py` 出三联图（底图原稿 / 当前 / 修复后），
+    修复后精灵角钉与底图铁笼角钉重合。
+- 修变异绿巨人技能1播成了站立攻击、不是原版的滚动（2026-11-15）：
+  - 症状：巫毒研究所 BOSS「变异绿巨人」放技能1时播的是原地挥拳/抬腿，看不到滚动冲撞。
+  - 根因在**精灵切段错了**：`spr_kf_wd_hulk_skill_1` 的 14 帧与 `spr_kf_wd_hulk_skill_1_ready`
+    的 16 帧都不是连续段——用 `tools/swf_align.py` 对齐 SWF（`变异绿巨人.swf` → `DefineSprite_190`，
+    480 帧）时单帧代价 1.19 / 6.06（正常应为 0.00），帧来源散落在跳跃段 `#114 #128 #142 #157 #323 #338` 等处。
+  - 按 FrameLabel 重建：`变滚球`（0 基 94..104，11 帧）+ `受伤变滚球`（304..314，11 帧）= 22 帧 →
+    `spr_kf_wd_hulk_skill_1_ready`；`滚球`（105..108，4 帧）+ `受伤滚球`（315..318，4 帧）= 8 帧 →
+    `spr_kf_wd_hulk_skill_1`。画布 532×454、原点 (366,413) 与其它 hulk 精灵保持一致。
+  - `obj_kf_wd_hulk/Step_0.gml` 的 SKILL1 常量同步：变滚球 11 帧按比例铺满原 40 tick
+    （`floor(timer * 11 / _s1_in)`），滚球 `mod 7 → mod 4`（受伤 `+4`，原来受伤分支写死同值永远不播），
+    倒放段改 11 帧倒序（`10 - ...` / `21 - ...`）。变身 40 / 滚动 55 / 疾跑 60 tick 的原版节奏不变，
+    所有 timer 阈值与后续跳跃位移计算不受影响；模拟 0..329 全时段无越界，三段帧全部播到。
+- 卡片情报任务奖励由 5000 金币调整为 2000（2026-11-15，`scripts/task_edit/task_edit.gml` 的
+  `card_info_task_sync` 里 `rewards.amount`）。存档只存 `id / state / progress`，奖励从
+  `global.task_pool` 现取，所以**老存档不用迁移**：重启后按 2000 发，已领取过的任务不受影响。
+  设计文档 `docs/info_task_design/卡片情报任务_设计方案.md` 顶部已加变更注记（正文保留最初的 5000 作历史记录）。
+- 修跨服 BOSS「阿诺 / 冰渣 / 火渣 / 法老」精灵动画播放错乱（2026-11-15）：
+  - 症状：这几只 BOSS 的某几段动作（阿诺待机与冲刺、冰渣/火渣念咒与放球与攻击、法老召唤）会定帧、
+    闪成空帧、或播成别的动作；冰渣/火渣尤其明显，两套形态（ice/fire）同时坏。
+  - 根因**不在精灵**：把 108 个 `spr_infected_*` 逐帧与 SWF 单调对齐（新工具 `tools/swf_align.py`）
+    后确认切片全部连续、逐像素等于 SWF 原图，帧数也与 FrameLabel 分段一致。
+    真正的问题在 Step 里**照抄了原版的取模常量**：原版阿诺的待机/冲刺预备/冲刺精灵是 12 / 26 / 22 帧，
+    变异版是 12 / 20 / 28 帧；原版冰渣念咒/念咒半段/放球/攻击是 8 / 8 / 16 / 17 帧，常量被误写成 9 / 9 / 18 / 19，
+    于是 `mod N + N` 的受伤段索引落到 `2N-1`，超出精灵帧数——GM 画不出帧，表现为定帧或空帧。
+  - 修正：`obj_infected_arno/Step_0.gml` 待机去掉越界的 `+12`（两分支同段），
+    冲刺预备 `13→10`、冲刺 `11→14`，预备时长 `195→150`（`10*5*3`，仍是 3 个完整循环）；
+    `obj_infected_bingzha` 与 `obj_infected_fire_residue` 的念咒 `9→8`、放球 `18→16`、攻击 `19→17`，
+    待机 `12/12 → 8/+8`（原来两分支写死同值，受伤变体永远不播）；
+    `obj_infected_pharaoh/Step_0.gml` 召唤补上受伤段 `+19`（精灵本来就是 19 正常 + 19 受伤）。
+  - 顺手补 `spr_infected_arno_idle`：工作区已是正确的 12 帧（逐像素 = SWF `#1..#12`），
+    库里那份 24 帧的第 8 帧起已串到射击段，是错的，提交时注意别把它带回去。
+  - 新增回归工具 `tools/check_frame_range.py`：扫 `sprite_index` 与紧随其后的 `mod N` / `+ N`，
+    按「两段 = 2N 帧、单段 = N 帧」对拍精灵实际帧数，一条命令列出全部越界（`--all` 可扫全量 `obj_infected_*`）。
+- 修「至尊丰饶神被时光机升一星倍率就翻一倍」（2026-11-15）：
+  - 症状：终转丰饶神连吃时光机，倍率按 2.5 → 5.12 → 7.32 → 7.5 一路叠，像是「每被升星类卡影响一次就叠一倍」。
+  - 根因**不是**星级，是**同一实例被重复登记**：`mod_set_card_level`（`scripts/mod_set_card_level/mod_set_card_level.gml:84`）
+    每次变星都把目标的 `buff_cells_refreshed` 置 false，而增幅源 Step 的 `if (!buff_cells_refreshed)`
+    分支里既有「重建格子」也有「`ds_list_add(global.buff_sources, id)`」→ 变一次星就往增幅源表里多塞一条自己。
+    `rebuild_buff_grid` 是按表逐条 `apply_buff` 的，至尊丰饶神走 `buff_stacking` 分支
+    （`scripts/mod_build_buff_grid/mod_build_buff_grid.gml:181-188`，`stack_grid += v; stack_count++`），
+    于是重复条数 = 叠层数，撞上 `buff_max_stacks = 3` 的上限就停在 7.5。3 倍上限的口径本身没问题，
+    错在「一张卡算成三张卡」。
+  - 修法：`scripts/mod_build_buff_grid` 新增 **幂等** 的 `mod_buff_source_add(_source)`
+    （已在表里就不再 add），12 处增幅源登记全部改走它：`obj_aurora` / `obj_blueberry_tower` /
+    `obj_berry_dessert` / `obj_fengrao_god` / `obj_fruit_tart` / `obj_hspeed_juicer` / `obj_mozhang` /
+    `obj_nengliangmiao` / `obj_xiangliaohu` / `obj_wuxingshe` / `obj_xiangshui_god` / `obj_zhuzhujiaqiang`。
+    重建格子仍然照旧（变星后 atk 变了必须重算），只是不再重复进表。
+  - 复核：`output/_tmp/fengrao_stack_sim.py` 按同一逻辑复现，修复前 8→9→7→8 星得到
+    2.50 / 5.12 / 7.32 / 7.50（与用户截图逐项一致），修复后四步均为应当倍率。
+- 变异战神换用 + 素材修复，变异绿巨人移动改跳跃（2026-11-15）：
+  - 水火之间 7 关、巫毒研究所 2/3 关的 BOSS 由 `war_god` 换成 `infected_zhanshen`
+    （`shuihuo_7.json`、`wudu_2.json`×2、`wudu_3.json`×2，共 5 处；血量 250000 未变）。
+  - `spr_infected_zhanshen_*` 素材修复：提交 `c9780a4f5f` 把这套精灵写坏了（除第 0 帧外，
+    death/duck/gear/wood/summon/bullet* 的帧全部退化成 RGB 噪点），且图层目录写反
+    （`layers/<layerGUID>/<frameGUID>.png` 才是美术，`layers/<frameGUID>/<layerGUID>.png`
+    是 64×64 红叉占位）。按帧 GUID 从好提交 `4ec67fb2a6` 回填，并把每帧图层与顶层合成图
+    统一成同一份（`tools/inf_zhanshen_audit.py` / `inf_zhanshen_restore.py` / `inf_zhanshen_repair.py`）。
+    wood 末帧 `4ec67` 里也是噪点，用前一帧顶替。
+  - 血条图标：原先直接登记 282×238 的 idle，`icon_height = sprite_height*1.8` 会把血条撑出屏幕；
+    改为专用 48×40 图标 `spr_infected_zhanshen_icon`（`tools/make_inf_zhanshen_icon.py`，
+    `boss_init` 同步）。原点取右中 (48,20)，与 `spr_mario_mouse_icon` 等同规格图标一致，
+    绘制点 `x-3, y` 才不会压到血条上。
+  - 原点错位：gear `xorigin 57→101`（内容中心）、summon `yorigin 260→177`（原值超画布 74px，
+    与接替它的 soldier 对齐）、skill_1 `yorigin 229→238`（与 idle/death 同为底对齐）。
+  - 变异绿巨人：`move_slow` / `move_fast` 原本是 SWF「变滚球 / 滚球」段（sprite 190 帧 94~108）
+    重采样而来，一移动就成球滚。改取同 SWF 的「跳跃预备→跳跃→下落地面」段（健康 110~124、
+    受伤 = +210）按原帧数原画布原原点替换（`tools/hulk_move_to_jump.py`），
+    DISAPPEAR 走位与技能 1/3 冲撞全部变跳跃，对象代码零改动。
+  - 字体补「蜷」（U+8737）：`font_yuan` / `font_hei` 图集各加 1 个字形
+    （`tools/font_fill.py --chars 蜷 --only-chars`，新增该选项可只补指定字）。
+    同时把情报岛绿巨人文案「技能3：蜷成球冲撞碾压本行」改成「技能3：连续跳跃冲撞碾压本行」，
+    与新动画一致。
+- 梦魇天空 8 张底图重做，云层由两层收敛为一层（2026-11-15，
+  `spr_mengyantiankong_0..7` + `obj_event_manager/Step_0.gml` + `nightmare_sky-0..7.json`）：
+  病灶有两处。① 旧底图本身画满整屏云（col2-8 全是静态云），引擎 `cloud` 事件开局又在
+  col2-8 铺一层 `obj_cloud`，每 `spawn_interval` 秒再从 col9 飘入一排 —— 三层视觉叠加，
+  表现为「一开局便是全屏都是云，随后慢慢飘会出现漏洞」。② 素材 `天空背景图.png`
+  才是真正的纯天空底层（1167×620，无云无星）。
+  配准结论：`天空背景图.png` 缩到 **0.964 倍**后从 **(15, 1)** 采样得到的 1109×597
+  与旧美术的天空部分逐像素重合（左侧石柱带全分辨率 MSE=254.23 为全搜索空间最优），
+  即旧美术 = 天空背景图 + 云 + 绿色六芒星障碍。**`bg_draw` 一个字未动**
+  （`x=13.2 y=12.39 sx=1.7833 sy=1.78`），换底后格子相位不变。
+  新底图合成口径（`tools/sky_preview.py`，产物 `output/梦魇天空预览/build/`）：
+  底层 = 天空背景图按上述配准裁 1109×597；col 0-1 共 14 格逐格贴云，云瓦片取
+  `spr_cloud_night` 两帧、按引擎 `obj_cloud` 的 `image_xscale/yscale = 1.8` 换算成
+  84×71 美术像素（格宽 `107/1.7833 = 60.0`、格高 `116/1.78 = 65.2`），两帧交替；
+  障碍六芒星从 `spr_mengyantiankong_1` 的 `(388,216)-(462,302)` 抠出（70×83，含内圈），
+  按各关 JSON 的 `obstacle` 格中心贴回（0 关无；1/2 关 `(2,0)(4,0)`；3 关 `(1,0)(3,0)(5,0)`；
+  4/5 关 `(1,0)(3,1)(5,0)`；6 关 `(1,1)(3,1)(5,1)`；7 关 `(1,0)(2,1)(3,0)(4,1)(5,0)`）。
+  精灵写回 `tools/_sky_apply_sprites.py`：每个精灵写**两份**
+  （`sprites/<名>/<帧id>.png` 与 `sprites/<名>/layers/<帧id>/<图层id>.png`，只写一份游戏里不变），
+  尺寸 1109×597 与原图一致，`.yy` 无需改动；旧图备份在 `output/梦魇天空预览/backup/`。
+  单层化：`obj_event_manager/Step_0.gml:468` 的常驻云分支加开关
+  `if event_timer == 1 && !variable_struct_exists(event_list[i], "no_resident")`，
+  8 个关卡 JSON 的 `cloud` 事件加 `"no_resident": true`（`tools/_sky_apply_json.py`，
+  字符串替换不重排文件、保留原浮点写法，旧档备份 `output/梦魇天空预览/backup/json/`）。
+  只保留 `:490` 起 col9 飘入的那一层，`is_hole` 棉花糖空缺逻辑挂在它身上，行为不变。
+  其它地图（棉花糖天空等）没写 `no_resident`，常驻云照旧。
+- 诸神之盾改回「商城直售」，不再从抽卡卡池出（2026-11-15，`gacha_random_card` + `obj_shop_buy_btn`）：
+  抽卡池的 MOD 武器名单（`gacha_is_mod_weapon`）里删掉 `gods_shield` —— 这份名单同时充当
+  「抽卡模式下商城禁售」的判据，所以只删一处就同时达成本体不进池 + 商城可买。
+  新增 `gacha_shop_locked(_type,_id)` 统一判据：武器侧照旧读名单；宝石侧开一个例外白名单
+  `gods_shield_gem_1..4`（光能/撕裂/永恒/生命之源）—— 4 颗之源宝石**商城也能买**
+  （价格见 `mod_shop_init`，与死神镰刀系同为 200000），抽卡池里仍可抽（需先拥有诸神之盾）。
+  `obj_shop_buy_btn/Draw_0` 的置灰与 `Mouse_4` 的点击拦截改为共用该函数，两处口径不会再分叉。
+  镶嵌限制不变：4 颗宝石的 `allowed_weapons` 只有 `gods_shield`，`equip_gem` / `can_equip_gem`
+  都按它拦，其它武器的宝石插不进来。
+- 巫毒研究所 8 张底图换成作者修复版，右侧补丁全部消失（2026-11-15，`spr_wuduyanjiusuo_0..7`）：
+  用户在 `res\...\09跨服\巫毒研究所\` 下重新修了一版（`巫毒8星.png` … `巫毒15星.png`，8..15 星
+  依次对应 `spr_wuduyanjiusuo_0..7`），把上一版残留的亮块补丁、错位棋盘格全部补齐成纯净格。
+  替换走 `tools/wudu_bg_replace.py`：从各 `<名>.yy` 读帧 id / 图层 id，逐张写**两份**
+  （`sprites/<名>/<帧id>.png` 与 `sprites/<名>/layers/<帧id>/<图层id>.png`，只写一份游戏里不变），
+  源图统一转 RGB 后落盘；旧图备份在 `output/_tmp/bak_wudu_replace_20261115_161840`。
+  复检 `tools/wudu_bg_replace_selfcheck.py` 全绿（两份一致、1108×597、RGB、与旧图差异 6.32%~14.68%）。
+  **`bg_draw` 未动**：相位相关对 8 对图求整体位移全是 `(0, 0)`（peak 0.935~0.996）、
+  梳状拟合的格距与相位差都在 ±4px 内，新图与原图同尺寸同相位，`{10.14, 8.89, 1.7866, 1.7901}`
+  继续有效；`python tools/cross_bg_align.py --verify` 叠图网格线与美术格缝仍吻合。
+  关卡卡片图标按索引读同名精灵（`obj_cross_server_bg/Draw_0`），换图后自动同步。
+- 修「跨服所有地图格子错位」（2026-11-15，`tools/cross_bg_align.py` + 40 个跨服关卡 JSON）：
+  引擎网格是写死的 `grid_offset_x/y = 695/228`、格 `107×116`（`obj_battle/Create_0:36-41`），
+  底图由关卡 JSON 的 `bg_draw` 缩放绘制（`obj_battle/Draw_0:3-9`）。原生底图（`spr_salad_island_land`
+  2005×1080，1:1 直绘）实测格缝 `X=698+107.3k`、`Y=199+115.9k`，即**美术格缝比引擎列线右 3px、
+  行线高 29px**（`obj_bbq/Other_11` 记过同类位移）——这是原版美术与逻辑网格的既定关系。
+  跨服半尺寸美术（1108×597）实测格距是 **60×64**（不是 107/2 × 116/2），手调 `bg_draw` 时把
+  缩放和相位一起凑，结果六张底图全部偏：`zhuore` 美术低 33px、`shuihuo_0` 低 29、`shuihuo_1` 低 33、
+  `wudu` 低 29、`nightmare_sky` 低 15 且 `sy=1.884` 逐行累到 40px；古堡 8 关根本没 `bg_draw`
+  （1:1 直绘，美术格距 108.8×117.7），每列还再漂 1.8px。
+  现在按「`sx = 107/美术格距`、`sy = 116/美术格距`，再把第一条美术格缝钉到原生关系
+  `(698, 199) mod (107, 116)`」反解：castle `{12.14, 11.05, 0.9835, 0.9858}`、
+  nightmare_sky `{13.2, 12.39, 1.7833, 1.78}`、zhuore `{18.55, 6.07, 1.7833, 1.8172}`、
+  shuihuo_0..3 `{20.33, 12.31, 1.7833, 1.8125}`、shuihuo_4..7 `{20.86, 10.5, 1.7866, 1.8125}`、
+  wudu `{10.14, 8.89, 1.7866, 1.7901}`（古堡 8 关是新增 `bg_draw` 键）。
+  复检：把美术按新参数还原成 1920×1080 后取样，`shuihuo_0/4` 的 12/9 个岩浆格与 `map` 里
+  `object:["lava"]` 的格子**逐格 100% 吻合**、`zhuore` 61/63（两格是边缘取样误差）；
+  水火底图的蓝色水域带也正好压在第 2~4 行（与 `map[row][1].type == "water"` 一致）。
+  以后改跨服底图不要再手调 x/y：跑 `python tools/cross_bg_align.py --verify` 出叠图、
+  `--apply` 写回，`FAMILIES` 里改美术格距/首缝即可。
+- 底图精确对齐后 `bg_draw` 不再负责铺满屏幕（四边露 10~20px），而战斗房
+  `clearViewBackground = false`、露出来就是脏像素；`obj_battle/Draw_0` 先按 cover 比例用同一张图
+  铺一层兜底再画精确对齐那份（2026-11-15）。
+- 巫毒研究所：底图上的铁笼改成直接擦掉，风洞恢复原尺寸绘制（2026-11-15）：
+  上一版是把 `obj_wind_tunnel` 缩到 1.53 去贴底图里画好的铁笼，缩放/位置都对不齐、还会
+  盖住相邻行。现在把 8 张底图（`spr_wuduyanjiusuo_0..7`）里那 39 个铁笼全部 P 掉
+  （`tools/wudu_erase_windtunnel.py`，原图备份在 `output/_tmp/bak_wuduyanjiusuo_*`），
+  `obj_wind_tunnel/Create_0` 恢复 1.8 倍、只把 obj_battle 传入的 (x+5, y-35) 偏移抵消回格心。
+  擦除走的是「跨图同位置拷贝」：8 张底图是同一套网格美术（同为 night），同一格在别的
+  关卡里往往是干净的，直接按像素搬过来，连光照渐变都一致；只有 (row0,col8) 和
+  (row6,col8) 两格每关都有笼，用同列/同行 ±2~4 格兜底。39 个笼全部找到干净源，
+  `tools/wudu_erase_selfcheck.py` 复检：8 张图网格内金属像素 0、黑网 ≤40。
+  注意精灵目录两套图（顶层合成图 + `layers/<帧>/<图层>.png`）必须同时写，只写 layers
+  游戏里纹丝不动。
+- 修「疾风龙魂」灰烬类冷却 -50% 不生效（2026-11-15，`hex_card_cooldown`）：
+  灰烬类一次性卡（可乐炸弹 / 老鼠夹 / 辣椒粉…）没有 cycle，它们的「冷却」就是卡槽冷却，
+  走的是 `hex_card_cooldown(raw_cooldown, card_id)`；而那个函数原来只乘
+  `hex_batch2_id_cycle`（按卡 id 的专属倍率），按**分类**给的 `cat_cycle` 一条都读不到
+  —— 所以疾风龙魂、明火（灰烬卡冷却 +80%）在实机上全是空转。现对灰烬类另外乘一次
+  `hex_category_mult(card_id, "cat_cycle")`，但跳过轰炸型 / 持续型（巧克力大炮、榴莲、
+  火龙果这些仍走 cycle 攻击，已在 `hex_cycle_mult_for_card` 里乘过，再乘就重复）。
+- 修「低声耳环」每局结束加的星级不进合成屋、强化从 0 星开始（2026-11-15，`hex_b3_levelup_card`）：
+  该词条只抬 `unlocked_cards[].level`，而合成屋 / 背包 / 转职槽画的星星与「当前星级」
+  一律读 `max_level`（`transfer_credit_card_level` 的注释写明了这个口径）。
+  `level` 涨了、`max_level` 还是 0 → 星星不显示，强化入口按 0 星起算。
+  现两个字段一起抬（`max_level = max(max_level, 新等级)`），并把上限口径从
+  「`min(岛屿上限, max_level)`」改成「岛屿上限」—— 原来 `max_level` 就是当前星级，
+  拿它当上限会让第二次结算立刻判满级、原地不动。
+  注：老存档里已被这条 bug 写成 0 星的卡，需要新开一局重新结算才会补上。
+- 修正巫毒研究所 8 关的「风洞」贴图错位（2026-11-15，`obj_wind_tunnel/Create_0`）：
+  底图 `spr_wuduyanjiusuo_0..7` 的美术已经把铁笼（风洞外观）画进地图，实测每个铁笼
+  约 **147×170** 世界像素、中心在格心 **(+6, +2)**；而风洞特效默认按 `image_xscale/yscale = 1.8`
+  （123×131 → 221×236 ≈ 2×2 格）绘制、且由 `obj_battle` 按 `map_object_init` 的
+  `y_offset: -35` 上偏落位 → 特效铁笼比底图铁笼大一圈又上移，画面里出现「大网格 + 小铁笼」
+  双层错位，且盖住相邻行。现按底图前缀 `spr_wuduyanjiusuo` 分支：位置回正到格心 (+6, +2)、
+  缩放改为 1.53（精灵内容 97×109 → 148×167，正好覆盖底图铁笼）。
+  原版 `macchiato_port` / `tower_cake_15_1/2`（底图没有画铁笼，特效自己当铁笼）保持 1.8 倍 + 上偏不变。
+  水滴/其它章节若日后也给底图预画铁笼，照这个分支加前缀即可。
+- 去掉情报岛敌人页重复的「垃圾车僵尸鼠」（2026-11-15，`mod_info_island_init`）：
+  敌人页列表直接遍历 `global.enemy_id_list`，每调一次 `register_enemy_info_island` 就多一张卡，
+  而灼热版 `kf_zr_garbage`（`enemy_info_island_init.gml:144`）与巫毒版 `kf_wd_garbage`
+  （`mod_info_island_init.gml:153`）同名同数值，于是页面上出现两个一模一样的小卡片。
+  现删掉后注册的巫毒版条目、在原位留注释说明取舍，保留先生效的灼热版。
+  巫毒版敌人本体、`datafiles/level_data/cross/wudu_*.json` 的波次与
+  `tools/shuihuo_wudu_levels.py` 的 `WD_LAND_ORDER` 都不受影响（只是不上情报岛）。
+  「新内容」里那条「情报岛补注册 9 条」据此变 8 条。
+- 修复星轨神满 4 张进入全屏后 5×5 范围框与全屏四角装饰重叠（2026-11-15，`obj_xinggui_god/Step_0`）：
+  原来 `xg_halo.visible` 写死为 `true`（注释里当时的理由是「四角是另加的一层，海洋女神同理」），
+  4 张终转星轨神就是 4 个 5×5 框 + 1 套四角全屏，屏幕上糊成一片。
+  现改为「全屏生效时只保留四角特效」：Step 每帧只遍历一次 `obj_xinggui_god` 统计
+  `_n_all` / `_max_shape`（与每张卡自己的 `_should_full` 同口径），得到 `_any_full`；
+  光环按 `_any_full` 用 `image_alpha` 每帧 ±0.1（≈0.17 秒）渐变，淡到 ≤0.02 才 `visible = false`，
+  恢复时先抬 alpha 再显形 —— 硬切 `visible` 会重演 2026-11-13 那次「光环突然消失 → 四角突然出现」
+  被当成闪烁的问题。顺带把判定块里重复的 `with (obj_xinggui_god)` 统计删掉，共用外层结果。
+- 补上「行桶候选」的残留口子（2026-11-15）：`combat_enemy_nearest_in_row` 与 `combat_enemy_find_plant`
+  的候选判定当时只写了 `instance_exists` 单判，与上一条定的双判口径不一致 —— 投手类卡片
+  （`obj_egg_boiler_pult/Step_0:16`）在行桶快照之后、同 step 内目标被别的子弹打死时，`with` 依旧抛
+  「Unable to find instance for object index」（堆栈落在 `combat_enemy_nearest_in_row`，行号报 -1）。
+  现抽出 `scripts/combat_targets` 的 `combat_target_alive(_inst)`（= `instance_exists && !object_exists`），
+  四处 `with` / 点访问前置统一改走它，后续新增索敌函数直接用这个 helper，不要再各写各的。
 - 优化 Mod 开关与删除：开启只分步检查配置、素材版本和冲突，不重复扫描 PNG；关闭仅在后台保存开关。
   删除先移出安装目录，再后台清理文件；操作结束直接更新列表，保留失败回滚和卡片进度，仍需重启游戏生效。
 - 优化大体积 Mod 导入：后台解压并显示阶段、进度和耗时，支持取消；动画校验分步执行，

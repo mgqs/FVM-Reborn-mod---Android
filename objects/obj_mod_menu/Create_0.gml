@@ -9,6 +9,7 @@ list_top = y - 192;
 list_bottom = y + 205;
 mods = [];
 status_text = "";
+diag_text = "";
 import_close_when_done = false;
 if (is_struct(global.external_mod_import_job) && !instance_exists(global.external_mod_import_job.owner)) {
     global.external_mod_import_job.owner = id;
@@ -75,30 +76,16 @@ manifest_name = function(folder_path, fallback) {
     return fallback;
 };
 
-// 扫描 mod_root 下的包目录。必须先收进数组再返回：调用方随后还会做 manifest 解析，
-// 而 file_find_* 只有一个全局迭代器，边遍历边解析会让列表错位。
+// 扫描 mod_root 下的包目录。枚举统一交给 NativeUtil.android_list_dir：
+// 安卓/iOS 的 file_find_* 返回的是完整路径而不是名字，自己拼 目录 + "/" + 条目
+// 会拼成 …/mod//storage/emulated/0/…，directory_exists 恒 false → 列表永远是空的。
 scan_root = function(_dir, _flags) {
-    var _out = [];
-    var _f = file_find_first(_dir + "/*", _flags);
-    while (_f != "") {
-        if (_f != "." && _f != ".." && directory_exists(_dir + "/" + _f)) array_push(_out, _f);
-        _f = file_find_next();
-    }
-    file_find_close();
-    return _out;
+    try { return global.native_util.android_list_subdirs(_dir); } catch (_e) { return []; }
 };
 
 scan_mod_folders = function() {
     if (!directory_exists(mod_root)) return [];
-    var _folders = scan_root(mod_root, external_mod_find_flags());
-    // 安卓上 flags=0 是否会把子目录带出来，取决于运行时对分区存储的实现。
-    // 空结果时再按 fa_directory 试一遍，两个都空才算真的没有包 ——
-    // 否则「包在里面但列表为空」会退化成一个查不出来的黑箱。
-    if (array_length(_folders) == 0) {
-        var _alt = scan_root(mod_root, fa_directory);
-        if (array_length(_alt) > 0) _folders = _alt;
-    }
-    return _folders;
+    return scan_root(mod_root, 0);
 };
 
 refresh_mods = function(persist_state = true) {
@@ -223,6 +210,18 @@ refresh_mods = function(persist_state = true) {
     // 扫描结果为空时不要回写状态：那会把已有的 enabled 记录整份清空，
     // 下次启动 default_enabled 变成 false，Mod 会被静默禁用。
     if (persist_state && !state_read_failed && (array_length(mods) > 0 || array_length(previous) == 0)) save_state();
+    // 诊断行：安卓上没法随手看日志，把「目录在不在 / 里面有几个条目 / 几个是目录 / 认出几个包」
+    // 直接画在面板底部 —— 一眼就能区分「没投放」「投放了是 zip 没解压」「包结构不对」。
+    var _all_count = 0;
+    var _dir_count = 0;
+    try {
+        var _entries = global.native_util.android_list_dir(mod_root, false);
+        _all_count = array_length(_entries);
+        for (var _e = 0; _e < _all_count; _e++) if (_entries[_e].is_dir) _dir_count++;
+    } catch (_scan_error) {}
+    diag_text = (directory_exists(mod_root) ? "目录存在" : "目录不存在")
+        + " · 条目 " + string(_all_count) + "（目录 " + string(_dir_count) + "）"
+        + " · 识别 " + string(array_length(mods));
     show_debug_message("[Mod menu] root=" + mod_root + " folders=" + string(array_length(folders))
         + " listed=" + string(array_length(mods))
         + " loaded=" + string(variable_global_exists("external_mod_loaded") ? array_length(variable_struct_get_names(global.external_mod_loaded)) : 0));
