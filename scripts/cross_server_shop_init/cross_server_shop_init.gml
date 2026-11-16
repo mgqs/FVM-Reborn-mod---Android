@@ -41,7 +41,7 @@ function cross_server_shop_init()
     register_goods("magic_chicken", { type: "card", cost: "1130", unlock_item_id: "magic_chicken", description: "幻幻鸡：复制成上一张放置的卡片", display_name: "幻幻鸡" });
     register_goods("baibianshe", { type: "card", cost: "1510", unlock_item_id: "baibianshe", description: "百变蛇：变身成为范围内上一张种下的卡片", display_name: "百变蛇" });
     register_goods("xuanfengniu", { type: "card", cost: "1020", unlock_item_id: "xuanfengniu", description: "旋风牛：吹走全屏特定空中老鼠，一转可清障，二转不需要格子", display_name: "旋风牛" });
-    register_goods("laipishe", { type: "card", cost: "1320", unlock_item_id: "laipishe", description: "赖皮蛇：召唤沿固定轨迹飞行的海胆子弹，伤害轨迹上的海陆空老鼠", display_name: "赖皮蛇" });
+    register_goods("laipishe", { type: "card", cost: "1320", unlock_item_id: "laipishe", description: "赖皮蛇：召唤沿固定轨迹飞行的海胆子弹，伤害轨迹上的陆、空军老鼠", display_name: "赖皮蛇" });
     register_goods("double_blade_snake", { type: "card", cost: "1320", unlock_item_id: "double_blade_snake", description: "双刃蛇：向前发射2发穿透剑气子弹，可斩杀生命值≤15%的普通老鼠", display_name: "双刃蛇" });
     register_goods("zhanqima", { type: "card", cost: "1900", unlock_item_id: "zhanqima", description: "战旗马：5*5范围内主动攻击型卡片提高基础攻击力", display_name: "战旗马" });
     register_goods("niuyouguo", { type: "card", cost: "2030", unlock_item_id: "niuyouguo", description: "邪恶牛油果：向前方三个方向各发射1发穿透飞镖", display_name: "邪恶牛油果" });
@@ -111,5 +111,21 @@ function cross_server_shop_init()
         var _goods_id = _prerequisite_ids[_j];
         if (!ds_map_exists(global.goods_map, _goods_id)) continue;
         global.goods_map[? _goods_id].required_gem_id = _gem_prerequisites[$ _goods_id];
+    }
+
+    // ── 跨服下架「进化后的武器 / 宝石」（2026-11-16 用户口径）───────────────
+    //   跨服只留**进化底层**（链首那件，普通商店也在卖的那一档）；进化出来的形态一律下架
+    //   —— 有了合成屋的神器/宝石进化，再从跨服直接买成品等于跳过进化，且价格也没台阶。
+    //   判据唯一出口：mod_gear_evo_build().steps 的 .to（= 所有「被进化出来」的 id），
+    //   别回 _cross_server_goods 名单里手删 —— 以后挪路线 / 加补强宝石又会漏。
+    //   用 cross_server_hidden 打标，而不是 ds_map_delete：
+    //     删 key 会让 required_weapon_id / required_gem_id 指向空键
+    //     （obj_cross_server_shop/Draw_0:150 是直接取 map 的，会炸）。
+    var _evo_steps = mod_gear_evo_build().steps;
+    for (var _es = 0; _es < array_length(_evo_steps); _es++) {
+        var _evo_to = _evo_steps[_es].to;
+        if (ds_map_exists(global.goods_map, _evo_to)) {
+            global.goods_map[? _evo_to].cross_server_hidden = true;
+        }
     }
 }

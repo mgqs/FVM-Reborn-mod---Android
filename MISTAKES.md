@@ -68,6 +68,7 @@
 | 写脚本扫 `objects/` 下所有 `.yy`，输出条数是 0 | `objects/` 没有直接放 `.yy`：用 `Get-ChildItem objects -Directory` 拼 `<目录>/<名>.yy`，或 `rg -l -g '*.yy' --pcre2 '"parentObjectId":\s*\{\s*"name":"obj_card_parent"' objects` | A23 |
 | 报 `Variable obj_xxx.<字段> not set before reading it`，而父对象 `Create_0` 里明明有这个字段 | 那个子对象 `Create_0` 没写 `event_inherited()`，父 `Create` 一行没执行。读取侧一律 `variable_instance_exists(_p,"字段") && _p.字段`；需要该字段就在子对象 `Create_0` 补默认值 | A24 |
 | 上游同步后某个 `.gml` 的 `os_type != os_android` 守卫「凭空消失」，编译不报错、安卓一进界面就炸 | 同步后立刻跑「HEAD 版本 vs 现值」的守卫标记比对：`git grep -l -F "os_type != os_android" HEAD` 逐文件数标记数，少了就补回 | A28 |
+| 三方合并取 ours 时得到的文件里带着 `<<<<<<<`，或「ours 与 merged 字节完全相同」 | `git merge-file --diff3 <ours> <base> <theirs>` **会原地改写 `<ours>`**：调用前先把 ours 另存为 `orig__<stem>`，之后所有「取 ours」的决议都读 `orig__` 而不是 `ours__` | A29 |
 | 想用 ffmpeg 从屏幕录像抽帧 / 裁一块 | 本机 ffmpeg 是裁剪版（无 image2 muxer、无 crop 滤镜），抽帧只能 WPF `MediaPlayer` + `RenderTargetBitmap`；`CroppedBitmap` 直接出图会静默 0 字节，必须全幅抓完再用 Pillow 裁；本机无网，别 `pip install` | A22 |
 
 ### A11 用 `Get-ChildItem -Recurse` 找文件 → 每次 15~22 秒
@@ -792,6 +793,15 @@
   ```
   同一个坑已在 `scripts/gacha_random_card/gacha_random_card.gml:565` 的注释里记过（ds_map 句柄过 `is_real` 也是 false），当时只修了那一处，没有全仓排查。
 - **证据**：2026-11-16 真机三版屏幕诊断（`obj_battle/Draw_0`，定位后已删除）；`scripts/combat_targets/combat_targets.gml:33-52`（修复点）；`scripts/gacha_random_card/gacha_random_card.gml:562-570`（同类历史坑）。**仍待排查的同型隐患**：`scripts/hex_batch3/hex_batch3.gml:1656` 与 `:2588`（`is_real` 卡 ds_map 卡组元素 → 词条整条失效）、`scripts/obj_pool_deck/obj_pool_deck.gml:284` 与 `:290`（`is_real` 卡对象索引/池 id）。
+
+### A29 `git merge-file` 原地改写 ours → 三方合并的「我方原文」被污染
+- **症状**：批量三方合并脚本跑完，对某个文件决议「取 ours」，产出的 `final__` 里却带着 `<<<<<<<` / `=======` / `>>>>>>>` 标记；或者反过来，`merged__` 与 `ours__` 字节完全相同（比对 sha1 才会发现），让人误以为「上游没改动这一处」。
+- **错路**：把 `git merge-file --diff3 ours base theirs` 当成只读操作，合并脚本里直接 `subprocess.run([...])` 后立刻 `read(ours_p)` 去当「TGT 原始文本」做 hunk 比对与 `assert h['ours'] == ...`。实际 git 的语义是「就地合并到第一个文件参数」，跑完 `ours_p` 已经是**带冲突标记的合并结果**，`base` / `theirs` 不动。
+- **正确路径**：合并脚本写成三步 ——
+  1. 先在临时目录物化 `base__<stem>` / `orig__<stem>`（= TGT 工作区原文）/ `theirs__<stem>`，全部先做 LF 归一化（`Save-LF`），因为 TGT 的 `.gml` 常是 CRLF、`base` blob 是 LF，直接 merge 会整文件冲突；
+  2. `git merge-file --diff3 <tmp_ours> base theirs`，**`<tmp_ours>` 拷自 `orig__` 的副本**，不是 `orig__` 本身；
+  3. 决议函数 `read(stem, 'ours')` 一律读 `orig__`，`read(stem, 'merged')` 读合并产物。产出 `final__` 后强制断言 `'<<<<<<<' not in text`。
+- **证据**：2026-11-16 第十四轮同步；`.codex-tmp/merge_d14.py` 首版触发，`scripts/combat_targets/combat_targets.gml` 的 `merged__` 与 `ours__` sha1 同为 `d3191719e30b`（15199 B），加 `orig__` 快照后重跑才区分出「merged == ours 是因为 TGT 已把上游该函数合进来」，最终 4×ours 决议才正确（终版 214 行，保留 `combat_target_alive` 定义 + 我方 `combat_targets_is_live`）。
 
 ## 追加模板
 

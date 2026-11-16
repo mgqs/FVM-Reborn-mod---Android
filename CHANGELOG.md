@@ -1,3 +1,49 @@
+# v2.8.1
+## 新内容
+- 同步上游 `567bdbdebf`（PR44 + `ae57bac15f` 30218 + `abc5752b62` 合成屋，2026-11-16）：
+  - **合成屋「神级进化」页扩成三子页**：金卡进化 / 神器进化 / 宝石进化。
+    进化链唯一事实源 `scripts/mod_craft_evo_table/mod_craft_evo_table.gml` 的
+    `mod_gear_evo_defs()`（3 条神器 6 步 + 11 条宝石 25 步 = 31 步 / 31 张凭证），
+    落账口径：宝石进化后星级归 0、不返还材料；武器就地换装，不兼容专属宝石由
+    `weapon_gems_reconcile` 卸回背包。
+  - **神器 / 宝石进化凭证上架诸神商店**（第 1 页「进化凭证」，货币神谕之石）：
+    `gods_shop_init` 的 `gods_shop_register_gear_evo()` 循环注册 `gear_evo_01..31`，
+    售价唯一出口 `mod_gear_evo_credit_price()` = `25 × (tier + 1)`（25 / 50 / 75 三档）。
+  - **跨服商店下架已进化的武器 / 宝石**：判据只读 `mod_gear_evo_build().steps` 的 `.to`，
+    末尾统一打 `cross_server_hidden` 标记（共 31 件：6 武器 + 25 宝石），用打标而非
+    `ds_map_delete`，避免 `required_weapon_id` / `required_gem_id` 指向空键。
+  - 新增精灵 `spr_gear_evo_label`（4 帧 34×28）、`spr_evo_left_artifact` / `spr_evo_left_gem`
+    （各 2 帧：浅底选中 / 深底未选中），以及 `spr_infected_zhanshen_icon`；
+    变异战线 4 组精灵重导（`spr_infected_pharaoh_skill_2` 38 帧、
+    `spr_infected_bingzha_fire_skill_1` 32 帧、`spr_infected_arno_skill_2` 12 帧、
+    `spr_kf_wd_hulk_skill_1_ready` 12 帧）。
+  - 玩法数值与逻辑：后羿出弹帧、冲撞类卡片不再秒杀 / 撞飞 BOSS、星轨神可升 UM、
+    龙渊地精鼠钻地免疫灰烬、索敌崩溃再加固、跨服 40 关 JSON 难度与奖励调整。
+  - 上游关闭鼠标帧率锁定：`global.mouse_limit_hz` 硬置 0，`obj_file_manager/Step_0.gml`
+    的 `ml_tick++` 整段注释。
+## 优化与修复
+- **安卓嫁接全部保住（本轮 3 处冲突的处置口径，供下轮同步照抄）**：
+  - `objects/obj_readyroom_manager/Step_0.gml`：上游把退出确认框从「toggle」改成
+    「框存在时不再响应」（连点两次不会被点没）。我方条件是
+    `vk_escape || ui_back_click_pressed() || mb_right`，上游是 `vk_escape || mb_right`
+    —— 冲突取**条件用我方、body 用上游**，安卓返回键 `ui_back_click_pressed()` 一条不能丢。
+    回归症状：安卓上按返回键没反应，只能靠右软键或点「×」。
+  - `scripts/combat_targets/combat_targets.gml`：上游这一轮新增
+    `combat_target_alive(_inst)`（`instance_exists && !object_exists`），但我方
+    `combat_targets_is_live(_inst, _base)` 更严（`object_is_ancestor` 缓存 + `is_real`/`noone` 判定 +
+    `obj_pool_holder` 排除）。冲突 4 处**全取我方**，同时保留上游 `combat_target_alive`
+    的定义（`objects/obj_houyi_god/Step_0.gml:23` 有调用点，删了会报未定义）。
+    终版 214 行：`combat_targets_is_live` 9 处 / `_stale` 10 处 /
+    `combat_targets_row_compact` 5 处全在。
+  - `objects/obj_file_manager/Step_0.gml`：上一轮补的 5 处 `os_type != os_android` 守卫
+    与上游「注释掉 ml_tick」叠加，**取我方全文**（已含上游全部内容 + 2 处
+    `native_stop_mouse_limit` 守卫）。
+- `global.game_version` 跟随上游 `"3.0.2.17"` → `"3.0.2.18"`
+  （`objects/obj_game_init/Create_0.gml:50`）。
+- `CHANGELOG.md` 合并：上游新条目（hunk1 46 行）与本轮我方条目（hunk2 314 行）
+  行多重集完全相同、仅顺序不同，按「上游新条目在前 + 我方条目在后」拼装，
+  零重复零丢失（1058 行）。
+
 # v2.8.0
 ## 新内容
 - 同步上游 `22c8c911a2`（PR43 + 30217 / 30217优化，2026-11-15）：
@@ -204,7 +250,74 @@
     新增文案字形已核对 `font_yuan`（覆盖 6250 字，缺 0）。
 
 # v2.7.0
+## 优化与修复
+- **神器 / 宝石进化页三处口径统一（2026-11-16 用户给图）**：
+  1. **空槽放原版固定美术**：新增精灵 `spr_gear_evo_label`（4 帧 34×28，素材 = 用户提供的
+     `138.png`武器 / `160.png`进化凭证 / `162.png`神器 / `164.png`宝石，`tools/make_gear_evo_label_sprite.py`
+     补边成同画布 + 注册）。旧物槽画「神器 / 宝石」、凭证槽画「进化凭证」，比例 1.8（与槽位图纸一致），
+     不再用 `font_yuan` 画「放武器 / 放宝石 / 放凭证」。
+  2. **底部凭证架只放已拥有的**：`gear_credit_ids()` 加 `credit_count > 0` 过滤
+     （原来 31 张全铺，一屏 10 格要翻 4 页且全是 0）。
+  3. **删掉凭证架上的「‹ 16/16 ›」页码**（用户红框标出）：绘制与两个隐形翻页点击区一并删除，
+     超过一屏时仍可用滚轮翻（`Mouse_60/61` 不变）。
+  4. **右侧列表只列「已拥有 且 还能进化」**：`gear_rebuild()` 先求 `steps[].from` 集合（= 有下一形态），
+     再按进化链顺序收集；链末形态与链外专属宝石（主宰 / 荆棘玫瑰那几颗）不再出现。
+- **修：点「神器进化 / 宝石进化」跳回卡片宝石页**（2026-11-16 用户报）。根因是左侧那三个旧按钮
+  `obj_craft_select_btn` 在神级进化页只是 `visible = false` 藏掉、没销毁，而 `visible = false`
+  只跳过 Draw 事件、**Mouse 事件照常派发**；它的位置（`x-661, y-50/+100/+250`）和新子页按钮
+  （`x-660, y-80/+80/+240`）x 差 1px 全段重叠 → 点击被抢走，`craft_top_tab` 被拽回 0。
+  修法：`obj_craft_select_btn/Mouse_4` 开头加 `if (!visible) exit` + 页签拦截（融合页 / 神级进化页直接 exit）；
+  顺手给 `obj_closecraft_btn/Mouse_4` 补同样的 `if (!visible) exit`（否则融合确认弹窗期间点隐藏的 X 会关掉合成屋）。
+- **凭证售价改口径（2026-11-16 用户纠正）**：不是「按登记表顺序每张 +25」（那会卖到 775），
+  而是按**进化档位**三档 —— 新神器/新宝石凭证 25、超神器/超宝石凭证 50、补强宝石凭证 75，
+  最贵 75。档位写进 `mod_gear_evo_build()` 的 `step.tier`，售价出口仍是
+  `mod_gear_evo_credit_price()` = `25 * (tier + 1)`，只改这一处。
+- **跨服商店下架进化后的武器 / 宝石**：判据只读进化表（`mod_gear_evo_build().steps` 的 `.to`），
+  在 `cross_server_shop_init()` 末尾统一打 `cross_server_hidden`，`obj_cross_server_shop/Create_0`
+  收集列表时跳过 —— 共下架 31 件（6 武器 + 25 宝石）。用打标而非 `ds_map_delete`，
+  避免 `required_weapon_id` / `required_gem_id` 指向空键。
+- **合成屋神级进化页左侧三格按钮改成无缝拼接**（2026-11-16 用户口径「像卡片宝石页那样无痕」）：
+  `gear_left_y` 间距 160 → **147**。精灵 46×85 ×1.8 = 153 高、四角圆角各 3px（×1.8 = 5.4），
+  原间距 160 会在两块之间露出 7px 底图纸色（就是用户看到的「缝」）；
+  147 时相邻两块重叠 6px，刚好盖住圆角。热区半高同步 80 → 73（≤ 间距/2，否则点接缝会选到下格）。
+- **左侧子页按钮全部换成原版固定美术**（字烤在图里，不再有任何自绘文字）：
+  `spr_evo_left_on`（金卡进化，1 帧）+ 新增 `spr_evo_left_artifact` / `spr_evo_left_gem`
+  （各 2 帧：0 = 浅底选中 / 1 = 深底未选中，素材来自 `合成屋.swf` 的 DefineSprite_681 / 686）。
+  热区宽度从 ±41 放宽到 ±60（按钮本体只有 83 宽，贴边点会漏判成「点了没反应」），并加了悬停增亮反馈。
+
 ## 新内容
+- 神器 / 宝石进化凭证上架**诸神商店**（2026-11-16，第 1 页「进化凭证」页，货币神谕之石）：
+  31 张凭证按**进化档位**定价（25 / 50 / 75，最贵 75），见上方「优化与修复」。
+  - 注册走 `gods_shop_init` 的 `gods_shop_register_gear_evo()` **循环**完成
+    （id `gear_evo_01..31` 两位补零，商店按 id 字母序收集，补零后顺序 = 登记表顺序），
+    一条不写死，以后改链自动跟着变。
+  - 售价唯一出口 `mod_gear_evo_credit_price()` = `25 × (tier + 1)`；换档只改这一处，商店读同一个函数。
+  - `sort_tier: 3` 让它们排在本页「融合卡 / 金卡 / 普卡与卡凭证」之后；
+    售价与名字都实时反查（`gods_goods_name` / `mod_gear_evo_shop_tip`），不硬编码。
+  - 售罄口径 `mod_gear_evo_buyable_locked()`：背包已有一张、或这一阶已经进化出来 → 售罄
+    （Create 的 `is_disabled` 与 Draw 的售罄罩共用）。抽卡模式禁买，与金卡凭证同一条拦截。
+  - 图标照 `mod_gear_evo_draw_credit`（金色底板 + 目标装备图标）；成交在
+    `obj_gods_store_buy_confirm/Step_0`：扣神谕之石 + 凭证进背包，不解锁装备。
+- 合成屋「神级进化」页接入**神器进化 / 宝石进化**两个子页（2026-11-16）：
+  左边竖排按钮从 1 个变 3 个（金卡进化 / 神器进化 / 宝石进化），后两个是全新页面；
+  进化链 **3 条神器（6 步）+ 11 条宝石（25 步）= 31 步 / 31 张凭证**，
+  唯一事实源 `scripts/mod_craft_evo_table/mod_craft_evo_table.gml` 的 `mod_gear_evo_defs()`
+  （`mod_gear_evo_*` 与金卡进化的 `mod_evo_*` 同域，不新增脚本资源、不动 `.yyp`）。
+  - 落账口径（用户 2026-11-16 明确）：宝石进化后**星级归 0**、**不返还任何材料**
+    （原版 `god_card.xml` 会按 `cost_gem_level` 退强化水晶，这里刻意不退）；
+    武器**就地换装**（正装备着就换到原槽位），不兼容的专属宝石由 `weapon_gems_reconcile` 卸回背包。
+  - **进化按钮下方不再显示任何说明文字**（原版那两行「等级保留 / 返还水晶」删掉）。
+  - 右侧列表**只列已拥有的**武器 / 宝石（按进化链顺序，链外的专属宝石按存档顺序补后），未拥有的不出现在列表里。
+  - 底部道具条改成**凭证架**：10 个自绘格按底图内壁实测几何（`x-797 / y+411 / 914×83 / pitch 91.4`），
+    凭证（金色底板 + 目标物图标）**完美嵌进格子里**；点凭证 = 反查步骤 → 旧物槽 + 凭证槽整组落槽，
+    点凭证槽 = 整组取回；滚轮在条上只翻凭证架，不漏到强化页。
+  - 凭证**不注册 material**：沿用 `evo_credit_<目标id>` 前缀（与金卡凭证同一个识别分支），
+    `get_material_amount` 直接读背包；`transfer_credit.gml` 的「进化凭证」段已适配成显示装备名 +
+    进化路线（原先会把装备凭证当卡名显示）。
+  - 自检：GML 侧 `mod_gear_evo_selfcheck()`（debug 首次打开打一次）；
+    编辑机侧 `tools/gear_evo_check.py`（查未注册 id / 重复目标 / 凭证撞车，退出码 0 = 全绿）。
+  - 未实装：「狡诈伪装」（`divine_forbidden`，生命系第 3 阶）mod 里没有 `register_gem` + 对象，
+    链里注释留位，实装后取消 `mod_gear_evo_defs()` 那行注释即可，UI 不用改。
 - 任务看板新增「一键领取」（2026-11-15，位置：标题栏右侧、关闭按钮左边）：
   一次领完**所有** `state == "completed"` 的任务奖励，**不限页签类别**（主线 / 支线 / 挑战 / 卡片情报）。
   按钮文字带待领条数「一键领取（N）」，N = 0 时置灰不可点。
@@ -289,6 +402,51 @@
   yyp 与 folders 三处注册齐备
 
 ## 优化与修复
+- 蛋蛋兔冷却改为「星级只吃攻击力，技能吃冷却时间」（2026-11-16，用户口径 + 左表）：
+  - 冷却 90/87/84/81/76/71/66/61/50 秒（技能 0~8 级）搬进 `mod_skill_init` 的
+    `register_card_skill("dandantu","cooldown", …)`；`mod_cards_init` 的三形态星级表
+    统一改成 `array_create(17, 5400)`（恒 90 秒），不再随星级递减。
+  - 情报岛文案同步：`mod_info_island_init` 的 dandantu 条目由「星级影响[攻击力]和[冷却时间]」
+    改为「星级影响[攻击力]，技能影响[冷却时间]」——原来实战口径已按技能走，只有文案没改，
+    玩家看到的就是「描述和实际不一致」。
+- 退出确认框不再被连点绕过（2026-11-16）：
+  - `obj_menu_manager/Step_0`：退出确认框已存在时，原来再按一次返回键直接 `game_end()`，
+    连点（右键/ESC 两次）＝当场杀进程。现在这一支什么都不做，交回 `obj_quit_confirm`
+    （确定 / 取消 / ESC）处理。
+  - `obj_readyroom_manager/Step_0`：右键/ESC 原来是 toggle（框存在就销毁），连点两次＝
+    弹出又被自己关掉。现在框存在时不再响应。
+- 后羿（2026-11-16）：
+  - 索敌恢复三行直扫：`d6ae7a5b7d` 把 `obj_houyi_god/Step_0` 的 `with (obj_enemy_parent)` 直扫
+    换成按行桶 `combat_enemy_in_rows(… grid_row-1 … grid_row+1 …)`，用户报「不索敌、不出弹、
+    老鼠也不啃它」。现恢复直扫（保留 `combat_target_alive` 存活判定），三行窗口不再受行桶影响。
+  - 地火改为 **3×3**：`obj_houyi_god_bullet/Step_0` 原来在本行命中格往右铺 3/5 格（实际只看到一格），
+    现在以命中格为中心铺 3 行 × 3 列共 9 格，每格仍是 0.5 秒、整段一次 700 伤害。
+- 冲撞类卡片不再秒杀 / 撞飞 BOSS（2026-11-16，用户报变异钢铁侠 / 变异绿巨 / 变异火渣 / 变异冰渣）：
+  - 根因：`obj_baiyang_effect` / `obj_doumaobang_cat` / `obj_tanchitu_rabbit` 的 BOSS 豁免写的是
+    `is_boss && global.map_name == "跨服远征"`，而进关时 `room_transition` 会用 `register_map`
+    的 name 覆盖 `map_name`（水火之间 / 巫毒研究所 / 灼热地域 / 美味岛…），于是只有古堡那章算数。
+    三处统一去掉地图名依赖，BOSS 一律走「只扣血」分支。
+  - `obj_cat`（第 0 列的猫）原来只在 `!can_loss`（爆炸/冲撞型）时才让 BOSS 免疫，普通猫会把 BOSS
+    直接撞飞；补 `if (is_boss) continue;`。
+- 星轨神可以靠命运女神升到 UM（2026-11-16）：`obj_clotho/Create_0` 的 `gold_cards` 名单漏了
+  `xinggui_god` / `lingrong_god` / `panduola_god`，`Other_11` 里 `new_level >= 17` 的金卡判定
+  不成立 → 被 `min(new_level,16)` 夹回 16 星。三张补进名单。
+- 龙渊地精鼠钻地时免疫灰烬（2026-11-16）：`obj_ly_dijing/Other_10` 在钻地分支前追加
+  `ly_mode == "dig" && damage_type == "ash"` → 直接按 0 伤害退出。原来能命中 underground 的
+  灰烬卡（target_type = all / rotate / d_fruit）会把 `ly_dig_hittable` 置 true 从而漏进白名单。
+- 索敌崩溃加固（2026-11-16，用户贴 `obj_stinky_tofu_pult` → `combat_enemy_nearest_in_row`
+  报 `Unable to find instance for object index`）：`combat_target_alive` 追加对象池尸体判定
+  （`instance_change(obj_pool_holder)` 回收后 id 仍在、变量仍在，旧判据会放行并选中尸体）。
+- 关闭鼠标帧率锁定（2026-11-15）：
+  - `objects/obj_game_init/Create_0.gml:176-194` 原先从 `config.ini` 的 `[settings] mouse_limit_hz`
+    读入并写入 `global.mouse_limit_hz`（含 `cfg_rev` 老配置迁移分支），现整段注释，末尾恒置
+    `global.mouse_limit_hz = 0;`。
+  - `objects/obj_file_manager/Step_0.gml:63-99` 每 10 帧一次的重装钩子逻辑（`ml_tick` 计数 +
+    `native_start_mouse_limit(global.mouse_limit_hz, window_handle())`，底层是 WH_MOUSE_LL
+    低级鼠标钩子）整段注释；只保留初始化时与退出时各一次 `native_stop_mouse_limit()`，
+    避免同进程残留钩子。
+  - 原因：低级鼠标钩子会在高刷新率下被 Windows 超时回收（`LowLevelHooksTimeout`），
+    导致指针偶发卡顿/丢帧；编辑器与战斗场景都不需要限帧，直接关掉更稳。
 - 修复 `obj_xiao_long_bao` 等 18 个直射卡在 Step 里抛「Unable to find any instance for object index」（2026-11-14）：
   根因是 `scripts/combat_targets` 把实例 id 当「一定活着」用。① `combat_enemy_in_rows` 的跨帧缓存
   `_card.combat_row_target` 在目标被其它子弹打死后没有存活校验，下一帧直接 `with (过期 id)`，

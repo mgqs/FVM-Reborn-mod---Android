@@ -19,6 +19,24 @@ function combat_targets_invalidate(_object) {
 
 /// Use for direct logical row changes, including teleports/knockback. Coordinate
 /// conversion also calls this before its result is assigned to grid_row.
+/// 行桶与跨帧缓存里存的是「实例 id」，随时可能是刚被别的子弹打死的实例。
+/// GM 会把过期 id 当对象索引解析，`with (过期 id)` 直接抛
+/// "Unable to find instance for object index"（且行号报 -1，看上去像崩在函数入口）。
+/// instance_exists 对对象索引恒为 true → 必须和 object_exists 一起判才排得干净
+/// （写法同 precise_bbox_collision 的 bullet_sap_type_list）。
+function combat_target_alive(_inst) {
+    if (!instance_exists(_inst)) return false;
+    if (object_exists(_inst)) return false;
+    // 🔴 2026-11-16：**对象池回收后的敌人 id 依然存在**。
+    //   obj_pool_release 用 instance_change(obj_pool_holder) 把死掉的老鼠换成占位对象丢到
+    //   (-100000,-100000)，id 不销毁、grid_row / target_type / hp 这些变量全都留着 ——
+    //   上面两条判据都会放行，于是索敌会选中「尸体」，跨帧缓存里也一直存着它，
+    //   下一次对它取属性 / with 就报 "Unable to find instance for object index"。
+    //   obj_ronghehuopen_ice_ctrl 早就按这个口径处理过（见其 Step_2 注释），这里统一。
+    if (_inst.object_index == obj_pool_holder) return false;
+    return true;
+}
+
 function combat_targets_row_value(_inst, _row) {
     if (is_struct(_inst)) return _row;
     if (instance_exists(_inst) && (!variable_instance_exists(_inst, "grid_row") || _inst.grid_row != _row)) {
