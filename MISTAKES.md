@@ -27,6 +27,7 @@
 | 改了精灵帧/像素，游戏里没变 | 同时写 `sprites/<名>/<帧GUID>.png`（顶层合成图，运行时读它）和 `layers/<帧GUID>/<图层>.png` | B19 |
 | 卡片的元素效果 / 附加状态「有时候不生效」 | 五连查：① 效果是否包在 `if (hp > 0)` 里（秒杀即跳过）② `image_xscale` 与 `visual_scale_*` 是否同值，且是否在 **Step 里每帧重设**（父 `BeginStep_0` 每帧把 `image_scale` 夹回 1，只在 `Create` 里设等于没设）③ 特效用 `image_speed=1` 时短帧是否 0.1 秒就没了 ④ 派生伤害的 `target_type` 是否跟原卡一致 ⑤ **遍历源是不是 `global.enemy_by_type`**（见 B21：重写 Step 不写 `event_inherited()` 的敌人不在表里，子弹会从它们身上飞过去） | B20 / B21 |
 | 子弹「只穿透障碍、打不到老鼠」 | 别用 `global.enemy_by_type` 当命中遍历源，改 `with (obj_enemy_parent)` 全量扫描 + `can_hit` 过滤；表是敌人自己注册的，57 个重写 Step 的敌人不写 `event_inherited()`、部分根本没注册 | B21 |
+| 敌人「全体无视卡片、只走路不啃」，BOSS 却正常 | 先查判活：新版运行时实例是 `ref instance`，`is_real()` 恒 false → 别用 `is_real` 当类型闸门，改 `is_undefined/is_struct/is_array/is_string/is_bool` 反排除 + `instance_exists` | C28 |
 | 用户对「穿不穿透老鼠」来回改口径 | 口径只留一个开关 `ys_stop`：Create 里初始化、命中非障碍时置 true 并在死亡结算**之后** break、循环外据它销毁。别每次重写整段循环 | B26 |
 | 子弹「提前一格受击」/ 打错格的老鼠 | 命中别叠 bbox 相交，只认「同行 + 同列」；敌人 `image_xscale=1.8` + 声明 bbox 全帧并集 = 1.65 格宽，出生点格心 +30 会探进上一格 8px | B22 |
 | 轰炸卡「陨石砸空地、锁的那只不掉血」 | 开火条件（跨 ±N 行）、落点候选、全额目标三处必须同一套行口径；候选只收本行 + 空地兜底落点 = 永远打不到邻行目标 | B23 |
@@ -777,6 +778,20 @@
   补守卫的写法：`if (os_type != os_android && global.ime_block && native_enable_ime != undefined)`、`if (os_type != os_android && native_stop_mouse_limit != undefined) native_stop_mouse_limit();`。
   用 Python 精确替换时锚点必须唯一 —— `    if (native_stop_mouse_limit != undefined)` 在文件里出现 2 次，要在前面带 `ml_focus_count = 0;\n` 才能唯一定位。
 - **证据**：2026-11-15 第十三轮同步；`objects/obj_file_manager/Step_0.gml` HEAD 版 `os_guard=5` / 2973 B，SRC `337ee95861` 版 `os_guard=0` / 2848 B，SRC 工作区版 `os_guard=0` / 3262 B —— **上游本身就是无守卫版**，不是我们引入的；`extensions/WindowsNative/WindowsNative.yy` 的 `copyToTargets: 66`（Windows + macOS，无 Android）、`ProxyFiles` 只有 `libFvmNativeSupport.dylib`（TargetMask 1）；修复后全仓「无守卫 `native_*` 调用」新增 0（现存 36 处里 26 处是 HEAD 既有设计）。
+
+### C28 新版运行时实例是 `ref instance`，`is_real()` 判活恒 false → 小怪全体无视卡片（只走路不啃）
+- **症状**：安卓包（v2.8.0 同步后）所有非 BOSS 敌人直接走过卡片、永不进入啃食；BOSS 照常拆卡；桌面版同一关卡正常。屏幕诊断读数为 `卡id=ref instance 100264 real=0 iex=1 oex=0 / anc=1 / live卡=0 / live敌=0`，行缓存 `keys=[0:0 1:0 2:0 3:2 4:0 5:3]`（桶被 prune 清空）、`缓存行卡=0` 而 `真值 同行=8`。
+- **错路**：先怀疑 `plant_type`/`feature_type`/`eat_order`/`grid_row`/`attack_range` 正负号/存档迁移/`event_inherited` 缺失/平台守卫；又因为「桌面版正常」而一度归因成「桌面运行时旧、`is_real` 为 true」。**实际桌面版压根没有这套守卫**：`combat_targets_is_live` / `prune` / `row_compact` / `combat_live_or_noone` 在 `D:\gameProject\FVM-Reborn-mod` 里 0 处引用（上游 `49ab6cc2b` 整份 revert 后的旧版，判活只有一句 `combat_target_alive = instance_exists && !object_exists`）。所以「桌面不炸」证明不了运行时差异，只能证明**只有安卓副本走过这条路**——而这条路是 11-14 重新捡回、从未真机验证的守卫补丁。
+- **正确路径**：判活/判句柄不要用 `is_real()` 当类型闸门。新版运行时实例是 `ref instance`（`string(id)` 形如 `ref instance 100264`、`string(obj_index)` 形如 `ref object obj_goblet_lamp`），`is_real()` 返回 **false**，于是 `combat_targets_is_live()` 第一行就把所有活实例判死 → `combat_targets_prune()` 把每行卡桶清空 → `combat_enemy_find_plant()` 全程 `continue` 返回 `noone` → 状态机进不了 `ATTACK`；BOSS 走自己的 Step 不调此函数，所以表现正常。改成「只排除确定不是实例的容器类型」再交给 `instance_exists`：
+  ```gml
+  if (is_undefined(_inst)) return false;
+  if (is_struct(_inst) || is_array(_inst) || is_string(_inst) || is_bool(_inst)) return false;
+  if (_inst == noone) return false;
+  if (!instance_exists(_inst)) return false;
+  if (object_exists(_inst)) return false;   // 排除误传对象索引（实测 ref 实例过 object_exists 为 0）
+  ```
+  同一个坑已在 `scripts/gacha_random_card/gacha_random_card.gml:565` 的注释里记过（ds_map 句柄过 `is_real` 也是 false），当时只修了那一处，没有全仓排查。
+- **证据**：2026-11-16 真机三版屏幕诊断（`obj_battle/Draw_0`，定位后已删除）；`scripts/combat_targets/combat_targets.gml:33-52`（修复点）；`scripts/gacha_random_card/gacha_random_card.gml:562-570`（同类历史坑）。**仍待排查的同型隐患**：`scripts/hex_batch3/hex_batch3.gml:1656` 与 `:2588`（`is_real` 卡 ds_map 卡组元素 → 词条整条失效）、`scripts/obj_pool_deck/obj_pool_deck.gml:284` 与 `:290`（`is_real` 卡对象索引/池 id）。
 
 ## 追加模板
 

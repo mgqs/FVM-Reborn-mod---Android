@@ -32,9 +32,13 @@ function combat_targets_row_value(_inst, _row) {
 /// keeps the same instance id but its object_index is now obj_pool_holder.
 function combat_targets_is_live(_inst, _base) {
     static _ok = {};
-    // 调用方传进来的可能是 undefined / 结构体 / ds 句柄（字段没初始化），
-    // instance_exists 对这些会直接抛错，所以先卡类型：实例 id 与对象索引都是实数。
-    if (!is_real(_inst)) return false;
+    // 调用方传进来的可能是 undefined / 结构体 / 数组 / ds 句柄（字段没初始化），
+    // instance_exists 对前几类会直接抛错，所以先卡类型。
+    // ⚠️ 绝对不能用 is_real() 来卡：新版运行时实例是 `ref instance`，
+    // is_real(实例) 恒为 false（同 gacha_random_card 里 ds_map 句柄的坑），
+    // 这会把所有活实例判死 → 行缓存被清空 → 小怪无视全部卡片、只走路不啃。
+    if (is_undefined(_inst)) return false;
+    if (is_struct(_inst) || is_array(_inst) || is_string(_inst) || is_bool(_inst)) return false;
     if (_inst == noone) return false;
     if (!instance_exists(_inst)) return false;
     // instance_exists(对象索引) 只要该对象还有任意实例就为真，而真正的实例 id
