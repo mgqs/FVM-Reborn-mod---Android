@@ -61,6 +61,7 @@ if stun_timer > 0{
 else{
 	is_stun = false
 	stun_sprite = spr_mouse_stun
+	stun_hide_icon = false
 }
 if flash_value > 0 {
 	flash_value -= 10
@@ -363,6 +364,9 @@ switch(state) {
         attack_timer++;
         if (attack_timer >= current_atk_cycle) {
             // 对目标植物造成伤害
+            // Android（MISTAKES C29）：target_plant 是跨帧存的实例 id，可能已在同一 step 内
+            // 被别的子弹打死 / 被对象池换走；combat_live_or_noone 把死 id 折成 noone，
+            // `with (noone)` 是空操作，从构造上避免 "Unable to find instance for object index"。
             with (combat_live_or_noone(target_plant, obj_card_parent)) {
 				if !invincible{
 					// 海克斯第二批：反伤 / 防御类击退 / 火苗护盾 / 炼金龙魂抗性 统一走这里

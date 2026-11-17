@@ -1,4 +1,3 @@
-combat_targets_invalidate(object_index);
 image_xscale = 1.8
 image_yscale = 1.8
 image_speed = 0
@@ -37,11 +36,17 @@ current_frozen = false
 is_stun = false
 stun_timer = 0
 stun_sprite = spr_mouse_stun
+stun_hide_icon = false   // 鲁班河豚毒素：定身但不画默认星星
 mouse_id = ""
 giant_type = false
 target_type = "normal"
 is_boss = false
 can_dropped = false
+// 不参与「波次清场」判定（2026-11-17）：默认 false，只有定时刷新的干扰单位
+// （obj_bat_mouse / obj_kuafu_bat）在各自 Create 里置 true。
+// obj_battle/Step_2 统计 current_wave_alive_count / current_wave_hp 时会跳过它们，
+// 否则它们赖着不走会把「进入下一波 / 召唤 BOSS / 结算」无限拖住。
+wave_ignore = false
 
 // =======猫驱赶相关=======
 is_scare = false

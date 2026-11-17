@@ -1,3 +1,67 @@
+# v2.9.0
+## 新内容
+- **同步上游 `3.0.2.19`（含「金马盛典 / 转转」活动，2026-11-17）**：
+  - 幸运星转盘 `obj_zz_bg`：18 格盘面（7+2+2+7）、跑灯、结果弹窗；坐标按预览稿 1080×720
+    以 `zz_k = 1.5` / `zz_ox = 150` 折算到 1920×1080 房间。
+  - 幸运星商城 `obj_zz_shop_bg`：整份改成商城画法（`spr_shop_bg` 0.9 + `spr_shop_bg_2` 1.8、
+    4×4 = 16 格固定绘制、翻页箭头、`spr_shop_buy_btn` 购买按钮、压暗 0.5），
+    新增兑换确认框 `obj_zz_buy_confirm`（`spr_battle_escape_menu` 1.5 + `spr_common_button`）。
+  - 地图页入口 `obj_zz_enter`（1010, 20，深度 -3，与诸神/跨服/龙渊入口同排），
+    由 `objects/obj_mod_manager/Step_0.gml` 在 `room_map` / `room_menu` 建实例。
+  - 抽奖与存档：`scripts/zz_lottery_init/zz_lottery_init.gml` 注册奖池与格位；
+    `zz_save_init()` 落 `global.save_data.player.zz_pulls / zz_pity_level / zz_spent`。
+  - 新精灵 31 个 `spr_zz_*` + `spr_joker_bat_ash` + `spr_mod_cs_exchange_card`；
+    新音效 3 个（`snd_huojianzhu_hit` / `snd_snowrabbit_hit` / `snd_tanhuanghu_hit`）。
+  - 新对象 `obj_bbq_burn_cell`（烧烤灼烧格）、`obj_water_god_poison`（水神毒池）、
+    `obj_joker_bat_ash`（灰烬蝙蝠鼠）；新脚本 `can_target_on`、`mod_bullet_hazard`。
+  - 跨服商店新增「进化凭证」：`obj_cross_server_shop/Mouse_4.gml` 的 `_is_credit` 加
+    `gear_evo` 分支，`mod_gear_evo_buyable_locked()` 判可买。
+## 优化与修复
+- **炎帝（终转前）子弹改「夹在两行之间」**：缝隙制落点、三行受击 1/2/1（场上炎帝 > 7 只
+  时追加缝隙 R+2 → 1/2/2/1）；`obj_shennong_god_bullet_h` 用 `cover_a / cover_b` 按行号 +
+  水平距离 26px 命中，SAP 候选集传 `y_margin = grid_cell_size_y`。
+- **炎凰马**：攻击力换官方「C. 固定轨迹类」表（75~1400，二转同步 ×1.5 口径）；
+  横向炎凰 Create 留 `phoenix_vx = undefined`、发射处写初速、Step 每帧锁死单程，
+  边界销毁按 `move_x` 正负判象限；天邪池的炎凰复刻同步。
+- **池化弹道三项修复**：`obj_pool` 回收时 `image_xscale / image_yscale = 1`、`wg_poison_dmg /
+  chance / ticks` 清零、`instance_change` 后同步 `visual_scale_x / y`（治镜像弹复用后「倒着飞」）。
+- **「全部美食冷却 ±X%」词条生效**：`hex_card_cooldown()` 乘一次 `global.hex_mult.cycle`
+  （与按分类 / 按卡 id 的倍率一律相乘），修「我是老曙」`cycle: -0.5` 在卡槽冷却上空转。
+- **蝙蝠鼠 / 变异蝙蝠鼠**：`wave_ignore = true`，不再卡波次与结算。
+- **合成屋材料条改两行**：`card_material_id_list` 15 项 + `card_material_row_break = 7`、
+  `fusion_material_id_list` 7 项、`spices_use_order` 7 香料、`clover_use_order` 8 四叶草。
+- **删掉 4 个失效事件文件**：`obj_donut` / `obj_gongjiang_god` / `obj_houyi_god` / `obj_joker`
+  的 `Other_21.gml`（事件表已同步删除该项）。
+## 安卓适配（本次同步的取舍）
+- **战斗索敌保留安卓侧 C29 实现**：`scripts/combat_targets/combat_targets.gml` 不覆盖为上游
+  行桶版 —— 目标版是函数超集（`combat_targets_begin_step` / `combat_targets_invalidate` /
+  `combat_targets_is_live` / `combat_live_or_noone`，被 30+ 子弹、投手与对象池调用），
+  且已删掉跨帧缓存 `combat_row_target`；上游该缓存无外部读者，不覆盖无功能损失。
+- **`scripts/obj_pool/obj_pool.gml`**：取上游三项修复，并把 4 处 `combat_targets_invalidate`
+  （非池化销毁前 / 入池前 / 真销毁 / 清池）按锚点插回。
+- **`objects/obj_enemy_parent/Step_0.gml` / `objects/obj_zodiac_projectile/Step_0.gml`**：
+  取上游逻辑后重新嫁接 `combat_live_or_noone(target_plant, obj_card_parent)` 与
+  `combat_targets_is_live(e, obj_enemy_parent)` 两处判活。
+- **`objects/obj_craft_bg/Draw_0.gml` + `Create_0.gml`**：材料条两行改造落地后，
+  尾部双指滑动整块（`device_mouse_check_button(_d, mb_left)` 0..9 触点取中点、
+  `!tg_sb.on && !evo_sb.on` 滑块优先、按 `craft_top_tab` 分流 `tg_scroll_target` /
+  `evo_scroll_target` / `y_offset_target`，96px 折算）与 `two_touch_scroll_*` 初始化按原口径嫁接；
+  文件末尾 `panel_anim_end_parts(id, craft_parts, 260);` 保留（强化页唯一收尾）。
+- **`objects/obj_game_init/Create_0.gml`**：保留安卓受保护段（os 守卫、Mod 目录、虚拟按键、
+  缓释开关、授权启动块），只把 `global.game_version` 点改为 `"3.0.2.19"`。
+- **受保护落点自检 35 条全绿**：`obj_mobile_buttons` 四件套、`obj_battle/Step_0` 的
+  `global.mobile_shift_pressed`、六个双指滑动 Draw/Create、`obj_craft_bg`
+  Destroy/CleanUp 的 `surface_free(card_surface)`、`ui_input` + 5 处
+  `ui_back_click_pressed()`、`GuiStack` 的 `pnl_recording`、`SearchBox` 与
+  `obj_material_sell_confirm` 的 4 参 `keyboard_virtual_show`、`obj_auth_gate` 三件套、
+  `auth_client`、`NativeUtil`、`options_android`、`MapDownloadManager`、`external_mod_system`。
+- **新精灵纹理组**：仍走本项目 ASTC 6x6 口径，组名与桌面端一致 —— `spr_zz_*` → `cards`、
+  `spr_joker_bat_ash` → `effects`、`spr_mod_cs_exchange_card` → `Default`；
+  本项目 14 个组的 `customOptions` 统一 `ASTC 6x6 -medium`，换组不改变压缩格式。
+- **顺手修 `objects/obj_readyroom_manager/Step_0.gml:8`**：删掉残留的裸
+  `mouse_check_button_pressed(mb_right)`（与 `ui_back_click_pressed()` 并联，安卓上双指同按 /
+  快速连点会被引擎映射成 `mb_right`，会误弹退出确认窗；规则第 18 条禁止另写裸右键判定）。
+
 # v2.8.3
 ## 新内容
 - **安卓对局内新增「缓释」虚拟按钮**（左下角最上一个，Esc / Shift / 缓释 三键竖排）：

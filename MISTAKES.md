@@ -853,6 +853,30 @@
   改完立刻用 `git status -sb` + `git log origin/main -1` 核对远端确实前进。**不要**把这两条写进仓库 `.git/config`（`git config --global` 更不行）：等于全机永久不校验证书。
 - **证据**：2026-11-17 推送 `ff9f923c1` / `8b32a2dc2`，前两次（含 `schannelCheckRevoke=false`）失败、加 `sslVerify=false` 后 `d90fbbc16..8b32a2dc2 main -> main`。
 
+### A32 用正则统计「源 yyp 里有、目标 yyp 里没有」的资源条目，恒等 44（一条都没匹配上）
+- **症状**：`an_yyp.py` 先报「缺 44 项」，准备插入时却一条也找不到插入点；把正则单独跑，`re.findall` 返回空。
+- **错路**：正则写成 `^    \{"id":\{"name":"([^"]+)","path":"([^"]+)",?\},?\},?\n$` —— 想在行尾再要求一个换行符。
+- **正确路径**：`re.M` 下 `$` 匹配的是「换行符之前」的位置，`\n$` 永不成立。写成 `\},?$` 收尾即可；另注意两边 yyp 风格不同：源带尾逗号（`…yy",},},`）、目标不带（`…yy"}},`），正则要 `,?` 通吃。
+- **证据**：`.codex-tmp/an_yyp.py`，2026-11-17 同步 3.0.2.19 这轮；修正后 `git diff --stat FVM_Reborn_makk.yyp` = 46 insertions、复核缺项 0。
+
+### A33 Python `%` 模板里写 `"%Name"` 直接 `ValueError: unsupported format character 'N' (0x4e)`
+- **症状**：拼 GameMaker 文件夹 `.yy` 的模板字符串一格式化就炸，整条命令不执行。
+- **错路**：以为 `%` 只在 `%(name)s` 形态才生效。
+- **正确路径**：模板里凡是要输出字面量 `%` 一律写 `%%`（GMS 的 `.yy` 大量使用 `$GMFolder` / `%Name` / `%Path` 这种键名）；或者改用 `str.replace` / f-string 拼装。
+- **证据**：`.codex-tmp/an_yyp.py` 的 `FOLDER_LINE`，2026-11-17。
+
+### A34 资源父文件夹的 `.yy` 连源工程磁盘上都没有（只存在于 IDE 内存里）
+- **症状**：31 个新增 `spr_zz_*` 的 `"parent"` 全指向 `folders/精灵/mod/zhuanzhuan.yy`，但该文件在源仓库工作副本里 `os.path.exists` = False；照原样拷过去会在 IDE 里挂到空文件夹。
+- **错路**：只信 `git ls-files`（那里也没有），于是想跳过文件夹注册。
+- **正确路径**：拿同级真实存在的 `folders/物体/mod/zhuanzhuan.yy` 当模板生成该文件（`$GMFolder` / `%Name` / `folderPath` / `listItems` 填实际条目），再把它挂进 `folders/精灵/mod.yy` 的 `folders` 数组。判断「某文件夹该不该存在」看资源的 `parent` 字段，不要看源仓库有没有那个文件。
+- **证据**：`.codex-tmp/an_mkfolder.py`，2026-11-17；生成后 31 个精灵 + 4 个 `obj_zz_*` 全部有父文件夹。
+
+### A35 受保护层自检按「规则文描述」猜断言字符串，报了两条假异常
+- **症状**：`an_protect.py` 首跑报 `objects/obj_game_init/Create_0.gml 缺 keyboard_virtual` 与 `objects/obj_auth_gate/Draw_0.gml 缺 os_type == os_android`，但这两处代码其实都正常。
+- **错路**：按 `.trae/rules/android设置.md` 的文字描述直接推断标记串。
+- **正确路径**：写断言前先用 `rg -n` 把真实标记打出来再抄。事实：软键盘只落在 `objects/SearchBox/Create_0.gml`、`objects/obj_auth_gate/Create_0.gml`、`objects/obj_material_sell_confirm/Create_0.gml` 三处（`obj_game_init` 只持有 `global.mobile_slowmo_enabled`）；`obj_auth_gate/Draw_0.gml` 的粘贴按钮守卫是 `if (android_paste)`，变量定义在 `objects/obj_auth_gate/Create_0.gml:98` `android_paste = (os_type == os_android);`。
+- **证据**：`.codex-tmp/an_protect.py` 首跑 2 条异常，改成真实标记后 35/35 通过（`.codex-tmp/protect_report.txt`）。
+
 ## 追加模板
 
 ```

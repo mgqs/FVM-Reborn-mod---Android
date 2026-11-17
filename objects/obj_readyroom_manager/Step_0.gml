@@ -5,7 +5,9 @@
         // 从头开始播放新实例
         global.audio.play(readyroom_music, 0, 0);
     }
-if keyboard_check_pressed(vk_escape) || ui_back_click_pressed() || mouse_check_button_pressed(mb_right){
+// 安卓：裸 mb_right 判定必须删（双指同按 / 快速连点会被引擎映射成 mb_right，会误弹退出框）；
+// 桌面行为不变 —— ui_back_click_pressed() 在 Windows 上就是 mouse_check_button_pressed(mb_right)。
+if keyboard_check_pressed(vk_escape) || ui_back_click_pressed(){
 	// 2026-11-16 用户口径：连点两次要停在「是否退出」框上，不能把框点没。
 	//   原来这里是 toggle（框已存在就 instance_destroy），右键/ESC 连点两次 =
 	//   弹出来又被自己关掉，玩家看到的就是「没框、直接离开」。
