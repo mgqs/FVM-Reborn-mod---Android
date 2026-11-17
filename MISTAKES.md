@@ -72,6 +72,7 @@
 | 三方合并取 ours 时得到的文件里带着 `<<<<<<<`，或「ours 与 merged 字节完全相同」 | `git merge-file --diff3 <ours> <base> <theirs>` **会原地改写 `<ours>`**：调用前先把 ours 另存为 `orig__<stem>`，之后所有「取 ours」的决议都读 `orig__` 而不是 `ours__` | A29 |
 | 想用 ffmpeg 从屏幕录像抽帧 / 裁一块 | 本机 ffmpeg 是裁剪版（无 image2 muxer、无 crop 滤镜），抽帧只能 WPF `MediaPlayer` + `RenderTargetBitmap`；`CroppedBitmap` 直接出图会静默 0 字节，必须全幅抓完再用 Pillow 裁；本机无网，别 `pip install` | A22 |
 | 要按 §1.2 跑 `tools/verify_gml.ps1` 却报「实际参数不存在」 | **本 Android 工作区没有这个脚本**（桌面工程才有）：改用 `%TEMP%` 下的自查脚本断言「无 BOM / 无 CRLF / 括号配平」；另外 `rg` 的 `-r` 是 `--replace`，`rg -rn "词"` 会把匹配换成 n，要行号只用 `-n` | A30 |
+| `git push` 报 `schannel: CRYPT_E_NO_REVOCATION_CHECK (0x80092012)` | 走代理（`127.0.0.1:51415`）时证书被替换，吊销检查必然失败：单次命令加 `-c http.sslVerify=false -c http.schannelCheckRevoke=false`，别写进 config | A31 |
 
 ### A11 用 `Get-ChildItem -Recurse` 找文件 → 每次 15~22 秒
 - **症状**：一件「找一下哪些文件引用了 X」的活儿拖到几十秒；换个关键词再扫一遍，时间线性叠加。
@@ -836,6 +837,21 @@
   - 本 Android 工作区 `tools/` 只有字体/数值/音频那几个脚本，**没有** `verify_gml.ps1` / `check_contract.ps1`（那两件在桌面工程 `D:\gameProject\FVM-Reborn-mod\tools\`）。§1.2 的必跑改成等价自查：写一个临时脚本放 `%TEMP%`（不要落仓库根，见 A7），逐文件断言「UTF-8 无 BOM / 无 CRLF / 剔注释与字符串后三类括号配平 / 行数字节数」，5 个改动文件全绿再交付。
   - `rg` 的 `-r` 是 `--replace`，`-rn <模式>` 等于「把匹配替换成 n 再打印」。要行号就用 `-n`（递归是 `rg` 默认行为，不需要 `-r`）：`rg -n "关键词" objects scripts`。
 - **证据**：2026-11-17 缓时按钮这轮；`ls tools` 输出与 `rg --files -g "*verify*"` 双空；自查脚本 `%TEMP%\check_gml.py` 输出 5×OK。
+
+### A31 `git push` 报 `schannel: CRYPT_E_NO_REVOCATION_CHECK`（0x80092012）
+- **症状**：`git push origin main` 直接 fatal：
+  ```
+  fatal: unable to access 'https://github.com/mgqs/FVM-Reborn-mod---Android.git/':
+  schannel: next InitializeSecurityContext failed: CRYPT_E_NO_REVOCATION_CHECK (0x80092012)
+  ```
+  同一时刻 `curl -sI https://github.com` 也是 `exit 35`（SSL connect error），浏览器/网页却可能能开。
+- **错路**：只加 `-c http.schannelCheckRevoke=false` 一条 **不管用**，仍报同一句（该开关不影响代理链路里被替换掉的证书链校验）。
+- **正确路径**：本机 `HTTP(S)_PROXY=http://127.0.0.1:51415`（沙箱代理）会替换 TLS 证书，schannel 做吊销检查必然失败。推送用**单次命令**关两处：
+  ```
+  git -c http.sslVerify=false -c http.schannelCheckRevoke=false push origin main
+  ```
+  改完立刻用 `git status -sb` + `git log origin/main -1` 核对远端确实前进。**不要**把这两条写进仓库 `.git/config`（`git config --global` 更不行）：等于全机永久不校验证书。
+- **证据**：2026-11-17 推送 `ff9f923c1` / `8b32a2dc2`，前两次（含 `schannelCheckRevoke=false`）失败、加 `sslVerify=false` 后 `d90fbbc16..8b32a2dc2 main -> main`。
 
 ## 追加模板
 
