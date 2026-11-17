@@ -77,8 +77,10 @@ if (os_type != os_android) {
     global.native_util.get_mod_root()
 }
 
-// 移动端虚拟按键（左下角 Shift/Esc），持久化跨房间存活
+// 移动端虚拟按键（左下角 Esc / Shift / 缓释），持久化跨房间存活
 global.mobile_shift_pressed = false;
+// 缓释开关：开启后「点卡槽但还没放下」期间压到 30 帧（消费端 obj_mobile_buttons/Step_0）
+global.mobile_slowmo_enabled = false;
 if (os_type == os_android) {
     instance_create_depth(0, 0, -9999, obj_mobile_buttons);
 }

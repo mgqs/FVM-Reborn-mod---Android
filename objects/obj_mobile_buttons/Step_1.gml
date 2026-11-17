@@ -12,12 +12,14 @@ if (shift_pulse > 0) {
 }
 if (esc_flash > 0) esc_flash--;
 if (shift_flash > 0) shift_flash--;
+if (slow_flash > 0) slow_flash--;
 
 var _w = display_get_gui_width();
 var _h = display_get_gui_height();
 var _x = btn_margin;
 var _esc_y = _h - btn_margin - btn_size;
 var _shift_y = _esc_y - btn_size - btn_gap;
+var _slow_y = _shift_y - btn_size - btn_gap;
 var _btn_w = btn_size * 1.5;
 var _in_battle = instance_exists(obj_battle);
 
@@ -33,9 +35,16 @@ for (var i = 0; i < 5; i++) {
         esc_flash = 10;
         continue;
     }
-    // Shift（上）：仅对局内生效
+    // Shift（中）：仅对局内生效
     if (_in_battle && _mx >= _x && _mx <= _x + _btn_w && _my >= _shift_y && _my <= _shift_y + btn_size) {
         global.mobile_shift_pressed = true;
         shift_flash = 10;
+        continue;
+    }
+    // 缓释（上）：仅对局内生效，点一次切换开 / 关；真正的压帧与还原在 Step_0 里做
+    if (_in_battle && _mx >= _x && _mx <= _x + _btn_w && _my >= _slow_y && _my <= _slow_y + btn_size) {
+        var _slow_on = variable_global_exists("mobile_slowmo_enabled") && global.mobile_slowmo_enabled;
+        global.mobile_slowmo_enabled = !_slow_on;
+        slow_flash = 10;
     }
 }

@@ -1,3 +1,42 @@
+# v2.8.3
+## 新内容
+- **安卓对局内新增「缓释」虚拟按钮**（左下角最上一个，Esc / Shift / 缓释 三键竖排）：
+  - 点一次开启（按钮转深蓝常亮），此后「点了卡槽但还没放下」这段窗口里帧率压到 **30**，
+    放下 / 取消选中 / 换成铲子即回正常帧率；再点一次关闭，开关在本局内保持。
+  - **按钮文字直接标状态**：开启显示「缓释:开」，关闭显示「缓释:关」（`Draw_64.gml` 里一句三元，
+    文字随 `global.mobile_slowmo_enabled` 每帧取值，不再靠底色猜）。
+  - 实现落点：开关 `global.mobile_slowmo_enabled`（`objects/obj_game_init/Create_0.gml`）、
+    点击切换 `obj_mobile_buttons/Step_1.gml`、压帧与还原 `obj_mobile_buttons/Step_0.gml`、
+    按钮绘制 `obj_mobile_buttons/Draw_64.gml`；`obj_mobile_buttons` 的 `eventList` 补登 Step 事件。
+  - 判据与海克斯「时间」词条同口径：`global.selected_slot` 指向的卡槽 `is_selected` 为真且实例还活着
+    （只看 `selected_slot != noone` 会在卡槽销毁后永远为真，整局卡在 30 帧）。
+  - 还原不硬写 60：压帧前记下当时的真实帧率（Shift 加速中即 120），放手后按它回去；
+    海克斯「时间」/「速度锁」词条接管帧率期间本功能自动让路，避免两套每帧互相覆盖。
+  - 暂停、情报岛 / 海克斯选词条面板盖住时恢复原帧率，不看「正在压帧」把弹窗拖成 30 帧。
+
+# v2.8.2
+## 优化与修复
+- **修掉战斗偶发崩溃 `Unable to find any instance for object index '<id>'`**（栈顶
+  `gml_Script_combat_enemy_in_rows` / `combat_enemy_nearest_in_row`，报错行号一律 -1，
+  实测崩在 `obj_double_long_bao` 的 Step）：
+  - 病根是索敌的**取数路径**——行桶（`combat_targets_row`）存的是「本 step 首次建桶那一刻」
+    的实例 id 快照，建桶之后同一 step 里死掉 / 被对象池收走的敌人还留在数组里，
+    `instance_exists` 对同帧刚销毁的实例并不可靠，紧接着读 `id.字段` 或 `with (id)`
+    就被 GM 当成「对象索引」解析而抛错。C26 那轮加的三条判活（`instance_exists` /
+    `object_exists` / `obj_pool_holder`）挡不住这一类。
+  - 改法：`combat_enemy_in_rows` 改成 `for` 行 + `with (obj_enemy_parent)` 引擎枚举，
+    `combat_enemy_nearest_in_row` 改成一次枚举取列差最小，`combat_enemy_find_plant`
+    改成一次 `with (obj_card_parent)`；跨帧缓存 `combat_row_target`
+    （唯一读取点就在第一个函数内部）删除，id 不再跨帧存活。
+  - **行桶本体整段删除**：`combat_targets_state` / `combat_targets_row` /
+    `combat_targets_row_compact` / `combat_targets_prune` 全部移除，索敌只留
+    「引擎枚举 + 当场过滤」一条路径。三个旧入口保留为空实现，避免牵动 24 处调用点
+    （池回收/真销毁/清池、卡与敌的 Create·Destroy、生成口、Begin Step、卡片摆放换行）。
+  - 语义保持不变：多行卡（后羿 / 射日 / 爱神 / 欧丁）仍是「第一行优先」，行内仍是原生 `with`
+    顺序，同距离仍是先登记者胜；不带血量判定，快死的敌人照样能起手（与重构前一致）；
+    啃食仍是 `eat_order` 四档、同档后登记者覆盖先登记者。
+  - 代价：每张卡每帧多扫一遍场上敌人、每只鼠每帧多扫一遍卡片（同屏各 ≤ 40）。
+
 # v2.8.1
 ## 新内容
 - 同步上游 `567bdbdebf`（PR44 + `ae57bac15f` 30218 + `abc5752b62` 合成屋，2026-11-16）：

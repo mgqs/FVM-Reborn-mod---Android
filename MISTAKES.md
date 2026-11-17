@@ -62,6 +62,7 @@
 | 要给关卡配鼠 / 判断某只鼠能不能放这张图 | 水陆只认 `register_enemy` 的 `feature`（`water` 只能落水行，`row` 写 -1 交给引擎），别按中文名猜；单行注册是 `"feature":"land"`，正则要容带引号的键 | C24 |
 | Mod 生效了但 Mod 管理器列表里没有那个包 | 界面和加载器各扫一遍目录，别只信界面那次 `file_find_first`：列表取「磁盘扫描 ∪ `global.external_mod_loaded` ∪ `global.external_mod_errors`」并集，同时把 `目录：<mod_root>` 画在界面上 | C25 |
 | 战斗偶发 `Unable to find instance for object index`，栈顶是 `combat_enemy_nearest_in_row` / `combat_enemy_in_rows` | 别只查敌人的 `Destroy_0`：`obj_pool_release()` 用 `instance_change` 回收，且 97 个敌人子对象的 `Destroy_0` 没写 `event_inherited()` → 先在池回收/销毁/清池三处显式 `combat_targets_invalidate`，再让查询函数用 `combat_targets_is_live` 剪枝，再把**所有**存下来的目标改成 `with (combat_live_or_noone(x, base))`（含子弹类 16 处与快照循环 3 处），最后确认玩家跑的不是旧 APK（改完源码 ≠ 修好） | C26 |
+| 修了 C26 之后**仍**崩同一句（行号 -1，落在 `combat_enemy_*` 索敌） | 别再往判活函数加判据：病根是**取数路径**（行桶快照 / 跨帧缓存）存的是 id，同帧刚死/刚被池收的追不上。敌人查询一律 `with (obj_enemy_parent)` 引擎枚举（多行就 `for` 行 + 行内过滤），缓存 `combat_row_target` 删掉 | C29 |
 | 安卓上目录里明明有 Mod 包，`file_find` 枚举出来 0 个 | 安卓/iOS 的 `file_find_*` 返回**完整路径**而不是名字：一律走 `global.native_util.android_list_dir()` / `android_list_subdirs()`，不要拿条目名拼 `目录 + "/" + 名字` | A26 |
 | 上一轮改的代码「凭空消失」、用户复测报「根本没这个文件」 | 先 `git reflog`：出现 `reset: moving to <sha>` 就是上游同步 `git reset --hard` 抹掉了**未提交**改动。动完立刻 `git diff > .codex-tmp/xxx.patch` 存快照或提交，别让改动以未提交状态过夜 | A27 |
 | 写完 `.nomedia`，相册照样显示 Mod 图片 | `.nomedia` 只挡之后的扫描，已入库的行不会消失。把图片搬进以 `.` 开头的子目录（MediaProvider 整目录跳过）并删原文件才是确定性做法 | C27 |
@@ -70,6 +71,7 @@
 | 上游同步后某个 `.gml` 的 `os_type != os_android` 守卫「凭空消失」，编译不报错、安卓一进界面就炸 | 同步后立刻跑「HEAD 版本 vs 现值」的守卫标记比对：`git grep -l -F "os_type != os_android" HEAD` 逐文件数标记数，少了就补回 | A28 |
 | 三方合并取 ours 时得到的文件里带着 `<<<<<<<`，或「ours 与 merged 字节完全相同」 | `git merge-file --diff3 <ours> <base> <theirs>` **会原地改写 `<ours>`**：调用前先把 ours 另存为 `orig__<stem>`，之后所有「取 ours」的决议都读 `orig__` 而不是 `ours__` | A29 |
 | 想用 ffmpeg 从屏幕录像抽帧 / 裁一块 | 本机 ffmpeg 是裁剪版（无 image2 muxer、无 crop 滤镜），抽帧只能 WPF `MediaPlayer` + `RenderTargetBitmap`；`CroppedBitmap` 直接出图会静默 0 字节，必须全幅抓完再用 Pillow 裁；本机无网，别 `pip install` | A22 |
+| 要按 §1.2 跑 `tools/verify_gml.ps1` 却报「实际参数不存在」 | **本 Android 工作区没有这个脚本**（桌面工程才有）：改用 `%TEMP%` 下的自查脚本断言「无 BOM / 无 CRLF / 括号配平」；另外 `rg` 的 `-r` 是 `--replace`，`rg -rn "词"` 会把匹配换成 n，要行号只用 `-n` | A30 |
 
 ### A11 用 `Get-ChildItem -Recurse` 找文件 → 每次 15~22 秒
 - **症状**：一件「找一下哪些文件引用了 X」的活儿拖到几十秒；换个关键词再扫一遍，时间线性叠加。
@@ -802,6 +804,38 @@
   2. `git merge-file --diff3 <tmp_ours> base theirs`，**`<tmp_ours>` 拷自 `orig__` 的副本**，不是 `orig__` 本身；
   3. 决议函数 `read(stem, 'ours')` 一律读 `orig__`，`read(stem, 'merged')` 读合并产物。产出 `final__` 后强制断言 `'<<<<<<<' not in text`。
 - **证据**：2026-11-16 第十四轮同步；`.codex-tmp/merge_d14.py` 首版触发，`scripts/combat_targets/combat_targets.gml` 的 `merged__` 与 `ours__` sha1 同为 `d3191719e30b`（15199 B），加 `orig__` 快照后重跑才区分出「merged == ours 是因为 TGT 已把上游该函数合进来」，最终 4×ours 决议才正确（终版 214 行，保留 `combat_target_alive` 定义 + 我方 `combat_targets_is_live`）。
+
+### C29 `combat_enemy_in_rows` / `combat_enemy_nearest_in_row` 仍崩（行号 -1）→ 敌人查询别读行桶，引擎枚举活实例
+- **症状**：卡片 Step 直接弹错框，栈顶是索敌函数、**行号 -1**：
+  ```
+  of Step Event0 for object obj_double_long_bao:
+  Unable to find any instance for object index '104446'
+  at gml_Script_combat_enemy_in_rows  (line -1)
+  ```
+  `obj_double_long_bao` 只是撞上的一例，任何调 `combat_enemy_in_rows` 的卡（长包全家、玉米、咖啡杯、欧丁、后羿…）都可能崩。
+- **错路**：按 C26 的思路继续加固判活 —— `combat_targets_is_live` 里 `instance_exists` + `object_exists` + `object_index == obj_pool_holder` 三条都齐了，`with` 一个都没留，**照崩**。因为病根不在判据，在**取数路径**。
+- **正确路径**：**别 `with` / 别读行桶里的 id**。行桶是「本 step 首次建桶那一刻」的快照，建桶之后同一 step 里死掉 / 被池回收的敌人还留在数组里，后面任何判据都追不上（`instance_exists` 对同帧刚销毁的实例不可靠）；`id.字段` 或 `with (id)` 一碰就抛上面那句，且报错行号恒为 -1，看着像崩在函数入口，容易让人以为入口参数有问题。
+  - `combat_enemy_in_rows` → `for` 行 + `with (obj_enemy_parent)` 行内过滤（保住「多行卡第一行优先、行内原生 with 顺序」）；
+  - `combat_enemy_nearest_in_row` → 一次 `with (obj_enemy_parent)` 扫完取列差最小（严格 `<`，同距先登记者胜）；
+  - 跨帧缓存 `combat_row_target`（唯一读取点就在 `combat_enemy_in_rows` 里）一并删除，别再让 id 跨帧存活。
+  - `combat_enemy_find_plant`（敌人啃卡）也换成一次 `with (obj_card_parent)`：原先靠行桶取「本行卡片」，
+    同帧死掉的卡一样会崩。定序语义不变 —— `eat_order` 分四档、**同档内后登记的覆盖先登记的**，
+    靠的正是原生 `with` 顺序，与建桶时一致；矮卡 / 高跷鼠白名单 / 梯子宿主 / 身前判定的顺序照旧。
+  - **行桶本体整段删除**：`combat_targets_state` / `combat_targets_row` / `combat_targets_row_compact` /
+    `combat_targets_prune` 全部移除。只剩三个入口做兼容空实现 —— `combat_targets_invalidate`（11 处
+    调用：池回收 / 真销毁 / 清池 / 卡与敌的 Create·Destroy / `src_hook_function`）、
+    `combat_targets_begin_step`（`obj_battle/Create_0`、`obj_mod_manager/Step_1`）、
+    `combat_targets_row_value`（13 处摆放 / 传送 / 击退改行，现在直接返回行号）。
+- **代价**：每张卡每帧多扫一遍场上敌人、每只鼠每帧多扫一遍卡片（同屏各 ≤ 40），与 `d6ae7a5b7d` 重构前一致；换来「不存在悬空 id」这个结构性保证。
+- **证据**：`scripts/combat_targets/combat_targets.gml:1-21`（行桶删除说明 + 三个空实现）、`:84-155`（三个查询全改引擎枚举）；判活三条判据见同文件 `:53-74`；桌面工程同日同症（`obj_stinky_tofu_pult` / `combat_enemy_nearest_in_row`，index 100203）已用同一口径修好；2026-11-17 日志。
+
+### A30 本 Android 工作区没有 `tools/verify_gml.ps1`；`rg -rn` 把搜索干成了替换
+- **症状**：① 按 §1.2 跑 `powershell -File tools\verify_gml.ps1 objects\obj_mobile_buttons` 报「实际参数不存在」（Bash 里调还会先被安全策略拦掉，要求改用 PowerShell 工具）；② `rg -rn "obj_card_slot" objects scripts` 的输出里匹配文本全变成了 `n`，看上去像「文件里写的就是 n」。
+- **错路**：① 以为脚本只是被执行策略挡住，换 PowerShell 工具重跑一遍才确认是**文件真的不在这个工作区**；② 把 `-rn` 当成「递归 + 显示行号」。
+- **正确路径**：
+  - 本 Android 工作区 `tools/` 只有字体/数值/音频那几个脚本，**没有** `verify_gml.ps1` / `check_contract.ps1`（那两件在桌面工程 `D:\gameProject\FVM-Reborn-mod\tools\`）。§1.2 的必跑改成等价自查：写一个临时脚本放 `%TEMP%`（不要落仓库根，见 A7），逐文件断言「UTF-8 无 BOM / 无 CRLF / 剔注释与字符串后三类括号配平 / 行数字节数」，5 个改动文件全绿再交付。
+  - `rg` 的 `-r` 是 `--replace`，`-rn <模式>` 等于「把匹配替换成 n 再打印」。要行号就用 `-n`（递归是 `rg` 默认行为，不需要 `-r`）：`rg -n "关键词" objects scripts`。
+- **证据**：2026-11-17 缓时按钮这轮；`ls tools` 输出与 `rg --files -g "*verify*"` 双空；自查脚本 `%TEMP%\check_gml.py` 输出 5×OK。
 
 ## 追加模板
 

@@ -5,18 +5,21 @@
 
 ---
 
-## 1. Esc / Shift 虚拟按键（左下角）
+## 1. Esc / Shift / 缓释 虚拟按键（左下角）
 
-功能：游戏左下角绘制两个虚拟按键。Esc 在下、全局生效；Shift 在上、仅对局内（`instance_exists(obj_battle)`）生效。绘制放 Draw GUI（每帧），输入处理放 Begin Step（保证先于其它对象 Step）。
+功能：游戏左下角竖排绘制三个虚拟按键。Esc 在最下、全局生效；Shift 居中、仅对局内（`instance_exists(obj_battle)`）生效；缓释在最上、仅对局内生效。绘制放 Draw GUI（每帧），输入处理放 Begin Step（保证先于其它对象 Step），帧率接管放 Step（每帧跑一次，与卡槽选中状态对齐）。
+
+「缓释」语义：点一次开启（`global.mobile_slowmo_enabled`），此后**点了卡槽但还没放下**这段窗口里把帧率压到 30，放下 / 取消选中 / 换铲子即还原。判据与海克斯「时间」词条同口径（卡槽 `is_selected` 为真且实例还活着），还原按压帧前记下的真实帧率（Shift 加速中即 120），不硬写 60。
 
 | 文件 | 位置 | 说明 |
 |------|------|------|
-| `objects/obj_mobile_buttons/obj_mobile_buttons.yy` | 整个文件 | 对象定义：`persistent=true`，事件 = Create / Begin Step / Draw GUI |
-| `objects/obj_mobile_buttons/Create_0.gml` | 整个文件 | 初始化按钮尺寸、间距、边距，以及脉冲/闪烁计时变量 |
-| `objects/obj_mobile_buttons/Step_1.gml` | 整个文件 | Begin Step：触摸命中判定 → `keyboard_key_press/release` 模拟按键；Shift 仅对局内、Esc 全局 |
-| `objects/obj_mobile_buttons/Draw_64.gml` | 整个文件 | Draw GUI：左下角绘制圆角按钮（Esc 下 / Shift 上），非对局不画 Shift |
-| `objects/obj_game_init/Create_0.gml` | L72–76 | 启动时 `instance_create_depth(0,0,-9999, obj_mobile_buttons)`（持久化跨房间存活） |
-| `objects/obj_battle/Step_0.gml` | L233–243 | Shift 加速消费端：检测 `global.mobile_shift_pressed` 锁存标志 → 切换 `speed_up` / `game_set_speed` → 清除标志。与虚拟按键配套，同步/合并覆盖此文件后必须重新嫁接此段（`keyboard_key_press` 模拟按键实测无法触发 `keyboard_check_pressed`，勿用） |
+| `objects/obj_mobile_buttons/obj_mobile_buttons.yy` | 整个文件 | 对象定义：`persistent=true`，事件 = Create / Step / Begin Step / Draw GUI（Step 是缓释的帧率接管，漏登就是孤儿文件，永不执行） |
+| `objects/obj_mobile_buttons/Create_0.gml` | 整个文件 | 初始化按钮尺寸、间距、边距，以及脉冲/闪烁计时变量 + 缓释状态（`slow_active` / `slow_prev_fps`） |
+| `objects/obj_mobile_buttons/Step_1.gml` | 整个文件 | Begin Step：触摸命中判定 → `keyboard_key_press/release` 模拟按键；Esc 全局、Shift / 缓释仅对局内；缓释点一次切换开关 |
+| `objects/obj_mobile_buttons/Step_0.gml` | 整个文件 | Step：缓释帧率接管。`selected_slot` 的 `is_selected` 为真 → `game_set_speed(30)`；否则还原（只还原自己压过的那次）。暂停 / 情报岛 / 海克斯选词条 / 海克斯「时间」「速度锁」词条生效时让路 |
+| `objects/obj_mobile_buttons/Draw_64.gml` | 整个文件 | Draw GUI：左下角绘制圆角按钮（Esc 下 / Shift 中 / 缓释 上），非对局不画 Shift 与缓释；**缓释按钮文字随开关显示「缓释:开」/「缓释:关」**，开启常亮深蓝、正在缓释常亮亮蓝 |
+| `objects/obj_game_init/Create_0.gml` | L80–88 | 启动时 `global.mobile_shift_pressed` / `global.mobile_slowmo_enabled` 置初值 + `instance_create_depth(0,0,-9999, obj_mobile_buttons)`（持久化跨房间存活） |
+| `objects/obj_battle/Step_0.gml` | L321–331 | Shift 加速消费端：检测 `global.mobile_shift_pressed` 锁存标志 → 切换 `speed_up` / `game_set_speed` → 清除标志。与虚拟按键配套，同步/合并覆盖此文件后必须重新嫁接此段（`keyboard_key_press` 模拟按键实测无法触发 `keyboard_check_pressed`，勿用） |
 
 ---
 
