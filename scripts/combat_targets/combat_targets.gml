@@ -1,24 +1,26 @@
-/// Row buckets only narrow candidates. Callers retain their own range, type,
-/// health and priority rules; homing and ray-based attacks are not row queries.
-/// Arrays/structs are GC-managed: this index does not own DS handles.
-function combat_targets_state() {
-    static state = {step: 0, enemies: {step: -1, count: -1, rows: {}, dirty: true},
-        cards: {step: -1, count: -1, rows: {}, dirty: true}};
-    return state;
-}
+/// 索敌索引（行桶）已于 2026-11-17 **整体移除**，见 MISTAKES C29。
+///   桶里存的是「本 step 首次建桶那一刻」的实例 id，建桶之后同一 step 里死掉 / 被对象池
+///   收走的敌人与卡片仍留在数组里；`instance_exists` 对「同帧刚销毁」的实例不可靠，
+///   随后读 `id.字段` 或 `with (id)` 就被 GM 当成对象索引解析，抛
+///   "Unable to find any instance for object index '<id>'"（报错行号恒为 -1，
+///   看着像崩在函数入口，极易误判成参数问题）。
+///   现在敌人侧与卡片侧一律 `with (对象)` 让引擎枚举活实例，从构造上不存在悬空 id。
+///   调用方自己的范围 / 类型 / 血量 / 优先级规则照旧保留。
+///
+/// 下面三个入口是池回收、事件、卡片摆放路径上的旧调用点（共 13 处，跨 8 个文件），
+/// 行桶没了以后它们没有任何事可做；改签名要连累一圈调用点，故保留为空实现。
+/// 下一次同步上游若上游已删，跟着删即可。
 
+/// 保留：`obj_battle/Create_0` 与 `obj_mod_manager/Step_1`（Begin Step）仍会调用。
 function combat_targets_begin_step() {
-    combat_targets_state().step++;
 }
 
+/// 保留：`obj_pool` 的回收 / 真销毁 / 清池、卡片与敌人的 Create/Destroy、
+/// `src_hook_function` 的生成口仍会调用。行桶移除后无需做任何事。
 function combat_targets_invalidate(_object) {
-    var _state = combat_targets_state();
-    if (_object == obj_enemy_parent || object_is_ancestor(_object, obj_enemy_parent)) _state.enemies.dirty = true;
-    if (_object == obj_card_parent || object_is_ancestor(_object, obj_card_parent)) _state.cards.dirty = true;
 }
 
-/// Use for direct logical row changes, including teleports/knockback. Coordinate
-/// conversion also calls this before its result is assigned to grid_row.
+/// 判活（宽口径，只排「销毁 / 对象索引 / 池占位」三种）：
 /// 行桶与跨帧缓存里存的是「实例 id」，随时可能是刚被别的子弹打死的实例。
 /// GM 会把过期 id 当对象索引解析，`with (过期 id)` 直接抛
 /// "Unable to find instance for object index"（且行号报 -1，看上去像崩在函数入口）。
@@ -37,11 +39,11 @@ function combat_target_alive(_inst) {
     return true;
 }
 
+/// 卡片摆放 / 传送 / 击退改写 grid_row 时都会过这里（坐标换算也算「直接改行」）。
+/// 行桶移除后它只是一个直接返回新行号的入口（原先的副作用是「按行失效缓存」，
+/// 已无缓存可失效）。保留是为了不动 `card_created` / `hex_hooks` / `obj_cat_box`
+/// 等 13 处调用点。
 function combat_targets_row_value(_inst, _row) {
-    if (is_struct(_inst)) return _row;
-    if (instance_exists(_inst) && (!variable_instance_exists(_inst, "grid_row") || _inst.grid_row != _row)) {
-        combat_targets_invalidate(_inst.object_index);
-    }
     return _row;
 }
 
@@ -79,135 +81,74 @@ function combat_live_or_noone(_inst, _base) {
     return combat_targets_is_live(_inst, _base) ? _inst : noone;
 }
 
-/// Drops entries which stopped being live members of _base and returns the new
-/// array, or undefined when nothing changed. The common case allocates nothing:
-/// a single live-only pass decides, and a second pass rebuilds only if needed.
-function combat_targets_prune(_list, _base) {
-    var _n = array_length(_list);
-    var _dead = -1;
-    for (var _i = 0; _i < _n; _i++) {
-        if (!combat_targets_is_live(_list[_i], _base)) { _dead = _i; break; }
-    }
-    if (_dead < 0) return undefined;
-    var _kept = [];
-    for (var _j = 0; _j < _n; _j++) {
-        if (combat_targets_is_live(_list[_j], _base)) array_push(_kept, _list[_j]);
-    }
-    return _kept;
-}
-
-function combat_targets_row(_object, _row) {
-    var _state = combat_targets_state();
-    var _cache = (_object == obj_enemy_parent) ? _state.enemies : _state.cards;
-    var _count = instance_number(_object);
-    if (_cache.dirty || _cache.step != _state.step || _cache.count != _count) {
-        var _rows = {};
-        // Keep native with-order, including across child objects. Equal-distance
-        // targeting and the enemy's last-card-per-layer rule depend on it.
-        with (_object) {
-            var _key = string(grid_row);
-            if (!variable_struct_exists(_rows, _key)) _rows[$ _key] = [];
-            array_push(_rows[$ _key], id);
-        }
-        _cache.rows = _rows;
-        _cache.count = _count;
-        _cache.step = _state.step;
-        _cache.dirty = false;
-    }
-    var _key = string(_row);
-    return variable_struct_exists(_cache.rows, _key) ? _cache.rows[$ _key] : [];
-}
-
-/// Rebuilds one row bucket without dead ids. Queries call this only after they
-/// actually hit a stale entry, so the common path never pays an extra pass.
-/// A still-count-equal cache can hold dead ids because a pool release paired
-/// with an acquire leaves instance_number() untouched.
-function combat_targets_row_compact(_object, _row) {
-    var _state = combat_targets_state();
-    var _cache = (_object == obj_enemy_parent) ? _state.enemies : _state.cards;
-    var _key = string(_row);
-    if (!variable_struct_exists(_cache.rows, _key)) return;
-    var _kept = combat_targets_prune(_cache.rows[$ _key], _object);
-    if (!is_undefined(_kept)) _cache.rows[$ _key] = _kept;
-}
-
-/// These queries deliberately do not add an hp check: legacy cards which can
-/// start their animation against dying enemies must retain that behaviour.
+/// 这些查询刻意**不加血量判定**：老卡的动画允许对着将死的敌人起手，行为必须保留。
+/// 🔴 2026-11-17（同 MISTAKES C29）：敌人查询**不再读行桶**，改成引擎枚举活实例。
+///   行桶是「本 step 首次建桶那一刻」的 id 快照；建桶之后同一 step 里死掉 / 被池回收的
+///   敌人还留在数组里，`instance_exists` 对「同帧刚销毁」的实例并不可靠（判活仍为真），
+///   紧接着的 `id.字段` 或 `with (id)` 就抛
+///   "Unable to find any instance for object index '<id>'"（报错行号一律 -1，
+///   看着像崩在函数入口）。跨帧缓存 combat_row_target 同理，一起删掉 ——
+///   引擎枚举 `with (obj_enemy_parent)` 只会给出活实例，从构造上不存在悬空 id。
+///   语义与重构前一致：多行卡按行由近到远（第一行优先），行内保持原生 with 顺序。
 function combat_enemy_in_rows(_card, _first_row, _last_row, _first_col, _last_col, _type) {
-    // Boolean queries need any valid target, not the first instance. Revalidate
-    // the previous one live before rebuilding/scanning a row on the next frame.
-    // Never `with` a stored id: after a pool release the id still resolves to a
-    // recycled holder, and a fully destroyed one raises "Unable to find instance".
-    // Read the fields directly once combat_targets_is_live has vetted the object.
-    if (variable_instance_exists(_card, "combat_row_target")) {
-        var _prev = _card.combat_row_target;
-        if (combat_targets_is_live(_prev, obj_enemy_parent)
-            && _prev.grid_row >= _first_row && _prev.grid_row <= _last_row
-            && _prev.grid_col >= _first_col && _prev.grid_col <= _last_col
-            && can_target_on(_type, _prev.target_type)) return true;
-    }
+    if (!instance_exists(_card)) return false;
     for (var _row = _first_row; _row <= _last_row; _row++) {
-        var _candidates = combat_targets_row(obj_enemy_parent, _row);
-        var _stale = false;
-        for (var _i = 0; _i < array_length(_candidates); _i++) {
-            var _e = _candidates[_i];
-            if (!combat_targets_is_live(_e, obj_enemy_parent)) { _stale = true; continue; }
-            if (_e.grid_row == _row && _e.grid_col >= _first_col && _e.grid_col <= _last_col
-                && can_target_on(_type, _e.target_type)) {
-                _card.combat_row_target = _e;
-                if (_stale) combat_targets_row_compact(obj_enemy_parent, _row);
+        with (obj_enemy_parent) {
+            if (grid_row == _row && grid_col >= _first_col && grid_col <= _last_col
+                && can_target_on(_type, target_type)) {
                 return true;
             }
         }
-        if (_stale) combat_targets_row_compact(obj_enemy_parent, _row);
     }
-    _card.combat_row_target = noone;
     return false;
 }
 
+/// 同行最近目标（投手类卡用）。同样直扫活实例，理由见上。
 function combat_enemy_nearest_in_row(_card, _type) {
+    if (!instance_exists(_card)) return noone;
     var _row = _card.grid_row;
     var _col = _card.grid_col;
     var _last_col = global.grid_cols + 1;
-    var _candidates = combat_targets_row(obj_enemy_parent, _row);
     var _best = noone;
     var _distance = 10000;
-    var _stale = false;
-    for (var _i = 0; _i < array_length(_candidates); _i++) {
-        var _e = _candidates[_i];
-        if (!combat_targets_is_live(_e, obj_enemy_parent)) { _stale = true; continue; }
-        if (_e.grid_row != _row || _e.grid_col < _col || _e.grid_col > _last_col
-            || !can_target_on(_type, _e.target_type)) continue;
-        var _delta = _e.grid_col - _col;
-        if (_delta < _distance) { _distance = _delta; _best = _e; }
+    with (obj_enemy_parent) {
+        if (grid_row == _row && grid_col >= _col && grid_col <= _last_col
+            && can_target_on(_type, target_type)) {
+            var _delta = grid_col - _col;
+            // 严格小于：同距离时保留原生 with 顺序（先登记的胜出），与重构前一致。
+            if (_delta < _distance) {
+                _distance = _delta;
+                _best = id;
+            }
+        }
     }
-    // 命中死 id 才整理这一行，正常帧一次都不多扫。
-    if (_stale) combat_targets_row_compact(obj_enemy_parent, _row);
     return _best;
 }
 
+/// 敌人在本行找可啃的卡（啃食状态机用）。同样直扫活实例，理由见上。
+/// 定序语义必须原样保住：
+///   · 只认本行、只认「身前」(`attack_range` 正负两种朝向)；
+///   · `eat_order` 分四档，**同档内后登记的覆盖先登记的** → 依赖原生 `with` 顺序，
+///     所以这里用一次 `with (obj_card_parent)`，与原先建桶时的顺序完全一致；
+///   · 龙渊高跷鼠只啃四种指定面包；矮卡（dwarf）只能被巨鼠啃；梯子宿主不吃。
 function combat_enemy_find_plant(_enemy) {
-    var _candidates = combat_targets_row(obj_card_parent, _enemy.grid_row);
+    if (!instance_exists(_enemy)) return noone;
     var _order = [noone, noone, noone, noone];
     var _ladder_hosts = [];
     if (_enemy.can_use_ladder) with (obj_ladder) array_push(_ladder_hosts, host_plant);
-    var _stale = false;
-    for (var _i = 0; _i < array_length(_candidates); _i++) {
-        var _plant = _candidates[_i];
-        if (!combat_targets_is_live(_plant, obj_card_parent)) { _stale = true; continue; }
-        if (_plant.grid_row != _enemy.grid_row) continue;
-        if (_enemy.mouse_id == "longyuan_gaoqiao" && _plant.plant_id != "chocolate_bread"
-            && _plant.plant_id != "pineapple_explosive_bread" && _plant.plant_id != "mianbao"
-            && _plant.plant_id != "lightning_baguette") continue;
-        var _dx = _plant.x - _enemy.x;
+    with (obj_card_parent) {
+        if (grid_row != _enemy.grid_row) continue;
+        if (_enemy.mouse_id == "longyuan_gaoqiao" && plant_id != "chocolate_bread"
+            && plant_id != "pineapple_explosive_bread" && plant_id != "mianbao"
+            && plant_id != "lightning_baguette") continue;
+        var _dx = x - _enemy.x;
         var _in_front = _enemy.attack_range > 0 ? (_dx < 0 && _dx > -_enemy.attack_range)
             : (_dx > 0 && _dx < -_enemy.attack_range);
-        if (!_in_front || (_plant.feature_type == "dwarf" && !_enemy.giant_type)
-            || array_contains(_ladder_hosts, _plant)) continue;
-        var _priority = ds_list_find_index(global.eat_order, _plant.plant_type);
-        if (_priority >= 0 && _priority < 4) _order[_priority] = _plant;
+        if (!_in_front || (feature_type == "dwarf" && !_enemy.giant_type)
+            || array_contains(_ladder_hosts, id)) continue;
+        var _priority = ds_list_find_index(global.eat_order, plant_type);
+        if (_priority >= 0 && _priority < 4) _order[_priority] = id;
     }
-    if (_stale) combat_targets_row_compact(obj_card_parent, _enemy.grid_row);
     for (var _i = 0; _i < 4; _i++) if (_order[_i] != noone) return _order[_i];
     return noone;
 }

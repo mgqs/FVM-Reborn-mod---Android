@@ -190,6 +190,8 @@ function obj_pool_release(_inst) {
     // 缓存失效不能依赖被回收对象的 Destroy 事件：97 个敌人子对象的
     // Destroy_0.gml 都没有写 event_inherited()，obj_enemy_parent/Destroy_0.gml:1
     // 那句 combat_targets_invalidate 根本不执行。这里显式失效，与事件无关。
+    // 2026-11-17（MISTAKES C29）：索敌的行桶已整体移除，本行现在是**空实现**，
+    // 不再需要靠它让「行索引」跟上回收动作；保留只为不牵动池子里的调用点。
     combat_targets_invalidate(_obj);
     with (_inst) {
         instance_change(obj_pool_holder, true);
