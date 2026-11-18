@@ -23,14 +23,13 @@ function card_attack_target_data()
         "cat_box": "normal",
         "cat_chest": "normal",
         "chili_powder": "normal",
-        "chocolate_cannon": "throw",
         "chocolate_pult": "throw",
         "chunsun": "all",
         "coal_starfish": "normal",
         "coffee_cup": "normal",
         "coffee_pot": "pierce",
         "coke_bomb": "all",
-        "cold_drew": "all",
+        "cold_drew": "land_air_ug",
         "corn_shooter": "normal",
         "curry_lobster_cannon": "track",
         "dandantu": "normal",
@@ -74,7 +73,7 @@ function card_attack_target_data()
         "huojianzhu": "track",
         "ice_bucket_bomb": "normal",
         "ice_egg_boiler_pult": "throw",
-        "ice_god": "track",
+        "ice_god": "land_air_ug",
         "ice_long_bao": "normal",
         "iron_fishbone": "pierce",
         "jingangma": "pierce",
@@ -107,7 +106,6 @@ function card_attack_target_data()
         "rabbit_lantern": "all",
         "rig": "normal",
         "ronghedan_god": "throw",
-        "ronghedapao": "throw",
         "ronghehaixing": "track",
         "ronghehuopen": "all",
         "ronghekafei": "normal",
@@ -122,7 +120,7 @@ function card_attack_target_data()
         "shuanggu": "air",
         "shuangyu": "throw",
         "skewer_bomb": "normal",
-        "snowrabbit": "all",
+        "snowrabbit": "land_air_ug",
         "spicy_pot": "pierce",
         "spoon_rabbit": "throw",
         "starrabbit": "normal",
@@ -157,6 +155,7 @@ function card_attack_target_data()
         "yinghuoshe": "all",
         "ymir": "throw",
         "youyu_god": "normal",
+        "yinyangshe": "pierce",
         "yuanqiniu": "rotate",
         "yuansushe": "pierce",
         "yufengma": "normal",
@@ -185,7 +184,13 @@ function card_attack_target_override()
         "shennong_god": ["陆地鼠军", "陆地鼠军", "陆地鼠军丨空军丨地鼠", "陆地鼠军丨空军丨地鼠"],
         "sheng_huo": ["陆地鼠军丨非主流丨幽灵", "陆地鼠军丨非主流丨幽灵", "陆地鼠军丨空军丨非主流丨地鼠丨幽灵", "陆地鼠军丨空军丨非主流丨地鼠丨幽灵"],
         // 恶作剧神：子弹打 空中 / 陆地 / 潜水 / 地下（没有单一类型名能表达，手写覆盖）
-        "joker": "陆地鼠军丨空军丨潜水丨地鼠"
+        "joker": "陆地鼠军丨空军丨潜水丨地鼠",
+        // 结界马：结界内只打 空 / 陆 / 地鼠军（卡面原文），没有单一 target_type 能表达
+        "jiejiema": "陆地鼠军丨空军丨地鼠",
+        // 灰烬轰炸（固定落点）：子弹 Destroy 里 with (obj_enemy_parent) 扫全表、只按距离与行列筛，
+        // 不做类型判定，实际全打；卡片上的 target_type 只用来选落点，别拿它当口径。
+        "chocolate_cannon": "陆地鼠军丨潜水丨空军丨非主流丨地鼠丨幽灵",
+        "ronghedapao": "陆地鼠军丨潜水丨空军丨非主流丨地鼠丨幽灵"
     };
     return _o;
 }
@@ -217,6 +222,7 @@ function card_attack_text(_id, _shape)
         "pierce_air": "陆地鼠军丨空军",
         "rotate":     "陆地鼠军丨空军丨非主流丨地鼠丨幽灵",
         "d_fruit":    "陆地鼠军丨空军丨非主流丨地鼠丨幽灵",
+        "land_air_ug": "陆地鼠军丨空军丨地鼠",
         "all":        "陆地鼠军丨潜水丨空军丨非主流丨地鼠丨幽灵"
     };
     var _t = card_attack_target_of(_id, _shape);

@@ -1,13 +1,18 @@
 /// @function can_target_on(card_target_type, enemy_target_type)
-/// @desc 类型命中口径，全工程唯一。合法取值只有 10 个：
-///   normal / throw / pierce / track / air / air_only / pierce_air / rotate / d_fruit / all
-///   新增类型必须同步改三处：本函数、get_hittable_enemy_types、external_mod_system.gml:313 白名单。
+/// @desc 类型命中口径，全工程唯一。合法取值只有 11 个：
+///   normal / throw / pierce / track / air / air_only / pierce_air / rotate / d_fruit / land_air_ug / all
+///   新增类型必须同步改三处：本函数、get_hittable_enemy_types、external_mod_system.gml:320 白名单。
 function can_target_on(card_target_type,enemy_target_type){
 	// "pierce_air" = 穿透 + 对空（牛油果飞镖）：**只认普通 / 空军 / 障碍**
 	//   🔴 不能再转成 "pierce" —— pierce 额外含 dance（非主流、龙王高跷）和 invisible（幽灵鼠），
 	//      那两类不吃「穿透」，牛油果飞镖不该顺路打中它们（2026-10-29 用户口径：只有穿透功能）
 	if (card_target_type == "pierce_air"){
 		return (enemy_target_type == "normal" || enemy_target_type == "air" || enemy_target_type == "obstacle")
+	}
+	// "land_air_ug" = 陆地鼠军 + 空军 + 地鼠（underground）：全屏打击类的通用口径
+	//   不含 潜水(diver) / 非主流(dance) / 幽灵(invisible) / 障碍(obstacle)
+	if (card_target_type == "land_air_ug"){
+		return (enemy_target_type == "normal" || enemy_target_type == "air" || enemy_target_type == "underground")
 	}
 	if enemy_target_type == "normal"{
 		if card_target_type != "air_only"{
@@ -72,6 +77,25 @@ function is_digging_dijing(_inst){
 		&& variable_instance_exists(_inst, "ly_mode") && _inst.ly_mode == "dig";
 }
 
+/// 散点追踪类（雪球兔 / 冰块冷萃机 / 典伊神使）的索敌排除
+/// 2026-11-18 用户口径：龙渊地精鼠**钻地期间直接算「不攻击类型」**——
+///   这类「全屏自动散点 / 逐只投掷」的攻击即不能锁它、也不该为它白扔一发。
+/// 🔴 只给散点那三张卡用。旋转喷壶 / 地火 / 灰烬等仍按各自白名单放行（obj_ly_dijing/Other_10）。
+function scatter_target_blocked(_inst){
+	return is_digging_dijing(_inst);
+}
+
+/// @function is_walking_dijing(_inst)
+/// @desc 龙渊地精「target_type 一直是 underground、人却在地面上走动」的那一档
+///   打地下 / 溅射判定要用它排除（地精在地面上不该吃「打地下」的伤害）；
+///   普通地鼠 / 牙医鼠这些 underground 类型本身就是钻在地下的，不受影响。
+function is_walking_dijing(_inst){
+	return instance_exists(_inst)
+		&& !object_exists(_inst)
+		&& variable_instance_exists(_inst, "mouse_id") && _inst.mouse_id == "longyuan_dijing"
+		&& variable_instance_exists(_inst, "ly_mode") && _inst.ly_mode != "dig";
+}
+
 /// 是否为「非主流」家族老鼠（银河马等卡面写「无法攻击非主流」时用这个入口）
 /// 三只：obj_non_mainstream_mouse（非主流鼠）/ obj_ly_gaoqiao（龙渊高跷鼠，行为 1:1 仿非主流）
 ///       / obj_kf_zr_nonmain（跨服灼热僵尸非主流）。
@@ -95,6 +119,8 @@ function is_non_mainstream(_inst){
 function get_hittable_enemy_types(bullet_target_type){
 	var _types = [];
 	if (bullet_target_type == "all") return ["normal", "diver", "air", "dance", "obstacle", "underground", "invisible"];
+	// "land_air_ug" = 陆地 + 空军 + 地鼠（全屏打击类），与 can_target_on 同口径
+	if (bullet_target_type == "land_air_ug") return ["normal", "air", "underground"];
 	// "pierce_air" = 穿透 + 对空（牛油果飞镖）：普通 + 空军 + 障碍，**不含 dance / invisible**
 	if (bullet_target_type == "pierce_air") return ["normal", "air", "obstacle"];
 

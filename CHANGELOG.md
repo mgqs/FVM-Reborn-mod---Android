@@ -1,3 +1,104 @@
+# v3.0.0
+## 新内容
+- **同步上游 `3.0.2.20`（2026-11-18 批次：结界马 / 阴阳蛇 + 水火之间新小怪 + 星之耀时装）**。
+- **新卡「结界马」（`jiejiema`，非远程 / 连携类，耗能 180、冷却 25s、体力 350、射程 1）**：
+  - 攻击力 0/1 转 `70/80/90/120/140/160/180/220/260/300/340/380/450/520/590/660/730`，2 转整体 ×2。
+  - 结界成形规则全在 `scripts/jiejiema_field/jiejiema_field.gml`（纯几何、无实例依赖）：
+    1 只 = 本格 + 前方 1 格（`grid`）；2 只 = 两格 Bresenham 连线（`line`，不要求同行）；
+    ≥3 只 = 马格子的凸包顶点围多边形（`poly`），逐格心射线法判定内部格，只打空 / 陆 / 地鼠军。
+  - `obj_jiejiema_field` 每 120 帧结算一次、每格各自判定；不防爆且非精英直接秒杀，否则吃
+    `攻击力 × 倍率`。倍率前 7 次受击 `1/1.2/1.4/1.6/1.8/2/2.5`、第 8 次起固定 `3`，
+    结界重新成形（格集变化）即清零重数。
+  - 持续时间走技能键 `duration`：1500~2700 帧（25~45 秒）；结界图形由 id 最小的那只马唯一持有，
+    领队死 / 被铲即销毁。二转 `plant_type = "gridless"`（悬浮、可被铲）。
+- **新卡「阴阳蛇」（`yinyangshe`，直射 / 传统直线类，耗能 295、体力 50、冷却 7s、射程 10）**：
+  - 攻击力三形态同表 `10/12/14/16/18/20/22/26/32/40/55/70/85/100/115/130/145`；
+    攻击间隔走技能键 `cycle`（132→90 帧，2.2~1.5 秒）。
+  - 出弹：阴蛇 5 发、1 转起再加阳蛇 5 发，每 6 帧一发、阴阳交替；每 5 发的首发阴蛇附毒
+    （`攻击力 × 过火倍率 × 3/3/4.5`，3 跳、每 20 帧一跳）。
+  - `target_type = "pierce"`（可打未照明幽灵）；二转阳蛇穿透。
+    子弹走 `obj_bullet_parent` 体系，`hazard_fire` + `hazard_rebound` 双登记（可过火盆、可反弹）。
+- **跨服·水火之间新增 4 类僵尸鼠**（`shuihuo_enemy_init` 扩到 9 只、情报岛补 5 条）：
+  打击潜艇 `kf_sh_submarine`（hp 4500 / 速度 0.6 / 防爆）、突袭 `kf_sh_assault`
+  （hp 720，先破 280 头盔 / 0.36）、忍者首领 `kf_sh_ninja`（hp 860 / 冲撞 1.2 / 召唤僵尸小喽啰）、
+  小喽啰 `kf_sh_minion`（hp 100 / 不防爆）、蜗牛 `kf_sh_snail`（hp 5400 / 碾压 2000 + 润滑黏液
+  `obj_kf_sh_snail_mucus`）。共 6 个对象 + 14 个精灵，纹理组 `enemy_volcanic`。
+- **新增「星之耀」男A / 男B / 女A / 女B 四套玩家时装**：8 个精灵（4 本体 14 帧 origin 7 64,128 +
+  4 图标，纹理组 `player`，父文件夹 `folders/精灵/Player/attire`），`attire_init` 注册 4 条、
+  `shop_init` 各 50000 金币上架。
+## 优化与修复
+- **阴阳蛇过火后换成火弹贴图**：换贴图是子弹自己的事（`obj_yinyangshe_bullet/Step_0.gml` 新增
+  `burnt > 0` 外观段 → `spr_fire_bullet` 4 帧、`image_speed = 0`、1.8 倍），父类
+  `bullet_hazard_fire` 只改倍率 / 尺寸 / 音效；`hazard_fire` 由 `true` 改 `{ scale: 0 }` 自己管尺寸，
+  融盆二转冰弹（`brazier_list` 带哨兵 `-9999`）让路不换。
+- **阴阳蛇改成「攻击动作播到第 18 帧才真的出弹」**：到点先置 `yy_charge`，盯 `image_index`
+  到 17 才 `event_user(1)` 排弹，`yy_fire_delay = 90` 兜底；`Other_11` 补 `yy_charge = 0`。
+- **结界马多边形特效不再糊成方框**：`obj_jiejiema_field/Draw_0.gml` 多边形分支改凸包三角扇 +
+  纹理 uv 映射（新函数 `jiejiema_draw_fog_fan`），外层 inset 2% / alpha 0.88、内层 inset 32% /
+  alpha 0.32；多边形模式不再画逐格底光（`grid` / `line` 两档保留方块）。
+- **结界马二转同格不再无限叠**：`scripts/place_mutex_class` 登记 `jiejiema → "jiejiema_self"`，
+  升级替换仍放行；结界特效 depth 由 `-400` 改为「最上一行行基准 + 1」（`-10 - row_min*45 + 1`），
+  压在卡片之下、地图背景之上。
+- **地精鼠钻地时不再被散点卡浪费弹药**：新增 `can_target_on` 的 `scatter_target_blocked(inst)`，
+  雪球兔（索敌 / 选目标 / 子弹溅射，并去掉 `ly_dig_hittable` 放行）、冰块冷萃机（溅射）、
+  典伊神使在索敌阶段跳过钻地中的地精鼠；旋转喷壶 / 地火 / 灰烬等白名单不放宽。
+- **商城「角色皮肤」页改为按注册顺序稳定排序**：页签 5 在分页前按 `global.goods_id_pool` 下标插入排序
+  （`objects/obj_shop_bg/Create_0.gml:186-212`），星之耀六件现在连在第 11 页末四格 + 第 12 页头两格。
+- **跨服金币改回吃难度奖励倍率**：新增 `cross_server_coin_mult()`（海克斯 × 难度奖励），4 处结算与
+  结算面板 / 准备界面预览同步；徽章仍只吃海克斯倍率。
+- **商店补「神圣宝石」上架**（`holy_gem`，150000 金币，主武器槽）；跨服商店抽卡模式放开香料
+  （`_is_credit` 补 `type == "material"`）。
+- **转转活动**：入口换 `116.png`（84×70 → 56×47），位置 `(1010,20)` → `(1010,32)`；
+  兑换确认框按钮改与 `obj_shop_buy_confirm` 同一写法（中心交给精灵原点、0.75 倍、命中框 120×52）。
+- **变异蝙蝠鼠整份对齐蝙蝠鼠**：`obj_kuafu_bat` Create 只管数据，落点 / 配对 target / 出生高度交给
+  Step 的「自动补齐」块；`obj_event_manager` 的 `kuafu_bat_spawn` 成对创建 target + 蝙蝠；
+  波次里放的走 Step 兜底并把出生高度贴到落点上方 80px。`wave_ignore` 保留。
+## 安卓适配（本次同步的取舍）
+- **5 个冲突文件全部按「上游 per-file 补丁打到安卓版」处理**（不整份覆盖、不手抄），落地后嫁接断言全绿：
+  - `objects/obj_craft_bg/Draw_0.gml`：材料 / 香料 / 四叶草槽位改由新脚本
+    `scripts/mod_craft_slot_table/mod_craft_slot_table.gml` 的 `craft_slot_table()` 统一给坐标
+    （`_slot_ofs` / `_slot_pos`），取代原先散落的硬编码；尾部双指滑动整块（`_two_n` 0..9 触点取中点、
+    `!tg_sb.on && !evo_sb.on` 滑块优先、按 `craft_top_tab` 分流 `tg_scroll_target` /
+    `evo_scroll_target` / `y_offset_target`，96px 折算）与末尾 `panel_anim_end_parts(id, craft_parts, 260)`
+    保留。
+  - `objects/obj_readyroom_manager/Draw_0.gml`：取上游 `_cs_rw_rd.coins * cross_server_coin_mult()`，
+    双指滑动块（`slot_rows * 84`、视口 420、`ready_max_y_offset`）保留。
+  - `objects/obj_zodiac_projectile/Step_0.gml`：取上游炎凰 / 融合火盆冰弹判定
+    （`_ronghe_ice` 走 `brazier_list` 哨兵 `-9999`），`if (!combat_targets_is_live(e, obj_enemy_parent)) continue;`
+    判活保留。
+  - `scripts/external_mod_system/external_mod_system.gml`：上游只改 1 行（`target_type` 白名单加
+    `"land_air_ug"`），打在本项目 1061 行的安卓版上；安卓层全部保留 —— `external_mod_state_path()`、
+    `external_mod_find_flags()`（非 Windows 不传 `fa_directory`）、`external_mod_delete_folder()`、
+    `native_mod_lua_create/call/destroy` 的安卓早退、`external_mod_assets_dir()` /
+    `external_mod_hide_assets_walk()`（包内图片搬进 `<包>/.assets/`，避开相册 MediaStore）、
+    `external_mod_path()` 的 `.assets` 回退、`external_mod_resolve_root()` 走
+    `global.native_util.android_list_dir`。
+  - `objects/obj_game_init/Create_0.gml`：保留安卓受保护段（os 守卫、Mod 目录、虚拟按键、缓释开关、
+    授权启动块），只把 `global.game_version` 点改为 `"3.0.2.20"`。
+- **纹理组统一为本项目 ASTC**：39 个变更 / 新增精灵的 `textureGroupId` 全落在本项目 14 个组内
+  （`UI` 1 / `cards` 7 / `effects` 5 / `enemy_volcanic` 14 / `player` 8 / `bullet` 4），
+  14 个组 `customOptions` 唯一值 `ASTC 6x6 -medium`；上游 yyp 只新增文件夹、未新增纹理组，
+  无需换组改写。
+- **yyp 注册补全**：新增 49 项资源（11 对象 / 2 脚本 / 30 精灵 / 其余既有）+ 14 个文件夹，
+  复核缺项 0；磁盘上 143 个「注册了但没有 .yy 文件」的文件夹在源工程同样缺失（非本轮漏拷，
+  GameMaker 保存时自建）。
+- **受保护落点自检全绿**：`obj_mobile_buttons` 四件套、`obj_battle/Step_0` 的
+  `global.mobile_shift_pressed`、六个双指滑动 Draw/Create、`obj_craft_bg` Destroy/CleanUp 的
+  `surface_free(card_surface)`、`ui_input` + 5 处 `ui_back_click_pressed()`、`GuiStack` 的
+  `pnl_recording`、`SearchBox` 与 `obj_material_sell_confirm` 的 4 参 `keyboard_virtual_show`、
+  `obj_auth_gate` 三件套、`auth_client`、`NativeUtil`、`options_android`、`MapDownloadManager`。
+- **新增 UI 的安卓影响（已核查，无需改动）**：`obj_shop_bg` 的皮肤页排序只动列表序、不碰坐标；
+  转转入口 `(1010,32)` 与诸神 / 跨服 / 龙渊入口同排，和虚拟按键（GUI 左下角竖排 96px）不重叠。
+- **本轮向用户确认过的三个安卓口径（2026-11-18）**：
+  1. 安卓纹理页**保持** `option_android_texture_page = 2048x2048`（不提到 4096，优先保证低端机显存与首包
+     加载；ASTC 6x6 已把体积压到约 1/6）。
+  2. 结界马三张雾 / 边线贴图（`spr_jiejiema_fx_inside` 485×455、`fx_line` 721×84、`fx_side` 721×109）
+     **维持 `effects` 组 + ASTC 6x6**，不新建高画质组；先按现状出包看真机块状程度再定。
+  3. 转转活动入口按用户口径**把图标本身放大到 96×96**：`objects/obj_zz_enter/Create_0.gml` 在
+     `os_type == os_android` 下按轴缩放（`96 / sprite_get_width/height(sprite_index)`）；
+     `Mouse_4` 的点击判定走 bbox（`sprite_width/height` 随 `image_xscale/yscale` 变），
+     所以图标与可点区域一起变大，坐标不变，与龙渊入口（950,56 / 84×70）横向仍留 18px 间距。
+
 # v2.9.0
 ## 新内容
 - **同步上游 `3.0.2.19`（含「金马盛典 / 转转」活动，2026-11-17）**：
