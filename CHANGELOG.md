@@ -1,3 +1,92 @@
+# v3.1.0
+## 新内容
+- **同步上游 `3.0.2.21`（2026-11-20/21 批次：假期特惠活动 + 合成屋强化 v7 + 19 项修复）**。
+- **新活动「假期特惠」**：
+  - 入口 `obj_holiday_entry_btn`（`spr_holiday_entry` 56×51，×1.6 = 90×82，由
+    `objects/obj_mod_manager/Step_0.gml` 在地图 / 菜单房间 (1290,56) 创建，depth -3），
+    点击后按 `room_width/2, room_height/2` 开面板并把 `obj_player_info_ui.menu_type` 置 4。
+  - 面板 `obj_holiday_exchange`（`spr_holiday_panel` 919×557，×1.5 居中，`hal_bar_s`/`hal_row_s` 递减）：
+    兑换 / 时装 / 融合剂 / 四叶草四类页签，合计 30 个新精灵（全部纹理组 `UI`）。
+  - 数据全在 `scripts/mod_holiday_exchange/mod_holiday_exchange.gml` 的四张表
+    （`holiday_exchange_table` / `holiday_card_upgrade_table` / `holiday_fusion_agent_table` /
+    `holiday_clover_upgrade_table`）。
+- **合成屋强化 v7**：
+  - 香料 / 四叶草改三槽摆放（`spice_slot = ["","",""]`，星级权重在 `craft_bare_rate()` 里分），
+    删掉旧 `card_material_id_list` / `card_material_row_break` / `spices_use_order`。
+  - 底部材料条改「一行 10 格 + 上下翻页箭头 + `n/N` 页码」（`craft_bar_table()` / `craft_bar_page_ids()` /
+    `craft_bar_display_amount()`，`craft_mat_page` 记当前页）。
+  - 新增「帮助」「一键合成」两个弹窗（`craft_help_draw()` / `craft_onekey_draw()`，坐标固定偏移
+    `x - 548 / y - 104` 与 `x - 74 / y - 104`），一键合成有 `craft_onekey_stage` / `craft_onekey_plan_data`。
+  - 绘制侧新增 surface 脏标记（`craft_surf_y/tab/nav/target`）+ `window_has_focus()` 重绘、
+    槽位缓存 `craft_slot_cache`（`craft_cache_n` 变则重建）与排序缓存 `craft_sort_dirty`。
+  - 转职 / 强化改为「恒定按概率走」：删掉 `craft_rate_enabled` 开关、`tg_gold_cost` / `tg_rate` 包装与暗概率
+    （`tg_hidden_step`、`mod_tg_hidden_get/set` 全删），`tg_do` 直接用 `_r.rate`；
+    `craft_card_order` 跳过 `max_level >= 16` 的满级卡；转职文案改「一转 9 星 / 二转 12 星」。
+## 优化与修复
+- **肥牛火锅二转凭证门槛 26-2 → 31-2**（`credit_shop_init` 的 `tower_floor`，价格 30000 威望不变，
+  威望商店 / 魔塔解锁面板 / 合成屋转职门槛读同一字段）。
+- **猫猫枪一次命中就换行**：惊吓期间（`scare_timer > 0`）不再重掷方向，且只挑同地形的相邻行。
+- **椰子果索敌并进攻空军**：索敌与落地结算补 `target_type == "air"`（卡面类型表不动）。
+- **多 BOSS 关卡打完 BOSS 不切回精英鼠军 BGM**：`obj_battle_music_controller` 新增
+  `music_restore_sound` / `music_boss_phase`，随机 BOSS 音乐开着则全程不切，关着则 BOSS 死亡还原。
+- **变异中尉的熊猫改 2~6 列随机**（每次放技能洗牌 `panda_col_order`，情报岛文案同步）。
+- **终转炎帝子弹不再只打一行**：3 行模式单独放宽裁剪边距（2 格）并改水平区间判定。
+- **结界马 / 阴阳蛇一转二转改名**：虚空结界马 / 镜反结界马、伯仲阴阳蛇 / 龙虎阴阳蛇（`mod_cards_init` +
+  `mod_slots_init` 同源改，情报岛一并生效）。
+- **阴阳蛇黑白弹重叠且间隔太大**：出膛口 -0.74H/-0.76H → -0.46H/-0.66H，`yy_shot_gap` 6 → 4。
+- **魔镜鼠吸走的火苗死后返还**：`capture_owner` 记账，`Destroy_0` 先结算仍在飞的火苗再统一返还。
+- **换气扇不再击退跨服重量级 BOSS**：`ignore_list` 追加 `kf_zrb_cap` / `kf_zrb_cap_rainbow` /
+  `kf_zrb_cap_shield` / `kf_sh_iron_man`。
+- **天神 / 亡灵套装 3 枚宝石没有星级、其余角标过大**：三枚宝石的 `.yy` 把 Draw 事件写成
+  `eventNum: 8, eventType: 0`（两字段反了，Draw 成了孤儿文件），改回 `eventNum: 0, eventType: 8`；
+  角标 `1.5` 统一为 `0.75`。
+- **石榴爆爆冰没有索敌时静止、看起来完全没伤害**：爆炸当场结算伤害 + 冰冻，籽继续负责落地碾压，
+  帧锁定改到成熟段首帧。
+- **跨服地图预览底图太小**：按视口等比放大铺满并居中（原来直接 `draw_sprite(..., 0, 0)`）。
+- **焦油喷壶打不到出图的潜水鼠**：`obj_tarsprayer_bullet/Step_0` 放宽命中判定。
+- **「血魔的渴血」不回血、也不加生命上限**：新增 `hex_b3_src_card()` 统一回溯归属
+  （卡片本体 → 火苗来源卡 → 出生认领 → 出生点半径内最近的卡，用 `hex_org_x/y` 而非命中点）+
+  `hex_b3_tag_pending_bullets()` 每帧补出生归属 + 「同行唯一开火者」兜底；
+  `b3_lifesteal_cap` 是倍率（+300% 要传 4.0）。
+- **「Hana 的四卦」选完人物被放到鼠标格**：`obj_player_character/Mouse_53` 增加「面板在 / 放置被锁 /
+  全局暂停」三重早退。
+- **转转档位改 1 / 5 / 50 抽**：`zz_pull_count()` 中间档 10 → 5，三档单价统一 2 万/抽。
+- **魔导士软糖只在放下时判一次地形**：首次拿到合法格子坐标那帧锁 `lr_water_form`。
+- **抽卡 / 欧皇模式下转转兑换被商城按钮吃掉**：兑换页照商城逐像素抄（同 4×4 格、同 `spr_shop_buy_btn`），
+  商城关闭时 `menu_type` 在收缩动画前就清零 → GMS 的 Mouse 事件先于 Step，商城按钮先吃掉点击。
+  修法：`obj_shop_buy_btn/Mouse_4` 顶部加「`obj_zz_bg` / `obj_zz_shop_bg` / `obj_zz_buy_confirm` 任一存在就 exit」，
+  `obj_zz_enter/Mouse_4` 补 `instance_exists(obj_shop_bg)` 早退。
+## 安卓适配（本次同步的取舍）
+- **8 个冲突文件全部走「取上游版 + 把安卓受保护段重新嫁接」**（不整份覆盖、不手抄），落地后断言全绿：
+  - `objects/obj_craft_bg/Create_0.gml`：取上游三槽 / 分页 / 一键合成状态，锚点 `sb_drag_offset = 0` 后补回
+    `two_touch_scroll_active = false` / `two_touch_scroll_y = 0`。
+  - `objects/obj_craft_bg/Draw_0.gml`：取上游 1440 行（含 `craft_slot_table()`、`craft_bar_table()`、
+    帮助 / 一键弹窗、末尾 `panel_anim_end_parts(id, craft_parts, 260)` —— 上游这次自带收尾，
+    规则第 25 条不再需要补），锚点 `_sb_max = craft_max_y_offset` 后补回双指滑动整块
+    （`_two_n` 0..9 取中点、`!tg_sb.on && !evo_sb.on` 滑块优先、按 `craft_top_tab` 分流
+    `tg_scroll_target` / `evo_scroll_target` / `y_offset_target`，96px 折算）。
+  - `objects/obj_package_bg/Draw_0.gml`：只改 1 行道具提示（`material_data.name` 前置），
+    四处 `surface_reset_target()` 保护原样保留。
+  - `objects/obj_game_init/Create_0.gml`：删掉「概率强化」开关读取 5 行（换两行说明注释），
+    安卓启动守卫 / 授权块 / 虚拟按键创建全部保留。
+  - `folders/精灵/mod.yy`：补上游 `holiday` 条目，第 1 轮自建的 `zhuanzhuan` 条目保留。
+  - `CHANGELOG.md` / `MISTAKES.md` / `FVM_Reborn_makk.yyp`：本文档按安卓编号重排，错题本并入上游新条并重编号。
+- **纹理组**：本轮新增 30 个精灵（`spr_holiday_*` 24 + `spr_holiday_pager` / `pop` + 合成屋 5 个按钮 / 底字）
+  全部落在 `UI` 组，目标 14 个组一个没变，`customOptions` 仍是统一的 `ASTC 6x6 -medium`
+  （源端也只新增文件夹、没新增纹理组）。
+- **yyp 注册**：补 34 项资源（2 对象 `obj_holiday_entry_btn` / `obj_holiday_exchange`、2 脚本
+  `mod_craft_rate_table` / `mod_holiday_exchange`、30 精灵）+ 1 个文件夹 `folders/精灵/mod/holiday.yy`；
+  合并后 `resources` 5815 条、`Folders` 803 条，缺项复核 0、资源文件缺失 0、`parent` 未注册 0。
+- **触控口径（按用户 2026-11-21 答复，全部保持上游原样）**：假期特惠入口两端都是 90×82（不加安卓分支）；
+  合成屋道具条两端都是一行 10 格（格约 76px）；「帮助」87×33 与「一键」78×33 不放大。
+  转转入口维持上一轮的安卓 96×96（`obj_zz_enter/Create_0.gml` 的 `os_type == os_android` 分支）。
+- **工程目录体检（本轮新增）**：`folders/**/*.yy` 逐个 JSON 解析后修掉 34 处语法缺陷 ——
+  32 个 `folders/精灵/mod/Cards/Assistant/*.yy` 的 `$GMFolder` 多一个引号、`nengliangmiao.yy` 末尾多一个引号、
+  `folders/精灵/mod/Bullet.yy` 两条 `listItems` 之间缺逗号（后两个在源工程同样存在，属上游缺陷）；
+  另删掉 3 个 GBK 乱码目录 `folders/绮剧伒`、`folders/鐗╀綋`、`folders/鑴氭湰`（共 63 个 `.yy`，
+  是「精灵 / 物体 / 脚本」的乱码副本，yyp 里零引用）。现在 697 个文件夹 `.yy` 全部可解析。
+- **自检**：本轮改动涉及的 104 个 `.gml` 编码 / 换行 / 括号配平 0 异常；受保护层断言 35/35 通过。
+
 # v3.0.0
 ## 新内容
 - **同步上游 `3.0.2.20`（2026-11-18 批次：结界马 / 阴阳蛇 + 水火之间新小怪 + 星之耀时装）**。

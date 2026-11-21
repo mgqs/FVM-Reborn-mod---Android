@@ -1,5 +1,5 @@
-﻿{
-  "$GMFolder":""",
+{
+  "$GMFolder":"",
   "%Name":"kuileima",
   "folderPath":"folders/精灵/mod/Cards/Assistant/kuileima.yy",
   "isDefaultView":false,

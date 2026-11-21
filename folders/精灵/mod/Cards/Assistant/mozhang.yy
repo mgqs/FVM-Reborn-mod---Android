@@ -1,5 +1,5 @@
-﻿{
-  "$GMFolder":""",
+{
+  "$GMFolder":"",
   "%Name":"mozhang",
   "folderPath":"folders/精灵/mod/Cards/Assistant/mozhang.yy",
   "isDefaultView":false,

@@ -1,5 +1,5 @@
-﻿{
-  "$GMFolder":""",
+{
+  "$GMFolder":"",
   "%Name":"mixian",
   "folderPath":"folders/精灵/mod/Cards/Assistant/mixian.yy",
   "isDefaultView":false,

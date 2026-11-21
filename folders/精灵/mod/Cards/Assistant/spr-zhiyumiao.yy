@@ -1,5 +1,5 @@
-﻿{
-  "$GMFolder":""",
+{
+  "$GMFolder":"",
   "%Name":"spr-zhiyumiao",
   "folderPath":"folders/精灵/mod/Cards/Assistant/spr-zhiyumiao.yy",
   "isDefaultView":false,

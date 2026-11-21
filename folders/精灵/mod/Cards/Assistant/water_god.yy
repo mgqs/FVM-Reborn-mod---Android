@@ -1,5 +1,5 @@
-﻿{
-  "$GMFolder":""",
+{
+  "$GMFolder":"",
   "%Name":"water_god",
   "folderPath":"folders/精灵/mod/Cards/Assistant/water_god.yy",
   "isDefaultView":false,

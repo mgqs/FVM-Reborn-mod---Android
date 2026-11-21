@@ -1,5 +1,5 @@
-﻿{
-  "$GMFolder":""",
+{
+  "$GMFolder":"",
   "%Name":"spr_ronghehuopen",
   "folderPath":"folders/精灵/mod/Cards/Assistant/spr_ronghehuopen.yy",
   "isDefaultView":false,

@@ -1,5 +1,5 @@
-﻿{
-  "$GMFolder":""",
+{
+  "$GMFolder":"",
   "%Name":"hspeed_juicer",
   "folderPath":"folders/精灵/mod/Cards/Assistant/hspeed_juicer.yy",
   "isDefaultView":false,

@@ -1,5 +1,5 @@
-﻿{
-  "$GMFolder":""",
+{
+  "$GMFolder":"",
   "%Name":"yinhema",
   "folderPath":"folders/精灵/mod/Cards/Assistant/yinhema.yy",
   "isDefaultView":false,

@@ -2316,7 +2316,7 @@ register_card("lingrong_god", obj_lingrong_god, [
     sprite: spr_panduola_god,
     cost: 255,
     cooldown: 3000,
-    description: "潘多拉：放下立即产生3*3范围爆炸，并在本行留下毒气",
+    description: "潘多拉：爆炸后，产生瘟疫毒气",
     plant_type: "normal",
     feature_type: "normal",
     target_card: "none",
@@ -2328,7 +2328,7 @@ register_card("lingrong_god", obj_lingrong_god, [
     sprite: spr_panduola_god_1,
     cost: 255,
     cooldown: 3000,
-    description: "潘多拉魔盒：放下立即产生3*3范围爆炸，并在本行留下毒气",
+    description: "潘多拉魔盒：爆炸后，产生瘟疫毒气",
     plant_type: "normal",
     feature_type: "normal",
     target_card: "none",
@@ -2340,7 +2340,7 @@ register_card("lingrong_god", obj_lingrong_god, [
     sprite: spr_panduola_god_2,
     cost: 255,
     cooldown: 3000,
-    description: "疫神·潘多拉：放下立即产生3*3范围爆炸，并在本行和本列留下毒气，在爆炸范围内留下鼠疫",
+    description: "疫神·潘多拉：爆炸后，产生瘟疫毒气",
     plant_type: "normal",
     feature_type: "normal",
     target_card: "none",
@@ -2352,7 +2352,7 @@ register_card("lingrong_god", obj_lingrong_god, [
     sprite: spr_panduola_god_3,
     cost: 255,
     cooldown: 3000,
-    description: "至尊疫神：放下立即产生全屏范围爆炸，并在本行和本列留下毒气，在爆炸范围内留下鼠疫",
+    description: "至尊疫神：爆炸后，产生瘟疫毒气",
     plant_type: "normal",
     feature_type: "normal",
     target_card: "none",
@@ -2524,7 +2524,7 @@ register_card("liehuohu", obj_liehuohu, [
         sprite: spr_liehuohu,
         cost: 85,
         cooldown: 3300,
-        description: "烈火虎：生产1朵火苗并将一部分产火存储于自身，死亡时释放",
+        description: "烈火虎：生产和储存火苗",
         plant_type: "normal",
         feature_type: "normal",
         target_card: "none",
@@ -2536,7 +2536,7 @@ register_card("liehuohu", obj_liehuohu, [
         sprite: spr_liehuohu_1,
         cost: 85,
         cooldown: 3300,
-        description: "煤气烈火虎：生产2朵火苗并将一部分产火存储于自身，死亡时释放",
+        description: "煤气烈火虎：生产和储存火苗",
         plant_type: "normal",
         feature_type: "normal",
         target_card: "none",
@@ -2548,7 +2548,7 @@ register_card("liehuohu", obj_liehuohu, [
         sprite: spr_liehuohu_2,
         cost: 85,
         cooldown: 3300,
-        description: "燃油烈火虎：生产2朵火苗并将一部分产火存储于自身，死亡时释放",
+        description: "燃油烈火虎：生产和储存火苗",
         plant_type: "normal",
         feature_type: "normal",
         target_card: "none",
@@ -3248,13 +3248,13 @@ register_card("rongheshuanggu", obj_rongheshuanggu, [
     //   否则放置预览会按普通卡占格画，与 obj_jiejiema 的判定对不上
     register_card("jiejiema", obj_jiejiema, [
     { shape: 0, sprite: spr_jiejiema, cost: 180, cooldown: 1500, description: "结界马：单独在场时攻击本格与前方1格，多只在场时围成结界攻击内部空陆地鼠军", plant_type: "normal", feature_type: "normal", target_card: "none", is_gold: 0, place_preview: spr_jiejiema },
-    { shape: 1, sprite: spr_jiejiema_1, cost: 180, cooldown: 1500, description: "一转结界马：结界内同一只老鼠连续受击伤害递增，最高3倍", plant_type: "normal", feature_type: "normal", target_card: "none", is_gold: 0, place_preview: spr_jiejiema_1 },
-    { shape: 2, sprite: spr_jiejiema_2, cost: 180, cooldown: 1500, description: "二转结界马：攻击力翻倍，悬浮状态无需格子且可被铲除", plant_type: "gridless", feature_type: "normal", target_card: "none", is_gold: 0, place_preview: spr_jiejiema_2 }]);
+    { shape: 1, sprite: spr_jiejiema_1, cost: 180, cooldown: 1500, description: "虚空结界马：结界内同一只老鼠连续受击伤害递增，最高3倍", plant_type: "normal", feature_type: "normal", target_card: "none", is_gold: 0, place_preview: spr_jiejiema_1 },
+    { shape: 2, sprite: spr_jiejiema_2, cost: 180, cooldown: 1500, description: "镜反结界马：攻击力翻倍，悬浮状态无需格子且可被铲除", plant_type: "gridless", feature_type: "normal", target_card: "none", is_gold: 0, place_preview: spr_jiejiema_2 }]);
 
     register_card("yinyangshe", obj_yinyangshe, [
     { shape: 0, sprite: spr_yinyangshe, cost: 295, cooldown: 420, description: "阴阳蛇：阴蛇发射5连子弹，每5发的第1发附带毒伤，可攻击未照明幽灵鼠", plant_type: "normal", feature_type: "normal", target_card: "none", is_gold: 0, place_preview: spr_yinyangshe },
-    { shape: 1, sprite: spr_yinyangshe_1, cost: 295, cooldown: 420, description: "一转阴阳蛇：多一只阳蛇，一轮共发射10连子弹，首发毒伤依旧", plant_type: "normal", feature_type: "normal", target_card: "none", is_gold: 0, place_preview: spr_yinyangshe_1 },
-    { shape: 2, sprite: spr_yinyangshe_2, cost: 295, cooldown: 420, description: "二转阴阳蛇：阳蛇子弹穿透老鼠，阴蛇毒伤提升至4.5倍", plant_type: "normal", feature_type: "normal", target_card: "none", is_gold: 0, place_preview: spr_yinyangshe_2 }]);
+    { shape: 1, sprite: spr_yinyangshe_1, cost: 295, cooldown: 420, description: "伯仲阴阳蛇：多一只阳蛇，一轮共发射10连子弹，首发毒伤依旧", plant_type: "normal", feature_type: "normal", target_card: "none", is_gold: 0, place_preview: spr_yinyangshe_1 },
+    { shape: 2, sprite: spr_yinyangshe_2, cost: 295, cooldown: 420, description: "龙虎阴阳蛇：阳蛇子弹穿透老鼠，阴蛇毒伤提升至4.5倍", plant_type: "normal", feature_type: "normal", target_card: "none", is_gold: 0, place_preview: spr_yinyangshe_2 }]);
 
     register_card("xinggui_god", obj_xinggui_god, [
     { shape: 0, sprite: spr_xinggui_god, cost: 345, cooldown: 2400, description: "阿斯特神使：为5*5范围内固定轨迹类卡片提高攻击力，同类卡片效果不叠加", plant_type: "normal", feature_type: "normal", target_card: "none", is_gold: 1, place_preview: spr_xinggui_god },

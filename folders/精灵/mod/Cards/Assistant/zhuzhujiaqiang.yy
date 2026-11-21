@@ -1,5 +1,5 @@
-﻿{
-  "$GMFolder":""",
+{
+  "$GMFolder":"",
   "%Name":"zhuzhujiaqiang",
   "folderPath":"folders/精灵/mod/Cards/Assistant/zhuzhujiaqiang.yy",
   "isDefaultView":false,

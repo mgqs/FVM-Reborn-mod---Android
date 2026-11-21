@@ -1,5 +1,5 @@
-﻿{
-  "$GMFolder":""",
+{
+  "$GMFolder":"",
   "%Name":"aurora",
   "folderPath":"folders/精灵/mod/Cards/Assistant/aurora.yy",
   "isDefaultView":false,

@@ -125,6 +125,11 @@
 | 商城「看不到某件商品」（如新上的某套时装） | 先算页数再怀疑数据：`shop_list_recharge` 的列表序是 `ds_map_keys_to_array` 的**哈希序**，每页 16 个 → 178 件时装 = 12 页，同批写入的会被打散。先核对 `goods_map` 与 `attire_pool` 条数是否相等 | B29 |
 | 想用 PowerShell 管道生成 `git` 补丁 | `git diff ... | Out-File` 会写 UTF-16/BOM 并改写行尾 → `git apply` 报 `No valid patches in input`（exit 128）。用 `cmd /c "cd /d SRC && git --no-pager diff A B -- path > D:\tmp\x.patch"`，再在目标仓库 `git apply --recount --whitespace=nowarn` | A36 |
 | 上游有改动、本地有安卓嫁接的「冲突文件」怎么合 | 别整份覆盖也别手抄：`git show`/`diff` 出**单文件**上游补丁 → `git apply --recount` 打到安卓版上（本次 5 个冲突全部 exit=0），落地后再用断言脚本核对嫁接串是否还在 | A37 |
+| 用正则读 `.yy` 里的 `textureGroupId` 判纹理组，7 个精灵被报「未分组」 | 别假设冒号后紧贴 `{`：GMS 两种排版都有（`"textureGroupId":{` 与 `"textureGroupId": {`）。正则用 `"textureGroupId"\s*:\s*\{[^{}]*?"name"\s*:\s*"([^"]+)"` 加 `re.S`，并且写成 `.py` 读文件（`pwsh` 里拼含引号的 `rg` 会静默返回空行） | A38 |
+| 断言脚本报「函数没被调用」，实际明明调用了 | 断言别按 `f()` 空参匹配：带实参的调用（`craft_help_draw(craft_help_ok_hover)`）与定义（`function craft_help_draw(_hover)`）都不含 `f()`。用 `f(` 或只写函数名 | A39 |
+| 统计「谁继承了某对象」得到 0 / 某事件查不到 | `.yy` 是跨行 JSON，匹配前先 `replace('\n','')` 或用 `re.S`；凡是「0 / 空 / 全缺失」这种反常却干净的结论，换一种写法复核一次再动手 | B32 |
+| 点某个按钮却跳到别的页 / 叠层 UI 抢点击 | GMS 的 Mouse 事件**先于** Step 执行，depth 只影响绘制顺序、不影响谁收到点击；抄旧面板版式做新面板时，先给旧面板的按钮加上「新面板存在就 exit」的守卫 | B33 |
+| 合并外部 PR 后 IDE 解析报错、资源树丢项，但 yyp 的 resources/Folders 逐条都对得上 | `folders/**/*.yy` 要逐个 `json` 解析（先 `re.sub(r',(\s*[}\]])', r'\1', s)` 去尾逗号，用 `utf-8-sig` 读），解析失败必须打印，不能 `except: continue` 静默跳过 | D6 |
 
 ## A. 工具与环境
 
@@ -1015,6 +1020,67 @@
 - **错路**：按 `.trae/rules/android设置.md` 的文字描述直接推断标记串。
 - **正确路径**：写断言前先用 `rg -n` 把真实标记打出来再抄。事实：软键盘只落在 `objects/SearchBox/Create_0.gml`、`objects/obj_auth_gate/Create_0.gml`、`objects/obj_material_sell_confirm/Create_0.gml` 三处（`obj_game_init` 只持有 `global.mobile_slowmo_enabled`）；`obj_auth_gate/Draw_0.gml` 的粘贴按钮守卫是 `if (android_paste)`，变量定义在 `objects/obj_auth_gate/Create_0.gml:98` `android_paste = (os_type == os_android);`。
 - **证据**：`.codex-tmp/an_protect.py` 首跑 2 条异常，改成真实标记后 35/35 通过（`.codex-tmp/protect_report.txt`）。
+
+### A38 用正则读 `.yy` 的 `textureGroupId` 判纹理组 → 两种排版只认出一种，7 个精灵被误报「未分组」
+- **症状**：核对 30 个新精灵的纹理组时，24 个 `spr_holiday_*` 正常报出 `UI`，另 7 个（`spr_craft_arrow_l/r`、
+  `spr_craft_help_btn`、`spr_craft_onekey_btn`、`spr_craft_warcard_label`、`spr_holiday_pager`、`spr_holiday_pop`）
+  落进 `?` 桶，看起来像是「没分组」。
+- **错路**：正则写成 `"textureGroupId":\{\s*"name":"([^"]+)"`（假设冒号后紧贴 `{`）；另一条路是在 `pwsh` 里
+  拼 `rg -n '"path": ?"texturegroups/' $f`，引号在命令链里被吞，整批返回空行，越查越像没分组。
+- **正确路径**：`.yy` 两种排版都存在（`"textureGroupId":{` 与 `"textureGroupId": {`），正则一律写
+  `"textureGroupId"\s*:\s*\{[^{}]*?"name"\s*:\s*"([^"]+)"` 并加 `re.S`；凡是跨文件的批量属性核对，
+  都写成 `.py` 文件读文件（`.codex-tmp/an_tg4.py`），不要靠 `pwsh` 里内联正则 + 引号拼接。
+  实测这 7 个精灵确实都在 `UI` 组（`spr_craft_help_btn.yy:198-200`、`spr_holiday_pager.yy:140-142`）。
+- **证据**：`.codex-tmp/an_tg3.py`（误报）→ `.codex-tmp/an_tg4.py`（7/7 命中 `UI`），2026-11-21 日志。
+
+### A39 断言脚本按 `f()` 空参匹配 → 带实参的调用被判「没调用」
+- **症状**：嫁接后断言 `objects/obj_craft_bg/Draw_0.gml` 含 `craft_help_draw()` / `craft_onekey_draw()`，
+  报「命中 0」，看着像上游那两个弹窗根本没接进绘制。
+- **错路**：把「函数被调用」写成 `count('craft_help_draw()')`。
+- **正确路径**：实参调用是 `craft_help_draw(craft_help_ok_hover)`、定义是 `function craft_help_draw(_hover)`，
+  两者都不含 `f()`。断言应写成 `f(` 或只写函数名（实测 `Draw_0.gml:1468-1469` 两处都在）。
+  同理「开关是否已删」这类断言要用 `count == 0`，而本轮 `craft_rate_enabled` 因为出现在**自己写的说明注释里**
+  仍计数 1，断言要排除注释或改判「不在 ini_read 行里出现」。
+- **证据**：`.codex-tmp/an_assert3.py` 首跑 3 条假异常 → 改写成 `f(` 后全绿，2026-11-21 日志。
+
+### B32 统计「谁继承了某对象」得到 0 → `.yy` 的 `parentObjectId` 是跨行 JSON，单行正则静默匹配不到
+- **症状**：查 `obj_bullet_parent` 的子对象数得到 **0**，据此认定「全工程没有子弹继承子弹父类、
+  出生认领从未执行」，把根因判错、还要去写一套全局扫描，实际子对象有 **140** 个。
+- **错路**：`s = open(yy).read().replace(' ', '')` 之后就按 `'"parentObjectId":{"name":"obj_bullet_parent"'` 匹配 ——
+  只去了空格没去换行，`.yy` 里是 `"parentObjectId": {\n    "name": ...`，正则跨行匹配不到，**静默返回 0**（不报错）。
+- **正确路径**：先 `s.replace('\n', '')`，或用 `re.search(r'"parentObjectId":\s*\{[^}]*"name":\s*"([^"]*)"', s, re.S)`；
+  凡是拿到「0 / 空 / 全缺失」这种反常却干净的结论，换一种写法复核一次再动手。
+- **证据**：`objects/obj_bullet_parent/BeginStep_0.gml:20`（注释写着「122 个子弹一次覆盖」）、
+  `objects/*/*.yy` 实测 140 个 `parentObjectId` = `obj_bullet_parent`，2026-11-20 日志（上游条目 B48 并入）。
+
+### B33 叠层 UI 的点击：鼠标事件先于 Step，depth 管不到谁收到点击
+- **症状**：抽卡 / 欧皇模式下在「金马盛典 → 兑换商城」点购买，弹的是**商城**的「抽卡模式无法购买卡片」，
+  幸运星花不出去；普通模式不易察觉（只会莫名弹商城确认框）。
+- **错路**：先在 `zz_shop_list` / `zz_buy_shop` / `obj_zz_shop_bg/Step_0` 里找模式门禁 —— 这三处一个 `play_mode` 都没有。
+- **正确路径**：先按提示原文反查唯一出处（`rg "<提示原文>"`），再问「这个对象的判定框为什么和当前界面重合」。
+  本例唯一出处是 `obj_shop_buy_btn/Mouse_4`，而兑换页是照商城逐像素抄的（4×4 格 + 按钮同在「格心 +77/+60」+
+  同一个 `spr_shop_buy_btn`），商城还活着时两组判定框完全重合。GMS 里 **Mouse 事件在 Step 之前执行**，
+  depth 只影响绘制顺序 → 底下那层按钮先吃掉点击。另外商城关闭时 `menu_type` 在收缩动画**开始前**就清零，
+  「商城还在、上层界面已开」是真实可达状态，只靠 `menu_type` 拦不住。
+  修法：`obj_shop_buy_btn/Mouse_4` 顶部加「`obj_zz_bg` / `obj_zz_shop_bg` / `obj_zz_buy_confirm` 任一存在就 exit」，
+  `obj_zz_enter/Mouse_4` 补 `instance_exists(obj_shop_bg)` 早退。
+- **证据**：`objects/obj_shop_buy_btn/Mouse_4.gml:1-12`、`objects/obj_zz_enter/Mouse_4.gml:5-7`、
+  `objects/obj_zz_shop_bg/Create_0.gml:26-33,57-67`，2026-11-20 日志（上游条目 B49 并入）。
+
+### D6 外部 PR 合并后工程解析失败，但 yyp 的 resources/Folders 逐条都对得上
+- **症状**：合并别人的 PR 后，`FVM_Reborn_makk.yyp` 的 `resources` / `Folders` 都能对出来，资源目录也在磁盘上，
+  但 IDE 打开报错、资源树丢项。
+- **错路**：只校验 yyp 的两条（resources 与 Folders），把 `folders/**/*.yy` 的 JSON 语法当默认正确；
+  扫描脚本用 `except Exception: continue` 跳过解析失败的文件，结果把「解析失败」误报成「资源未被收录」。
+- **正确路径**：合并后必跑一次全量解析，**失败项要打印**：
+  `json.loads(re.sub(r',(\s*[}\]])', r'\1', open(p, encoding='utf-8-sig').read()))`
+  对 `folders/**/*.yy` 逐个跑。本轮实测三类缺陷：32 个 `folders/精灵/mod/Cards/Assistant/*.yy` 的
+  `$GMFolder` 值后多了一个引号（正常是 `"$GMFolder":""`，坏文件写成三个引号再接逗号）、
+  `nengliangmiao.yy` 末尾 `"children":[]` 后多一个引号再接右花括号、
+  `folders/精灵/mod/Bullet.yy` 两条 `listItems` 之间缺逗号（后两个在源工程同样存在）。
+  另有 3 个 GBK 乱码目录 `folders/绮剧伒` / `folders/鐗╀綋` / `folders/鑴氭湰`（63 个 `.yy`，yyp 零引用）已删除。
+- **证据**：`.codex-tmp/an_json.py`（体检）、`.codex-tmp/an_fixjson.py --apply`（34 个修复、复核 0 失败）、
+  `folders/物体/mod.yy:26`（上游 D7 的 `],,` 双逗号案例），2026-11-21 日志。
 
 ## 追加模板
 

@@ -1,5 +1,5 @@
-﻿{
-  "$GMFolder":""",
+{
+  "$GMFolder":"",
   "%Name":"time_god",
   "folderPath":"folders/精灵/mod/Cards/Assistant/time_god.yy",
   "isDefaultView":false,

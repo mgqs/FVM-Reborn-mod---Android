@@ -1,5 +1,5 @@
-﻿{
-  "$GMFolder":""",
+{
+  "$GMFolder":"",
   "%Name":"clotho",
   "folderPath":"folders/精灵/mod/Cards/Assistant/clotho.yy",
   "isDefaultView":false,

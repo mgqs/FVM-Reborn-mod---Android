@@ -1,5 +1,5 @@
-﻿{
-  "$GMFolder":""",
+{
+  "$GMFolder":"",
   "%Name":"haiyang_god",
   "folderPath":"folders/精灵/mod/Cards/Assistant/haiyang_god.yy",
   "isDefaultView":false,

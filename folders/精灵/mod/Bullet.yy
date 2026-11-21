@@ -139,7 +139,7 @@
     {"name":"695927e5-958c-45c1-8d55-3e2011180c13","path":"sprites/spr_zhurong_bullet_effect1/spr_zhurong_bullet_effect1.yy",},
     {"name":"858060f3-209c-4969-9ae5-ab538649e963","path":"sprites/spr_zhurong_bullet_effect_1/spr_zhurong_bullet_effect_1.yy",},
     {"name":"ba52de3b-999d-4acd-9b53-0445c98729ec","path":"sprites/spr_zhurong_bullet_effect_2/spr_zhurong_bullet_effect_2.yy",},
-    {"name":"677ea0d8-ddea-4996-abf0-ca920b266e15","path":"sprites/spr_zhurong_bullet_effect_3/spr_zhurong_bullet_effect_3.yy",}
+    {"name":"677ea0d8-ddea-4996-abf0-ca920b266e15","path":"sprites/spr_zhurong_bullet_effect_3/spr_zhurong_bullet_effect_3.yy",},
     {"name":"2b32893b-3c84-459f-bd07-39064996ae1b","path":"sprites/spr_jingangma_hit/spr_jingangma_hit.yy",},
   ],
 }

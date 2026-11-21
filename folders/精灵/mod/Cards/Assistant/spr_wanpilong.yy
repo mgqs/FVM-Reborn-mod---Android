@@ -1,5 +1,5 @@
-﻿{
-  "$GMFolder":""",
+{
+  "$GMFolder":"",
   "%Name":"spr_wanpilong",
   "folderPath":"folders/精灵/mod/Cards/Assistant/spr_wanpilong.yy",
   "isDefaultView":false,
