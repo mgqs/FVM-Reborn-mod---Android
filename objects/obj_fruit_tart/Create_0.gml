@@ -22,9 +22,14 @@ is_slowdown = false
 card_id_list = ["egg_boiler_pult"]
 enhance_card_list = []
 buffer_type = "thrower";
-buff_value = atk / 100;
-buff_cells = [];
-var _left = (shape >= 2) ? 0 : grid_col - 1;
-for (var _col = _left; _col >= 0; _col--)
-    array_push(buff_cells, [_col, grid_row, buff_value]);
+// 增幅范围交给 scripts/fruit_tart_buff 铺格子（零转本行左侧 / 一转整行 / 二转三行）；
+// 倍率取**注册表 atk**（1.5~3.0 本身就是倍率），不读实例 atk（会被地形 / 宝石 / 海克斯乘大）
+buff_value = fruit_tart_mult(shape, current_level,
+    variable_instance_exists(id, "skill") ? skill : 0, atk);
+buff_cells = fruit_tart_build_cells(grid_col, grid_row, shape, buff_value);
+// 留给 Step_0 第一帧登记到 global.buff_sources（登记与铺格子都在那边做，和极光同构）
 buff_cells_refreshed = false;
+// 位置/形态变化时重铺用（倍率已不再跟 atk 走，改成盯这三个值）
+ft_last_col   = grid_col;
+ft_last_row   = grid_row;
+ft_last_shape = shape;

@@ -10,6 +10,15 @@
 
 | 你正要做的动作 / 看到的症状 | 立刻改成这样 | 条目 |
 |---|---|---|
+| 统计冲突文件的「我方改动」得到整份文件 | 取基线的 `git show` 必须在**源仓库**跑（`-C 源仓库`）；目标仓库没有源提交对象 | A40 |
+| 三方合并报出「整份文件一个冲突块」 | 先看目标文件有没有 CR（CRLF 与 LF 逐行都不同）→ 归一成 LF 再 merge-file | A41 |
+| 冲突标记都清了，功能却重复触发 / 又冒出裸 `mb_right` | diff3 会保留「我方改写 + 上游重写」两版 → 扫重复判定与受保护特征串，合成单块 | A42 |
+| 统计「源 yyp 有、目标 yyp 没有」的纹理组恒为 0 | 源 yyp 带尾逗号、目标不带，别按整行写正则；抓 `"name":"X","resourceType":"GMTextureGroup"` | B34 |
+| 合并外部 PR 改名对象后，代码能用但 IDE 资源树里找不到它 | 用新 `path` 在 `folders/**/*.yy` 反查，0 命中就按原所在文件夹补一行 `listItems` | D7 |
+| 上游新敌人的卡打不到 / 子弹穿过去 | 子对象 Step 不继承父事件 → 不进 `enemy_by_type`；在每个新敌人 `Step_0` 首部补注册块（先剥注释再找 `event_inherited()`） | C33 |
+| 合并来的绘制代码报 `Variable obj_x._yyy not set` | 上游循环体里定义过的局部变量没跟着搬 → `rg -n '_yyy\b'` 核对定义行在不在前面 | C34 |
+| 报 `local variable yyy not set` 而不是 `Variable obj_x.yyy` | 同事件里别处写过 `var yyy` 把实例字段遮住 → 改用 `variable_instance_get(id, "yyy")` | C35 |
+| 情报岛 / 地图预览里换皮立绘「完全看不见」 | 包围盒表只扫原版注册脚本 → 重跑 `tools/gen_sprite_trim.py`，`sprite_clip_draw` 加运行时兜底 | C36 |
 | 想用 `Get-Content` 看 `.gml` 中文 | 用 `read` / `grep` 工具；pwsh 只用 `[IO.File]::ReadAllText($p,[Text.Encoding]::UTF8)` | A1 |
 | 想用 `Get-Content` 数行数 | 用 `read` 工具或数 LF；`Get-Content` 会把 283 行数成 171 | A2 |
 | 想把多行 python 塞进 `pwsh -Command` | 写 `.py` 文件再 `python x.py`，中文加 `PYTHONIOENCODING=utf-8` | A3 |
@@ -251,6 +260,32 @@
   `land_air_ug` + 安卓 `external_mod_*` 层 / `auth_gate_force` + `obj_mobile_buttons`），全部命中。
 - **证据**：`.codex-tmp/an_sync.py`、`.codex-tmp/an_ref.py`、2026-11-18 日志。
 
+### A40 三方合并的 base 用 `git -C 目标仓库 show <源提交>:<路径>` → 取到空串，整份文件都算「我方改动」
+- **症状**：统计 27 个冲突文件的「目标自有改动行数」时，每个文件都报「基线=0 字节、目标自有改动 = 整份文件行数」，
+  完全无法判断嫁接点在哪。
+- **错路**：以为是文件里的 CRLF 或 BOM 让 `git show` 失败，去查编码、查换行。
+- **正确路径**：`1e844c591c` 这类提交只存在于**源仓库** `D:\gameProject\FVM-Reborn-mod`，目标 Android 仓库里没有这个对象，
+  `git -C <目标仓库> show 1e844c591c:path` 只会静默输出空串。取基线必须 `git -C <源仓库> show <提交>:<路径>`。
+- **证据**：2026-11-22；`.codex-tmp/an_own4.py` 首跑 `尺寸 基线=0`，`.codex-tmp/an_merge4.py` 改用 `-C SRC` 后正常。
+
+### A41 三方合并前不归一 CRLF → 整份文件被判成 1807 行全冲突
+- **症状**：`git merge-file` 对 `objects/obj_player_shield/Step_0.gml` 报出 1 个 1807 行的冲突块（整份文件），
+  `scripts/levels_init/levels_init.gml` 同样整块冲突；但上游对这两个文件的改动只有 4 行、9 行。
+- **错路**：以为上游把文件重排了，准备「整份取上游再手工补安卓段」。
+- **正确路径**：目标侧这两个文件带 CR（`obj_player_shield` 600 个、`levels_init` 7 个），CRLF 与 LF 逐行不同 →
+  merge-file 视为全文改写。先把目标文件 `\r\n` → `\n` 归一（顺带满足 §1.1 的 LF 要求），再跑 merge-file：
+  两个文件都变成 **0 冲突**直接采用。
+- **证据**：2026-11-22；`.codex-tmp/an_lf4.py`（归一 + 重新合并），归一后字节 20599 → 19999、18977 → 18970。
+
+### A42 diff3 把「我方改写某行 + 上游在同一处重写并挪位」判成两条都保留 → 重复逻辑块，其中一份还是裸 `mb_right`
+- **症状**：合并后 `objects/obj_level_preview/Step_0.gml` 末尾出现两份「关闭预览」判定：第 74 行的上游版
+  （`|| mouse_check_button_pressed(mb_right)`）和第 77 行的我方版（`|| ui_back_click_pressed()`）。
+  两份都不冲突、都能编译，只有扫「裸 mb_right」时才暴露。
+- **错路**：只看 `<<<<<<<` 有没有剩下，扫到 0 就以为合并干净。
+- **正确路径**：合并后除扫冲突标记，还要扫「同一判定 / 同一赋值出现两次」与受保护层特征串（裸 `mb_right`、
+  少参 `keyboard_virtual_show`、`surface_set_target` 不成对）。这里改成单块
+  `if ((!global.console_open && keyboard_check_pressed(vk_escape)) || ui_back_click_pressed()){`。
+- **证据**：2026-11-22；`objects/obj_level_preview/Step_0.gml:74-78`（修复后单块），断言见 `.codex-tmp/an_protect4.py`。
 
 ## B. 判断与定位（先查这里，别从代码猜）
 
@@ -603,7 +638,15 @@
 - **证据**：`objects/obj_yinyangshe_bullet/{Step_0,Create_0}.gml`、`objects/obj_bbq_bullet/Step_0.gml:13-20`、
   `objects/obj_fashishe_bullet/Step_0.gml:17-25`。
 
-
+### B34 用「只认目标无尾逗号」的正则读源 yyp → 源组解析成 0 个，误报「纹理组缺口 0」
+- **症状**：`an_tg4b.py` 首跑打印「源组 0：/ 目标组 14 / 缺口 0：无」，但同一轮扫精灵时又有 120 个
+  `textureGroupId = pack_desert_trip` 找不到归属组。
+- **错路**：以为源 yyp 没有纹理组（被另外的字段名骗了），差点直接改 120 个精灵的组名。
+- **正确路径**：源 yyp 每条都带尾逗号（`"resourceVersion":"2.0",},`），而目标 yyp 不带（`"resourceVersion":"2.0",}`），
+  按整行结构写的正则只吃得下目标风格。改成只抓语义键
+  `"name":"([^"]+)","resourceType":"GMTextureGroup"`，两种风格通吃 → 源组 15（多出 `pack_desert_trip`）。
+  结论：**统计类正则先在一个已知答案的文件上验一次命中数**，别直接拿结果做决策。
+- **证据**：2026-11-22；`.codex-tmp/an_tg4b.py`；`FVM_Reborn_makk.yyp`（源 15 组 / 目标 14 组）。
 
 ## C. 机制与数值（改了不生效 / 静默错）
 
@@ -802,7 +845,50 @@
 - **证据**：`objects/obj_jiejiema_field/Draw_0.gml:51-107`、
   `scripts/jiejiema_field/jiejiema_field.gml:276-303`。
 
+### C33 上游新敌人「卡片打不到」→ 子对象 Step 不继承父事件，就不进 `enemy_by_type` 空间索引
+- **症状**：合并 v3.1.0 沙漠之旅后，滑板鼠、以及 `anubis_mouse` / `medusa` / `ufo_mouse` 等新 BOSS 站在场上，卡片不攻击、子弹穿过去不掉血；老敌人一切正常。
+- **错路**：先怀疑新敌人的 `target_type` 写成 `"land"`（注册表里的 `feature` 是 `"land"`），去改 `get_hittable_enemy_types`；也怀疑过 `enemy_map` 漏注册。两条都不成立 —— `get_hittable_enemy_types` 的键是 `target_type`（`"normal"`/`"air"`/`"obstacle"`…），跟 `feature` 无关。
+- **正确路径**：mod 的命中系统只认 `global.enemy_by_type`（`target_type` → 实例列表），而**这张表只有 `obj_enemy_parent/Step_0.gml` 开头那段注册代码在填**。上游敌人对象自带完整 `Step_0`、**不调用 `event_inherited()`**（文件第一行 `// Inherit the parent event` 只是注释，真正的调用在少数几个对象里才有）→ 父 Step 不执行 → 永不注册 → `obj_battle/Step_2` 建出来的 `enemy_sx` / `enemy_col_n` 里没有它，卡侧读列内敌人数为 0 干脆不开火。
+  照 `obj_face_cookie/Step_0.gml:6-24` 的既有写法，在每个「有自己 Step 且不继承父事件」的敌人 `Step_0` **最前面**补一段注册块（幂等：`enemy_registered` + `enemy_registered_type` 双守卫）。
+  判定要**先剥注释再找 `event_inherited()`**，否则会被那句注释骗过去（本次 24 只新敌人里 11 只被误判成已继承）。
+- **证据**：2026-11-22；`objects/obj_enemy_parent/Step_0.gml:6-26`（唯一注册点）、`objects/obj_face_cookie/Step_0.gml:6`、`objects/obj_battle/Step_2.gml:263-311`（索引建表）；本次补注册的 9 个：`obj_anubis_mouse`、`obj_awaken_medusa`、`obj_hermit_crab_mouse`、`obj_medusa`、`obj_sandboarding_mouse`、`obj_tribal_chief_mouse`、`obj_ufo_mouse`、`obj_witch_shaman_mouse`、`obj_cactus_mouse_bullet`。
 
+### C34 合并进来的绘制代码读「本作用域不存在的变量」→ Draw Event 每帧报 not set before reading it
+- **症状**：打开情报岛（敌人页签）立即报
+  `Variable obj_info_island_bg._ca(104644, -2147483648) not set before reading it. at gml_Object_obj_info_island_bg_Draw_0 (line 362)`。
+- **错路**：三方合并时上游那一行写的是 `sprite_clip_draw(..., _esc, _ca)`，把上游的 `_ca`（它在自己的循环里定义过）连同 mod 的 `_cell_alpha` 一起搬进了同一个 `for` 体；校验脚本只查 BOM 与括号配平，**查不出未定义变量**，直到运行时才炸。
+- **正确路径**：合并「整段取自上游」的绘制/循环体后，逐行核对它引用的局部变量在本作用域的赋值点（`rg -n '_ca\b' <文件>`）。这里改成传本循环已有的 `_cell_alpha`（格子淡入透明度）语义等价。
+  更通用的自检：合并后对改动行里的每个 `_xxx` 局部变量跑一次「定义行号 < 使用行号」的扫描，别等实机。
+- **证据**：2026-11-22；`objects/obj_info_island_bg/Draw_0.gml:357`（`var _cell_alpha = cell_reveal_alpha(row,col)` 定义）、`:362`（修复点）。
+
+### C35 同事件里别处写了 `var target_type` → 整个事件里的 `target_type` 都按局部解析，读实例字段要 `variable_instance_get`
+- **症状**：给 `obj_sandboarding_mouse` 的 `Step_0` 最前面补了敌人注册块，实机一进沙漠关就报
+  `local variable target_type(102436) not set before reading it. at gml_Object_obj_sandboarding_mouse_Step_0 (line 12) - var _reg_key = target_type;`
+  —— 注意报的是 **local variable**，不是 `Variable obj_x.target_type`。
+- **错路**：以为父对象 Create 没把 `target_type` 设上（它明明在 `obj_enemy_parent/Create_0.gml:42` 设了 `"normal"`），
+  还想过去补 `event_inherited()`。
+- **正确路径**：GML 里**同一事件作用域内只要出现过 `var target_type`，这个名字在整个事件里就都是局部变量** ——
+  `obj_sandboarding_mouse/Step_0.gml:137,214` 的 `var target_type = ds_list_find_value(global.eat_order, i);` 就是这么把实例字段遮住的。
+  读实例字段一律走 `variable_instance_get(id, "target_type")`（缺了给 `is_undefined` 兜底），别直接写名字。
+  补这类「前置挂钩代码」前，先 `rg -n 'var <变量名>' <文件>` 确认没被同名局部遮蔽。
+- **证据**：2026-11-22；`objects/obj_sandboarding_mouse/Step_0.gml:137,214`（遮蔽源）、`:5-9`（改用 `variable_instance_get`）、`objects/obj_enemy_parent/Create_0.gml:42`。
+
+### C36 立绘裁剪表只按「原版注册脚本」生成 → 本工程自有的换皮美术不在表里，退回整张画布后整个飘出裁剪框
+- **症状**：合并上游 3.1.0 的「情报岛立绘裁剪框 + 普通/BOSS 分级缩放」之后，原版老鼠正常，但本工程自己的换皮敌人
+  （感染鼠 `spr_infected_*`、跨服鼠 `spr_kuafu_*`、龙渊 BOSS `spr_longzhu_*_icon` 等）在情报岛**完全看不见**（用户 2026-11-22 报）。
+- **错路**：先怀疑「缩放太小 / 裁剪框太小」，去调 `enemy_scale_normal/boss` 与 `enemy_clip_w/h`；
+  也怀疑过 `sprite_get_bbox_*` 是自动包围盒不准。实际两者都不是 —— 缩放到 1.0 也照样看不见。
+- **正确路径**：`scripts/sprite_clip_draw` 的锚点是「内容包围盒水平居中 + 底边贴框底」，
+  而包围盒来自离线表 `scripts/sprite_trim_get`（`tools/gen_sprite_trim.py` 生成）。**那个脚本原来只扫
+  `scripts/enemy_init/enemy_init.gml`**，mod 的敌人注册在 `mod_enemy_init` / `longyuan_enemy_init` /
+  `shuihuo_enemy_init` / `zhuore_enemy_init` / `wudu_enemy_init` 里 → 表里缺 103 条 → 缺条目的精灵退回
+  **整张画布**贴底对齐；画布大、内容偏上的贴图（`spr_infected_submarine_mouse_land` 193×322、内容仅占 9%）
+  就被整个推到裁剪框上方，一个像素都看不见。
+  两条一起改：①生成脚本改为扫描 `scripts/` 下所有带 `spr` 字段的注册脚本（排除 `attire_init`，那是装扮），
+  表从 158 → 366 条；②`sprite_clip_draw` 的包围盒加运行时兜底（离线表 → `sprite_get_bbox_*` → 整张画布），
+  并把调用方给的缩放改成**上限**（内容超框时等比缩到刚好放得进）。
+- **证据**：2026-11-22；`tools/gen_sprite_trim.py`（扫描范围）、`scripts/sprite_clip_draw/sprite_clip_draw.gml:53-84`（三级回退 + `_fit`）、
+  `objects/obj_info_island_bg/Create_0.gml:39-51`、`objects/obj_mouse_preview/Create_0.gml:7-19`。
 
 ## D. 契约与流程（自己的规矩没守）
 
@@ -1081,6 +1167,18 @@
   另有 3 个 GBK 乱码目录 `folders/绮剧伒` / `folders/鐗╀綋` / `folders/鑴氭湰`（63 个 `.yy`，yyp 零引用）已删除。
 - **证据**：`.codex-tmp/an_json.py`（体检）、`.codex-tmp/an_fixjson.py --apply`（34 个修复、复核 0 失败）、
   `folders/物体/mod.yy:26`（上游 D7 的 `],,` 双逗号案例），2026-11-21 日志。
+
+### D7 外部 PR 把对象改名，只删旧 `listItems` 条目、没补新条目
+
+- **症状**：合并后对象在 yyp `resources` 里（能编译、代码引用也对），但 IDE 资源树里看不到它；
+  全仓 `folders/**/*.yy` 搜新名字 0 命中。
+- **错路**：只查「旧名字有没有残留」（0 残留就以为干净）、只看 yyp 的 `resources` + `Folders`
+  （两者都通过），漏掉「新名字要重新进某个文件夹的 `listItems`」这一步。
+- **正确路径**：合并后对每个状态为 `A` 的对象/脚本/精灵，用它的 `path` 在
+  `folders/**/*.yy` 的 `listItems` 里做一次反查；0 命中就按原文件夹补一行
+  （`{"name":"<名>","path":"<path>",}`）。PR49 的 `obj_immortal_pick` → `obj_immortal_confirm`
+  就是只删了 `folders/物体/mod/UI.yy` 里的旧行，已补回。
+- **证据**：`folders/物体/mod/UI.yy`（补入前 listItems 6 条、无新对象）、2026-11-22 日志。
 
 ## 追加模板
 

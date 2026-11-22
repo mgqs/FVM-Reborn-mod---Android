@@ -266,7 +266,7 @@ function credit_shop_init()
 
     register_goods("credit_chocolate_cannon_1", {
         type: "credit", cost: "1900", coin_type: "prestige", credit_shape: 1,
-        tower_floor: "3-2",
+        tower_floor: "5-1",
         unlock_item_id: transfer_credit_id("chocolate_cannon", 1),
         description: "一转凭证\n在合成屋-卡片转职中使用"
     });
@@ -781,6 +781,26 @@ function credit_shop_init()
         description: "一转凭证\n在合成屋-卡片转职中使用"
     });
 
+    // ── 3.1.0 沙漠之旅新卡的一转凭证（价位与同档卡对齐）──
+    register_goods("credit_parsnip_salad_1", {
+        type: "credit", cost: "900", coin_type: "prestige", credit_shape: 1,
+        tower_floor: "1-1",
+        unlock_item_id: transfer_credit_id("parsnip_salad", 1),
+        description: "一转凭证\n在合成屋-卡片转职中使用"
+    });
+    register_goods("credit_cactus_sashimi_1", {
+        type: "credit", cost: "2280", coin_type: "prestige", credit_shape: 1,
+        tower_floor: "4-1",
+        unlock_item_id: transfer_credit_id("cactus_sashimi", 1),
+        description: "一转凭证\n在合成屋-卡片转职中使用"
+    });
+    register_goods("credit_fruit_tart_1", {
+        type: "credit", cost: "4500", coin_type: "prestige", credit_shape: 1,
+        tower_floor: "9-2",
+        unlock_item_id: transfer_credit_id("fruit_tart", 1),
+        description: "一转凭证\n在合成屋-卡片转职中使用"
+    });
+
     // ── 二转凭证（101 条）─────────────────────────────────────────
     register_goods("credit_wooden_plate_2", {
         type: "credit", cost: "11400", coin_type: "prestige", credit_shape: 2,
@@ -884,6 +904,13 @@ function credit_shop_init()
         type: "credit", cost: "27000", coin_type: "prestige", credit_shape: 2,
         tower_floor: "21-1",
         unlock_item_id: transfer_credit_id("brazier", 2),
+        description: "二转凭证\n在合成屋-卡片转职中使用"
+    });
+
+    register_goods("credit_fruit_tart_2", {
+        type: "credit", cost: "16200", coin_type: "prestige", credit_shape: 2,
+        tower_floor: "21-2",
+        unlock_item_id: transfer_credit_id("fruit_tart", 2),
         description: "二转凭证\n在合成屋-卡片转职中使用"
     });
 
@@ -1008,7 +1035,7 @@ function credit_shop_init()
 
     register_goods("credit_chocolate_cannon_2", {
         type: "credit", cost: "10500", coin_type: "prestige", credit_shape: 2,
-        tower_floor: "8-1",
+        tower_floor: "15-1",
         unlock_item_id: transfer_credit_id("chocolate_cannon", 2),
         description: "二转凭证\n在合成屋-卡片转职中使用"
     });
@@ -1288,7 +1315,7 @@ function credit_shop_init()
 
     register_goods("credit_donut_2", {
         type: "credit", cost: "33000", coin_type: "prestige", credit_shape: 2,
-        tower_floor: "23-1",
+        tower_floor: "19-1",
         unlock_item_id: transfer_credit_id("donut", 2),
         description: "二转凭证\n在合成屋-卡片转职中使用"
     });
@@ -1386,7 +1413,7 @@ function credit_shop_init()
 
     register_goods("credit_baibianshe_2", {
         type: "credit", cost: "17400", coin_type: "prestige", credit_shape: 2,
-        tower_floor: "16-1",
+        tower_floor: "25-2",
         unlock_item_id: transfer_credit_id("baibianshe", 2),
         description: "二转凭证\n在合成屋-卡片转职中使用"
     });
@@ -1529,6 +1556,14 @@ function credit_shop_init()
         description: "二转凭证\n在合成屋-卡片转职中使用"
     });
 
+    // ── 3.1.0 沙漠之旅新卡的二转凭证（parsnip_salad 只有两形态，无二转）──
+    register_goods("credit_cactus_sashimi_2", {
+        type: "credit", cost: "14040", coin_type: "prestige", credit_shape: 2,
+        tower_floor: "9-1",
+        unlock_item_id: transfer_credit_id("cactus_sashimi", 2),
+        description: "二转凭证\n在合成屋-卡片转职中使用"
+    });
+
     // ── 跨服商店挪入的一/二转凭证（2026-10-30 用户按「魔塔威望.xlsx」新定的价与层数）──
     register_goods("credit_zhanqima_1", {
         type: "credit", cost: "14600", coin_type: "prestige", credit_shape: 1,
@@ -1622,7 +1657,7 @@ function credit_shop_init()
     });
     register_goods("credit_yanhuangma_2", {
         type: "credit", cost: "26000", coin_type: "prestige", credit_shape: 2,
-        tower_floor: "28-1",
+        tower_floor: "27-1",
         unlock_item_id: transfer_credit_id("yanhuangma", 2),
         description: "二转凭证\n在合成屋-卡片转职中使用"
     });
@@ -1950,13 +1985,13 @@ function credit_shop_init()
     });
     register_goods("credit_galaxy_horse_1", {
         type: "credit", cost: "11000", coin_type: "prestige", credit_shape: 1,
-        tower_floor: "17-1",
+        tower_floor: "12-1",
         unlock_item_id: transfer_credit_id("galaxy_horse", 1),
         description: "一转凭证\n在合成屋-卡片转职中使用"
     });
     register_goods("credit_galaxy_horse_2", {
         type: "credit", cost: "40000", coin_type: "prestige", credit_shape: 2,
-        tower_floor: "27-2",
+        tower_floor: "25-2",
         unlock_item_id: transfer_credit_id("galaxy_horse", 2),
         description: "二转凭证\n在合成屋-卡片转职中使用"
     });
@@ -2043,7 +2078,7 @@ function credit_shop_init()
     });
     register_goods("credit_shiguangji_2", {
         type: "credit", cost: "17400", coin_type: "prestige", credit_shape: 2,
-        tower_floor: "15-2",
+        tower_floor: "16-1",
         unlock_item_id: transfer_credit_id("shiguangji", 2),
         description: "二转凭证\n在合成屋-卡片转职中使用"
     });
@@ -2067,7 +2102,7 @@ function credit_shop_init()
     });
     register_goods("credit_tanhuanghu_2", {
         type: "credit", cost: "49500", coin_type: "prestige", credit_shape: 2,
-        tower_floor: "25-2",
+        tower_floor: "21-2",
         unlock_item_id: transfer_credit_id("tanhuanghu", 2),
         description: "二转凭证\n在合成屋-卡片转职中使用"
     });
@@ -2091,7 +2126,7 @@ function credit_shop_init()
     });
     register_goods("credit_zhuanlonghu_2", {
         type: "credit", cost: "17400", coin_type: "prestige", credit_shape: 2,
-        tower_floor: "16-1",
+        tower_floor: "24-1",
         unlock_item_id: transfer_credit_id("zhuanlonghu", 2),
         description: "二转凭证\n在合成屋-卡片转职中使用"
     });

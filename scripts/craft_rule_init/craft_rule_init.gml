@@ -256,8 +256,10 @@ function get_card_craft_rate(card_id, target_level, bonus, fail_streak){
 	return 100
 }
 
+// 宝石强化固定 100%：卡片的「强化概率」只管卡片，不许波及宝石。
+//   🔴 别把宝石接回强化概率（分段衰减 + 浮动 + 保底）—— 那会表现成「宝石也会失败」。
 function get_gem_craft_rate(gem_id, target_level, bonus, fail_streak){
-	return craft_rate_with_pity(gem_id, target_level, bonus, fail_streak)
+	return 100
 }
 
 function get_card_craft_rate_base(card_id, target_level){
@@ -265,9 +267,7 @@ function get_card_craft_rate_base(card_id, target_level){
 }
 
 function get_gem_craft_rate_base(gem_id, target_level){
-	var _s = craft_rate_settings()
-	if !_s.enabled return 100
-	return craft_rate_rolled(gem_id, target_level)
+	return 100
 }
 
 function get_card_craft_rate_now(card_id){
@@ -276,7 +276,7 @@ function get_card_craft_rate_now(card_id){
 
 function get_gem_craft_rate_now(gem_id){
 	if gem_id == "" return 0
-	return get_gem_craft_rate(gem_id, get_gem_max_level(gem_id) + 1, get_gem_craft_bonus(gem_id), get_gem_fail_streak(gem_id))
+	return 100
 }
 
 function craft_roll(rate){

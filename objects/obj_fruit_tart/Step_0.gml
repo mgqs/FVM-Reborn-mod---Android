@@ -2,15 +2,14 @@ if global.is_paused{
 	exit
 }
 event_inherited(); 
-if (!buff_cells_refreshed)
+// 增幅源登记 + 按形态铺格子（倍率取注册表，见 scripts/fruit_tart_buff）。
+// 倍率不跟实例 atk 走，只在「位置 + 形态」变化时重铺。
+if (!buff_cells_refreshed
+    || grid_col != ft_last_col || grid_row != ft_last_row || shape != ft_last_shape)
 {
-    buff_value = atk / 100;
     mod_buff_source_add(id);
-    buff_cells = [];
-    var _left = (shape >= 2) ? 0 : grid_col - 1;
-    for (var _col = _left; _col >= 0; _col--)
-        array_push(buff_cells, [_col, grid_row, buff_value]);
-    global.buff_dirty = true;
-    buff_cells_refreshed = true;
+    fruit_tart_refresh_cells();
+    ft_last_col   = grid_col;
+    ft_last_row   = grid_row;
+    ft_last_shape = shape;
 }
-

@@ -1,6 +1,10 @@
-surface_set_target(application_surface);
-draw_clear_alpha(c_black, 0);
-surface_reset_target();
+// 强制清除application_surface，避免上一房间图像残留
+// ⚠️ application_surface 可能短暂失效（值为 -1），直接用会抛 surface target does not exist
+if (surface_exists(application_surface)){
+	surface_set_target(application_surface);
+	draw_clear_alpha(c_black, 0); // 用透明黑色清除surface，alpha值0表示完全透明
+	surface_reset_target();
+}
 
 depth = 50
 
@@ -11,6 +15,13 @@ var mus_inst = instance_create_depth(0,0,0,obj_battle_music_controller)
 mus_inst.battle_music = global.level_data.pre_music
 
 global.game_over = false
+
+// 防护：不朽必须「切过去 + 点确定锁定」才能开打。
+//   老存档 / 异常路径如果带着 difficulty 5 但本档没锁，这里兜一次回到火山级，别让人直接打不朽。
+if (global.difficulty == 5 && difficulty_locked_value() != 5){
+    difficulty_set_value(1);
+    show_notice("不朽难度未确认，已按火山级开始", 90);
+}
 
 global.enemy_by_type = {};
 
@@ -55,6 +66,7 @@ global.test_info_island_mode = (global.level_id == "test_level");
 
 // 爆辣河豚：每局战斗重置放置次数计数
 global.pufferfish_place_count = 0;
+global.enemy_damage_reduction = 0
 
 chomp_sound_list = ds_list_create()
 battle_time = 0

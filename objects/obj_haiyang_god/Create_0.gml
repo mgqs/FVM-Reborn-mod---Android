@@ -24,9 +24,8 @@ else
     plant_type = "normal";
 
 // ===== 海洋女神增幅系统 =====
-// 增幅倍率 = atk / 100
-ocean_buff_value = atk / 100;
-
+// 增幅倍率 = 注册表 custom["增幅倍率"]；atk 归 0，不参与
+ocean_buff_value = ocean_god_buff_value(shape, current_level);
 
 // 刷新标记
 ocean_buff_refreshed = false;

@@ -9,14 +9,15 @@
   "resourceVersion":"2.0",
   "viewLocked":false,
   "visible":true,
-  "folders":[],
+  "folders":[
+  ],
   "listItems":[
     {"name":"obj_aladdin_lamp_enter","path":"objects/obj_aladdin_lamp_enter/obj_aladdin_lamp_enter.yy",},
     {"name":"obj_hades_scythe_enter","path":"objects/obj_hades_scythe_enter/obj_hades_scythe_enter.yy",},
     {"name":"obj_mod_battle_manager","path":"objects/obj_mod_battle_manager/obj_mod_battle_manager.yy",},
     {"name":"obj_mod_manager","path":"objects/obj_mod_manager/obj_mod_manager.yy",},
     {"name":"obj_mod_menu","path":"objects/obj_mod_menu/obj_mod_menu.yy",},
-    {"name":"obj_immortal_pick","path":"objects/obj_immortal_pick/obj_immortal_pick.yy",},
+    {"name":"obj_immortal_confirm","path":"objects/obj_immortal_confirm/obj_immortal_confirm.yy",},
     {"name":"obj_info_island_sync_btn","path":"objects/obj_info_island_sync_btn/obj_info_island_sync_btn.yy",}
   ],
 }

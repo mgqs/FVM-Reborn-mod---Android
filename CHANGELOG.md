@@ -1,3 +1,65 @@
+# v3.2.0
+> 同步上游 `1e844c591c..1ec739b125`（7 个提交，主线是 v3.1.0「沙漠之旅 / 暂停滤镜 / 立绘全美术适配」）。
+> 安卓侧口径：受保护层逐块嫁接、纹理组统一 ASTC 6x6 -medium，4 项高风险改动按用户答复取舍（见「安卓适配」）。
+## 新内容
+- **沙漠之旅地图包**：`scripts/maps_init` 新增 `desert_trip`，18 个关卡 JSON（`datafiles/level_data/desert/`：
+  `aloe_dune_daytime/night`、`hippophae_oasis`、`cactus_basin_daytime/night`、`lizard_gobi`、
+  `fishbone_desert_daytime/night`、`cucur_pyramid`，各含 `_hard`）+ `datafiles/level_data/camp/nut_platform_night_hard.json`。
+  配套 120 张沙漠美术（`spr_aloe_dune_*` 等，2005×1080 背景级）与 UI 图鉴入口 `spr_levelselect_button_desert`。
+- **沙漠敌人 7 BOSS + 24 小怪**：`witch_shaman_mouse`、`hermit_crab_mouse`、`medusa`、`awaken_medusa`、
+  `tribal_chief_mouse`、`ufo_mouse`、`anubis_mouse` 及 `obj_*-mouse-*`/子弹/召唤物（`scripts/enemy_init` / `boss_init` 成对注册）。
+- **营地港口**：`obj_camp_port_menu` + `obj_camp_port_choose_btn` / `obj_camp_port_close_btn`，入口在
+  `objects/obj_levelselect_button/Mouse_4.gml`；沙漠之旅已开放，雪原/雷城/幻境保持未开放提示。
+- **调试控制台**：`obj_console`（room_init 实例化、persistent）+ `scripts/console_commands`，
+  默认 `~` 键、`config.ini → [settings] console_enabled` 默认关闭；`global.console_open` 展开时屏蔽其它按键。
+- **画面设置**：「禁用暂停滤镜」开关（`global.pause_filter` → `objects/obj_battle_pause_manager/Draw_0.gml`）。
+- **暂停时可放置/铲除卡片**：`objects/obj_card_slot/Step_0.gml` 的 `!global.is_paused` 与无常鼠冰冻锁链并成同一条件。
+- **存档/关卡读取失败提示**：`scripts/save_file` 写失败第 3 次弹窗后退出（`global.save_fail_count`）；
+  `scripts/level_integrity` + `scripts/level_hashes` 关卡哈希校验（`global.level_hash_verify`）。
+- **制作名单**：`obj_credits_menu` + `obj_credits_btn`（本工程此前缺 `obj_credits_menu.yy`，本次补齐）。
+## 优化与修复
+- **本机识别码指纹 v2**：`scripts/auth_client/auth_client.gml` 改为优先原生硬件 UUID（`FvmNativeSupport` 新增
+  `MachineUuid` 导出）→ `V2|<UUID>`，退化 `V2E|<环境量>|<install.id>`；保留 `auth_hwid_legacy()` 只对本地已存记录放行。
+  修复 ghost 克隆镜像/同批装机算出同一识别码（现网 `E52D26F9`）导致授权码成串重复的问题。
+- **立绘裁剪**：新增 `scripts/sprite_clip_draw` + `scripts/sprite_trim_get`，情报岛与地图老鼠预览统一「按内容包围盒裁剪 +
+  普通/BOSS 分级缩放」，修大画布、内容偏上的换皮美术被推出裁剪框（看不见）的问题；`scripts/sprite_clip_draw` 用
+  `surface_set_target` / `surface_reset_target` 成对压栈，`surface_create` 失败时当帧不画。
+- 水果塔增幅改走投掷类增幅网格（新 `scripts/fruit_tart_buff`，零转本行左 / 一转整行 / 二转三行），撤除子弹内联判定。
+- 修复酒杯灯食谱不生效（`objects/obj_goblet_lamp/Other_11.gml` 硬编码 `90*60` → `grow_time`）。
+- 营地商店购买转职后星级被降低的问题按本工程口径保留（只发转职凭证）。
+- 修复 ESC 关闭营地商店/营地港口后世界地图按钮失效（`objects/obj_map_manager/Step_0.gml` 补关闭分支）。
+- 删除遗留对象 `obj_immortal_pick`、`obj_mouse_preview/Mouse_10|Mouse_11` 与 `spr_longyuan_entry` 的 `.png.bak`。
+## 安卓适配
+- **冲突文件 27 个全部走三方合并**（`git merge-file --diff3`，base = 源 `1e844c591c`）：12 个零冲突直接采用
+  （含 `obj_craft_bg/Draw_0.gml`、`obj_zodiac_projectile/Step_0.gml`、`obj_game_init/Create_0.gml`、
+  `obj_info_island_bg/{Create_0,Draw_0}.gml`、`obj_readyroom_manager/Create_0.gml`、`obj_auth_gate/Step_0.gml`
+  —— 双指滑动块与 C29 索敌守卫因此原样保住）；其余逐块手工裁决：
+  - `objects/obj_battle/Step_0.gml`：保留移动端 Shift 锁存，并把上游新增的控制台开关并进同一条件
+    `if !global.console_open && (… || _mobile_shift_pressed){`。
+  - `objects/obj_card_slot/Step_0.gml`、`obj_shovel_slot/Step_0.gml`、`obj_readyroom_manager/Step_0.gml`、
+    `obj_level_preview/Step_0.gml`：`ui_back_click_pressed()` 保留，裸 `mb_right` 一律删掉，
+    上游的 `!global.console_open` 守卫并进 ESC 判定。
+  - `scripts/combat_targets/combat_targets.gml`：保留本工程超集（`combat_targets_is_live` / `combat_live_or_noone` /
+    `combat_targets_invalidate`），叠加上游新增 `combat_plant_eat_priority()`。
+  - `scripts/levels_init/levels_init.gml`：保留本工程既有情报岛条目，追加沙漠 9 关注册。
+  - `folders/物体/Battle.yy`、`Button.yy`、`folders/精灵/mod.yy`：取目标格式并在 `mod.yy` 里同时保留 `zhuanzhuan`
+    与上游新增 `Bullet` / `Cards`。
+  - 32 个 `folders/精灵/mod/Cards/Assistant/*.yy` 取上游规范写法（`listItems`），
+    `folders/精灵/mod/zhuanzhuan.yy` 保留目标版（含 32 条子项）。
+- **纹理组**：新增第 15 个组 `pack_desert_trip`（上游写的是 `BCN -u4`），本工程统一改为
+  **`compressFormat: custom` / `customOptions: ASTC 6x6 -medium`**；15 个组口径一致，120 张沙漠精灵
+  已归入该组，其余 24 张散落 UI / cards / Default / bullet / pack_explore_camp 均在既有组内，无未知组名。
+- **按用户答复的 4 项取舍**：
+  1. 关卡哈希校验在安卓关闭（`if (os_type == os_android) global.level_hash_verify = false`）——apk 内关卡与热更哈希表不同步；
+  2. 控制台保留 `obj_console` 对象但默认关闭（安卓无 `~` 键），`global.console_open` 恒 false；
+  3. 存档写失败「第 3 次弹窗后退出」照上游保留；
+  4. 授权指纹继续用安卓现有 `auth_hwid.dat` 方案：不引入原生 UUID，`auth_hwid_raw()` / `auth_hwid_legacy()`
+     在安卓直接返回空串（避免全机型算出同一 legacy 值，也避免写 `install.id`）。
+- **yyp**：补 188 条资源 + 新增文件夹（`folders/精灵/UI/Camp Port.yy` 等），资源总数 5815 → 6003、文件夹 803 → 872；
+  `folders/**/*.yy` 全量解析 875 个、失败 0。
+- **自检**：`tools` 外的等价校验器 343 个 `.gml` 括号/BOM/LF 全绿；受保护断言 35/35；本轮专用断言 10 组全绿；
+  全仓裸 `mb_right` 判定 0 处（`scripts/ui_input` 的定义本体与只测试关生成的 `obj_hex_test_picker` 除外）。
+
 # v3.1.0
 ## 新内容
 - **同步上游 `3.0.2.21`（2026-11-20/21 批次：假期特惠活动 + 合成屋强化 v7 + 19 项修复）**。

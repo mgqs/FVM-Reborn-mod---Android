@@ -1,3 +1,4 @@
+if (ui_modal_blocking()) exit;   // 上面有弹窗，别让点击穿透到后面的按钮
 // 切换状态
 state = !state;
 global.audio.play(snd_button,0,0)
@@ -72,4 +73,8 @@ else if (config_key == "ui_anim"){
 else if (config_key == "boss_music_random"){
 	global.boss_music_random = state
 	boss_music_ensure_dir()
+}
+else if (config_key == "pause_filter"){
+	// 开启 = 暂停时不绘制黑色半透明遮罩
+	global.pause_filter = state
 }

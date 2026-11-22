@@ -9,7 +9,8 @@
   "resourceVersion":"2.0",
   "viewLocked":false,
   "visible":true,
-  "folders":[],
+  "folders":[
+  ],
   "listItems":[
     {"name":"775a6880-0578-4724-8b0b-c6f7fe8f3f2d","path":"sprites/spr_athena_bullet/spr_athena_bullet.yy",},
     {"name":"5c82eacf-254e-41a5-820f-df9845f9a074","path":"sprites/spr_cold_drew_bullet/spr_cold_drew_bullet.yy",},
