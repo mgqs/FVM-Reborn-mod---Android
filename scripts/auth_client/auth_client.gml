@@ -1,15 +1,24 @@
-/// 离线授权码客户端（无服务器 · 码池 + 机器指纹绑定）
+/// 离线授权码客户端（无服务器 · 码池 + 机器指纹绑定 + 有效期）
 ///
-/// 码格式：FVM4-<码ID>-<机器码>-<签名>
+/// 码格式：FVM4-<码ID>-<识别码>-<到期日>-<签名>
 ///   码ID   = 你预先准备在 tools/codes_pool.txt 里的固定码，机器人发放时挑一个
-///   机器码 = 本机指纹的 md5 前 8 位（auth_hwid()，界面上叫「本机识别码」）
+///   识别码 = 本机指纹的 md5 前 8 位 + 2 位校验，共 10 位（界面上叫「本机识别码」）
 ///          指纹 v2 = 原生硬件 UUID（SMBIOS 主板级）；拿不到原生时退化为
 ///          环境量 + 每份安装随机 ID。v1（只用环境量）仅兼容老玩家本地记录。
-///   签名   = md5("FVM4|码ID|机器码|secret") 前 10 位大写十六进制
+///          那 2 位校验 = md5("HWID|<前8位>|<kAuthHwidSalt>") 前 2 位，
+///          所以随手敲的 8 位十六进制过不了 auth_bind —— 挡的是
+///          「乱填一串骗机器人发码、还占掉自己的设备名额」。
+///   到期日 = 4 位 32 进制，「2020-01-01 起第几天」，字符集同码ID（无 0/O/1/I）
+///          签发端默认给 3 天（LICENSE_DAYS，改期只影响新码）
+///   签名   = md5("FVM4|码ID|识别码|到期日|secret") 前 10 位大写十六进制
 ///
-/// 关键：签名把**机器码**一起签了。所以别人拿到你的码也用不了——
+/// 关键一：签名把**识别码**一起签了。所以别人拿到你的码也用不了——
 /// 他那台机器算出的 auth_hwid() 不同，验签直接失败，不需要联网核对。
 /// 这是纯离线条件下唯一能实现「一码一机」的因子（QQ 号在游戏端拿不到）。
+///
+/// 关键二：到期日也在签名体里，改它必然破坏签名，玩家没法自己续期。
+/// 到期后 auth_ok() 直接返回 false → 启动时自然弹授权窗，重输也没用
+/// （同一张过期码永远验不过），必须去群里重新领一张。
 ///
 /// 游戏只验签名，**不需要打包任何码表**。加码、改码只改机器人那边的池子，
 /// 游戏不用重新发版。
@@ -18,6 +27,25 @@
 ///    用 `python tools/qq_auth.py gml` 生成，不要手抄。
 ///
 /// 详见 docs/QQ号校验与授权方案.md 第 12 章。
+///
+/// ── Android 侧差异（2026-11-23 与 PC 端 3.2.x 对齐时重新嫁接）──
+/// 1) 识别码没有硬件指纹可读：全仓没有 ANDROID_ID 的用法，environment_get_variable
+///    在安卓上也拿不到 COMPUTERNAME 这类量。所以安卓的识别码 = 首次运行摇 8 位正文
+///    （kAuthHwidCoreLen）落盘 auth_hwid2.dat、之后固定，读出时补 2 位校验拼成 10 位；
+///    那 2 位校验与 PC 端同算法（auth_hwid_check）。
+///    代价：删掉 auth_hwid2.dat（含卸载重装）就等于换机器，必须重领 —— 这是已知取舍。
+/// 2) ⚠️ v3.2.1 及更早的安卓版有个致命 bug：正文用 irandom(15) 生成，而全工程
+///    从未调用 randomize()，GameMaker 的 RNG 序列每次启动都是同一串 —— 于是
+///    **所有设备算出同一个识别码 E52D26F9**（2026-11-24 现网炸出来）。
+///    修法有三层，缺一层都还会撞：① 生成前 randomize()；② 混多个运行时熵源再 md5
+///    （auth_entropy_mix / auth_random_hex）；③ 换文件名到 auth_hwid2.dat 并拉黑
+///    已知撞车值（kAuthHwidFile / kAuthHwidBadA），逼老设备重摇。
+/// 3) 旧版（≤ v3.2.1）的 auth_hwid.dat 里是 8 位无校验正文 —— 全是撞车的那个值，
+///    不再读它，当排障线索留着。任何 ≤ 10 位的残留都会被重置重摇。
+/// 4) auth.dat / auth_hwid2.dat 都用**相对路径**，落到 GML 沙盒存档目录。
+///    global.native_util.get_path_in_local_appdata("\\FVM_Reborn_makk\\...") 在非 Windows
+///    上会返回 game_save_id + 余部，本来也能写，但安卓侧沿用老版本的相对路径更稳。
+/// 5) auth_hwid_legacy() 在安卓返回 ""：环境量算不出东西，所有机器会同值。
 
 #macro kAuthPrefix "FVM4"
 
@@ -25,9 +53,35 @@
 // 否则面板上的提示会让玩家发错命令。改这里就够了，别在绘制里写死。
 #macro kAuthCommand "/授权"
 
-// 机器码长度与字符集（十六进制，含 0 和 1，别用 kAuthIdChars 校验它）
-#macro kAuthHwidLen 8
+// 识别码 = 8 位正文 + 2 位校验 = 10 位十六进制（含 0 和 1，别用 kAuthIdChars 校验它）
+#macro kAuthHwidCoreLen 8
+#macro kAuthHwidCheckLen 2
+#macro kAuthHwidLen 10
 #macro kAuthHwidChars "0123456789ABCDEF"
+
+// 安卓识别码的文件名。
+// ⚠️ 必须是 **auth_hwid2.dat**，不能沿用 auth_hwid.dat：
+//    ≤ v3.2.1 的安卓版用 irandom(15) 生成正文，而全工程从未调用 randomize()，
+//    RNG 序列每次启动都是同一串 → 所有设备都生成了同一个正文 E52D26F9，
+//    并且已经写进了各自的 auth_hwid.dat。只改生成算法没用，老文件里的
+//    撞车值会被原样沿用。换个文件名 = 强制所有设备重新摇一次（反正换 5 段码
+//    本来就要重领，多这一次不影响玩家）。老文件留着不删，当排障线索。
+#macro kAuthHwidFile "auth_hwid2.dat"
+
+// 已知撞车的正文（黑名单兜底）：万一某个设备的新文件里又出现这些值，
+// 就地重摇。E52D26F9 是 v3.2.1 及更早版本固定 RNG 序列的产物。
+#macro kAuthHwidBadA "E52D26F9"
+#macro kAuthHwidBadB "00000000"
+
+// v1 老指纹的长度（8 位，无校验）。只给 auth_hwid_legacy() 用，
+// 目的是让本地既有记录的 hwid 仍然能对上，不强制老玩家重领。
+#macro kAuthLegacyHwidLen 8
+
+// 校验位的盐。**必须与 tools/qq_auth.py 的 HWID_SALT 完全一致**，
+// 否则游戏算出的识别码和机器人给码时用的对不上，谁都过不了。
+// 它会被编译进客户端、理论上能逆出来 —— 这层的作用不是「绝对不可伪造」，
+// 而是把门槛从「随手输 8 个十六进制字符」抬到「先逆向客户端拿到盐」。
+#macro kAuthHwidSalt "FVM-HWID-CHECK-2026-11"
 
 // secret 拆三段：单条字符串会被 strings / 十六进制扫描直接命中
 #macro kAuthSecretA "9HNnJFL8BkBrZ"
@@ -41,6 +95,14 @@
 #macro kAuthIdChars "23456789ABCDEFGHJKLMNPQRSTUVWXYZ"
 #macro kAuthIdMin 4
 #macro kAuthIdMax 20
+
+// 到期日：4 位 32 进制，值 = 「kAuthExpEpoch 起第几天」。
+// 字符集与码ID 相同（不含 0/O/1/I），必须与 tools/qq_auth.py 的 EXP_* 一致。
+#macro kAuthExpLen 4
+#macro kAuthExpChars kAuthIdChars
+#macro kAuthExpEpochYear 2020
+#macro kAuthExpEpochMonth 1
+#macro kAuthExpEpochDay 1
 
 // 整串码允许的字符（清洗用）。
 // ⚠️ 必须包含 0 和 1：签名是十六进制，含 0/1 是常态。
@@ -65,6 +127,33 @@ function auth_secret() {
 // 旧码兼容：auth_hwid_legacy() 保留 v1 算法，只在 auth_load() 里对「本地已存的
 // 那条记录」放行；新粘贴的码一律按 v2 校验（auth_bind 不走 legacy 分支），
 // 避免旧指纹的漏洞继续被用来换码。
+
+// ── 路径（安卓不走 %LOCALAPPDATA% 那一套）──────────────────────────
+// 非 Windows 上 global.native_util.get_path_in_local_appdata("\\FVM_Reborn_makk\\x")
+// 会返回 game_save_id + "/x"，本来是能用的；但安卓侧沿用旧版本（≤ 3.0.2.15）的
+// 相对路径更稳：只给文件名，落在 GML 沙盒存档目录里，不依赖运行时把
+// game_save_id 拼对，也不受 Android 分区存储策略影响（app 私有目录无需权限）。
+// ⚠️ 安卓上不要用 "\\" 拼路径：那是 Windows 分隔符，directory_exists /
+//    file_text_open_* 在安卓可能直接判不存在。
+
+/// 本地文件目录。安卓返回 ""（= 当前目录，即沙盒存档目录）
+/// @returns {String}
+function auth_dir() {
+    if (os_type == os_android) {
+        return "";
+    }
+    return global.native_util.get_path_in_local_appdata("\\FVM_Reborn_makk");
+}
+
+/// 安卓只给文件名；其它平台拼进 %LOCALAPPDATA%\FVM_Reborn_makk
+/// @param {String} _name
+/// @returns {String}
+function auth_path(_name) {
+    if (os_type == os_android) {
+        return _name;
+    }
+    return global.native_util.get_path_in_local_appdata("\\FVM_Reborn_makk\\" + _name);
+}
 
 /// 读 install.id（16 位大写十六进制）。不存在/内容不合法返回 ""
 function auth_install_read(_path) {
@@ -93,9 +182,83 @@ function auth_install_read(_path) {
     return _s;
 }
 
+// ── 真随机（安卓识别码的命门）────────────────────────────────────
+// GameMaker 的随机数序列在**没调 randomize() 时是定死的**：本工程一次都没调过，
+// 于是每台设备第一次运行 irandom(15) 都吐出同一串数字，识别码全服撞成
+// E52D26F9B8（2026-11-24 现网实测）。所以：
+//   ① 熵源以运行时真实量为主（计时器 / 开机毫秒 / 日期 / 分辨率 / DPI / os_get_info）；
+//   ② RNG 只用一次、且**用完立刻恢复原种子**，不污染游戏其余部分的随机序列；
+//   ③ 派生用 md5 而不是「连续取 irandom」，避免序列相关。
+// os_get_info 在不同平台上键名不一致、老运行时还可能返回 ds_map，
+// 所以整段包 try/catch，拿不到就跳过，不阻断启动。
+function auth_entropy_mix() {
+    if (!variable_global_exists("auth_entropy_tick")) {
+        global.auth_entropy_tick = 0;
+    }
+    global.auth_entropy_tick += 1;
+
+    var _s = "";
+    _s += "T" + string(get_timer()) + "|";
+    _s += "C" + string(current_time) + "|";
+    _s += "D" + string(date_current_datetime()) + "|";
+    _s += "G" + string(game_save_id) + "|";
+    _s += "N" + string(global.auth_entropy_tick) + "|";
+    _s += "W" + string(display_get_width()) + "x" + string(display_get_height()) + "|";
+    _s += "P" + string(display_get_dpi_x()) + "x" + string(display_get_dpi_y()) + "|";
+
+    // 借一次 RNG 的输出当熵，但不动全局种子：
+    // 存种子 → randomize() → irandom → 还原。本工程从没调过 randomize()，
+    // 若在这里把它留在「已随机化」状态，整局游戏的随机序列会突变（越权改行为）。
+    // 还原必须放在 randomize() 的 try **外面**：万一 irandom 那一步抛异常，
+    // 还原也要照做，否则游戏会带着随机化后的种子继续跑。
+    var _seed = 0;
+    var _seed_ok = false;
+    try {
+        _seed = random_get_seed();
+        _seed_ok = true;
+    } catch (_e) {}
+    try {
+        randomize();
+        _s += "R" + string(irandom(2147483647)) + "|";
+    } catch (_e) {}
+    if (_seed_ok) {
+        try {
+            random_set_seed(_seed);
+        } catch (_e) {}
+    }
+
+    try {
+        var _info = os_get_info();
+        if (is_struct(_info)) {
+            var _keys = ["device", "os_version", "cpu_info", "resolution", "audio_device", "video_adapter"];
+            for (var i = 0; i < array_length(_keys); i++) {
+                if (variable_struct_exists(_info, _keys[i])) {
+                    _s += "O" + string(_info[$ _keys[i]]) + "|";
+                }
+            }
+        }
+    } catch (_e) {}
+
+    return _s;
+}
+
+/// 生成 _len 位大写十六进制随机串（不依赖 RNG 序列）。
+/// @param {Real} _len
+/// @returns {String}
+function auth_random_hex(_len) {
+    var _base = auth_entropy_mix();
+    var _hex = "";
+    var _round = 0;
+    while (string_length(_hex) < _len && _round < 8) {
+        _round += 1;
+        _hex += string_upper(md5_string_utf8(_base + "|" + string(_round)));
+    }
+    return string_copy(_hex, 1, _len);
+}
+
 function auth_install_write(_path, _id) {
-    var _dir = global.native_util.get_path_in_local_appdata("\\FVM_Reborn_makk");
-    if (!directory_exists(_dir)) {
+    var _dir = auth_dir();
+    if (_dir != "" && !directory_exists(_dir)) {
         directory_create(_dir);
     }
     var _f = file_text_open_write(_path);
@@ -114,12 +277,11 @@ function auth_install_id() {
     if (variable_global_exists("auth_install_id_cache")) {
         return global.auth_install_id_cache;
     }
-    var _path = global.native_util.get_path_in_local_appdata("\\FVM_Reborn_makk\\install.id");
+    var _path = auth_path("install.id");
     var _id = auth_install_read(_path);
     if (_id == "") {
-        var _seed = string(irandom(2147483647)) + "|" + string(current_time) + "|" +
-                    string(date_current_datetime()) + "|" + string(irandom(2147483647));
-        _id = string_upper(string_copy(md5_string_utf8(_seed), 1, 16));
+        // 不要用 irandom 直接拼：没 randomize() 时序列是定死的（见 auth_entropy_mix）
+        _id = auth_random_hex(16);
         auth_install_write(_path, _id);
     }
     global.auth_install_id_cache = _id;
@@ -136,6 +298,13 @@ function auth_native_uuid() {
     }
 
     var _value = "";
+    // 安卓没有 FvmNativeSupport 的 MachineUuid（那是 SMBIOS 主板 UUID，只有
+    // Windows 有）。external_define 在这里只会抛异常再被 catch 吞掉，白跑一趟，
+    // 直接短路，识别码走 auth_hwid2.dat 那条路（见 auth_hwid_android）。
+    if (os_type == os_android) {
+        global.auth_native_uuid_cache = "";
+        return "";
+    }
     try {
         if (!variable_global_exists("auth_native_uuid_fn")) {
             var _library = "FvmNativeSupport.dll";
@@ -167,13 +336,134 @@ function auth_native_uuid() {
     return _value;
 }
 
+/// 读一个纯文本文件的全部内容（不存在 / 打不开返回 ""）。
+/// 只给识别码文件用，内容很短，不做 json 处理。
+/// @param {String} _path
+/// @returns {String}
+function auth_read_text(_path) {
+    if (!file_exists(_path)) {
+        return "";
+    }
+    var _f = file_text_open_read(_path);
+    if (_f == -1) {
+        return "";
+    }
+    var _text = "";
+    if (!file_text_eof(_f)) {
+        _text = file_text_read_string(_f);
+    }
+    file_text_close(_f);
+    return _text;
+}
+
+/// 安卓识别码（10 位 = 8 位正文 + 2 位校验），落盘 auth_hwid2.dat。
+///
+/// 为什么不是直接算 md5：安卓上没有 COMPUTERNAME / PROCESSOR_IDENTIFIER 这类
+/// 环境量，也没有 SMBIOS UUID（见 auth_native_uuid 的短路），任何"算"出来的值
+/// 在全服都是同一个常量。唯一能区分设备的做法是**首次运行摇一个正文存起来**。
+///
+/// ⚠️ 历史坑：v3.2.1 及更早用 irandom(15) 摇正文，但全工程没调 randomize()，
+/// RNG 序列固定 → 全服都生成 E52D26F9B8，并且已经写进了老 auth_hwid.dat。
+/// 所以这里除了改用 auth_random_hex（randomize + 多熵源 md5），还必须
+/// 换文件名（kAuthHwidFile）并拉黑撞车值，否则老文件会被原样沿用，等于没修。
+///
+/// 文件内容按 10 位存（正文+校验）。读到校验位对不上的 10 位残留就重算校验重写；
+/// 读到 8 位裸正文（老版本）则**重置**——那个值八成就是撞车的 E52D26F9。
+///
+/// 代价：删掉 auth_hwid2.dat（含卸载重装、清数据）就等于换了一台机器。
+/// 这是纯离线 + 无硬件指纹条件下的必然取舍，README / 群公告要说清楚。
+/// @returns {String} 10 位大写十六进制
+function auth_hwid_android() {
+    if (variable_global_exists("auth_hwid_android_cache")) {
+        return global.auth_hwid_android_cache;
+    }
+
+    var _path = auth_path(kAuthHwidFile);
+    var _raw = string_upper(string(auth_read_text(_path)));
+
+    // 只保留合法十六进制字符：老文件可能带换行 / 空格 / 4-4 分段连字符
+    var _hex = "";
+    for (var i = 1; i <= string_length(_raw); i++) {
+        var _c = string_char_at(_raw, i);
+        if (string_pos(_c, kAuthHwidChars) > 0) {
+            _hex += _c;
+        }
+    }
+
+    var _core = "";
+    var _need_write = false;
+    if (string_length(_hex) >= kAuthHwidLen) {
+        // 已经是 10 位（正文 + 校验）：正文照用，校验以本机算出的为准
+        _core = string_copy(_hex, 1, kAuthHwidCoreLen);
+        if (string_copy(_hex, 1, kAuthHwidLen) != _core + auth_hwid_check(_core)) {
+            _need_write = true;
+        }
+    } else if (string_length(_hex) >= kAuthHwidCoreLen) {
+        // 只有 8 位：写坏了的半截文件。**不要**沿用它 —— 老版本存下来的 8 位
+        // 正文几乎必然是那个撞车的 E52D26F9，沿用等于没修。直接重摇。
+        _core = "";
+        _need_write = true;
+    } else {
+        // 没有文件 / 内容坏掉：生成全新正文（见下方 auth_random_hex 的说明）
+        _core = "";
+        _need_write = true;
+    }
+
+    // 撞车黑名单：生成算法的坑被写进了老文件，文件里存着 E52D26F9 这类值时
+    // 必须重摇，否则改了算法也还是同一个码（这是 2026-11-24 那次全服撞码的
+    // 真正原因：算法修好、老文件还在）。00000000 是内容被清空的兜底。
+    if (_core == kAuthHwidBadA || _core == kAuthHwidBadB) {
+        _core = "";
+        _need_write = true;
+    }
+
+    if (_core == "") {
+        // ⚠️ 不要写 irandom(15)：全工程没调 randomize() 时 RNG 序列是定死的，
+        //    每台设备都会生成同一个正文（2026-11-24 现网撞成 E52D26F9B8）。
+        var _guard = 0;
+        while (string_length(_core) != kAuthHwidCoreLen && _guard < 16) {
+            _guard += 1;
+            _core = auth_random_hex(kAuthHwidCoreLen);
+            if (_core == kAuthHwidBadA || _core == kAuthHwidBadB) {
+                _core = "";
+            }
+        }
+        _need_write = true;
+    }
+
+    var _hwid = _core + auth_hwid_check(_core);
+    if (_need_write) {
+        auth_write_text(_path, _hwid);
+    }
+
+    global.auth_hwid_android_cache = _hwid;
+    return _hwid;
+}
+
+/// 写一小段纯文本（识别码文件用）。失败静默 —— 写不进去也不该拦住启动，
+/// 只是下次启动会重新生成一段新的正文。
+/// @param {String} _path
+/// @param {String} _text
+/// @returns {Bool}
+function auth_write_text(_path, _text) {
+    var _f = file_text_open_write(_path);
+    if (_f == -1) {
+        show_debug_message("[auth] 识别码写入失败：" + _path);
+        return false;
+    }
+    file_text_write_string(_f, _text);
+    file_text_close(_f);
+    return true;
+}
+
 /// 本机识别码的原始输入。改这个函数等于换指纹代际，必须同时保留 v1 的
 /// auth_hwid_legacy()，否则所有已授权的玩家升级后全部掉授权。
 /// @returns {String}
 function auth_hwid_raw() {
-    // 安卓：不引入原生 UUID / install.id（无 .so，且沿用 auth_hwid.dat 方案）
+    // 安卓：识别码不是"算"出来的，是首次运行随机定下来的（见 auth_hwid_android）。
+    // 这里返回它的正文，只为了 auth.log 里能直接看出这台机器是哪一段。
     if (os_type == os_android) {
-        return "";
+        return "V2A|" + string_copy(auth_hwid_android(), 1, kAuthHwidCoreLen);
     }
     var _uuid = auth_native_uuid();
     if (_uuid != "") {
@@ -187,39 +477,39 @@ function auth_hwid_raw() {
         auth_install_id();
 }
 
-/// 本机识别码：8 位大写十六进制（长度由 kAuthHwidLen 决定，协议要求是 8）。
+/// 识别码的 2 位校验：md5("HWID|前8位|kAuthHwidSalt") 前 2 位大写。
+/// ⚠️ 必须与 tools/qq_auth.py 的 hwid_check() 逐位一致 —— 改这里就要同步改那边，
+///    否则玩家在游戏里看到的识别码，机器人会判「不合法」。
+/// @param {String} _core 8 位正文
+/// @returns {String}
+function auth_hwid_check(_core) {
+    var _c = string_upper(string_copy(string(_core), 1, kAuthHwidCoreLen));
+    return string_upper(string_copy(
+        md5_string_utf8("HWID|" + _c + "|" + kAuthHwidSalt), 1, kAuthHwidCheckLen));
+}
+
+/// 本机识别码：8 位正文 + 2 位校验 = 10 位大写十六进制。
 /// 换电脑 → 变；同镜像的另一台机器 → 也变（这就是 v2 要解决的问题）。
+/// 安卓走 auth_hwid_android()：首次运行随机 8 位正文落盘，之后固定。
 /// @returns {String}
 function auth_hwid() {
     if (os_type == os_android) {
-        var _f = file_text_open_read("auth_hwid.dat");
-        if (_f != -1) {
-            var _saved = string_upper(auth_clean(file_text_read_string(_f)));
-            file_text_close(_f);
-            if (auth_hwid_valid(_saved)) {
-                return _saved;
-            }
-        }
-        var _chars = "0123456789ABCDEF";
-        var _h = "";
-        for (var _i = 0; _i < kAuthHwidLen; _i++) {
-            _h += string_char_at(_chars, irandom(15) + 1);
-        }
-        var _w = file_text_open_write("auth_hwid.dat");
-        if (_w != -1) {
-            file_text_write_string(_w, _h);
-            file_text_close(_w);
-        }
-        return _h;
+        return auth_hwid_android();
     }
-    return string_upper(string_copy(md5_string_utf8(auth_hwid_raw()), 1, kAuthHwidLen));
+    var _core = string_upper(string_copy(md5_string_utf8(auth_hwid_raw()), 1, kAuthHwidCoreLen));
+    return _core + auth_hwid_check(_core);
 }
 
 /// v1 指纹（≤ 3.0.2.15）。只为让老玩家的本地授权记录继续生效，
 /// 新码一律不认它 —— 旧指纹在克隆镜像里是同一个值，谁都能用。
+/// 注意：这里保持 **8 位**（kAuthLegacyHwidLen），不能跟着识别码涨到 10 位，
+/// 否则老记录里的 CF8AEFFE 之类全部对不上，老玩家会被强制重领。
 /// @returns {String}
 function auth_hwid_legacy() {
-    // 安卓：环境量不存在，会被所有机器算成同一个值 → 直接不认 v1 指纹
+    // 安卓上这几个环境量全是空串，算出来是一个固定常量，全服同值 —— 与其
+    // 造出一个能对上所有人、谁都能用的"legacy 指纹"，不如直接返回 ""：
+    // auth_load / auth_bind 里那条 legacy 放行分支自然永不命中，
+    // 老安卓玩家统一走「重领一张新码」（他们本来就因为码格式变了要重领）。
     if (os_type == os_android) {
         return "";
     }
@@ -229,17 +519,17 @@ function auth_hwid_legacy() {
     if (_name == "") {
         _name = "UNKNOWN";
     }
-    return string_upper(string_copy(md5_string_utf8(_name + "|" + _cpu + "|" + _n), 1, kAuthHwidLen));
+    return string_upper(string_copy(md5_string_utf8(_name + "|" + _cpu + "|" + _n), 1, kAuthLegacyHwidLen));
 }
 
-/// 指纹排查日志：%LOCALAPPDATA%\FVM_Reborn_makk\auth.log
+/// 指纹排查日志：%LOCALAPPDATA%\FVM_Reborn_makk\auth.log（安卓落沙盒存档目录）
 /// 出现「所有人识别码一样」时，先看这里的两行，比反推 md5 快得多。
 function auth_log(_text) {
-    var _dir = global.native_util.get_path_in_local_appdata("\\FVM_Reborn_makk");
-    if (!directory_exists(_dir)) {
+    var _dir = auth_dir();
+    if (_dir != "" && !directory_exists(_dir)) {
         directory_create(_dir);
     }
-    var _f = file_text_open_append(_dir + "\\auth.log");
+    var _f = file_text_open_append(auth_path("auth.log"));
     if (_f == -1) {
         return;
     }
@@ -248,34 +538,196 @@ function auth_log(_text) {
     file_text_close(_f);
 }
 
-/// 本机识别码的展示形式（4-4 分开，方便玩家对着抄）
+/// 本机识别码的展示形式（4-4-2 分开，方便玩家对着抄）
 /// 玩家要把它发到群里换授权码，界面上应该做成可点击复制
 /// @returns {String}
 function auth_hwid_text() {
     var _h = auth_hwid();
-    return string_copy(_h, 1, 4) + "-" + string_copy(_h, 5, 4);
+    return string_copy(_h, 1, 4) + "-" + string_copy(_h, 5, 4) + "-" + string_copy(_h, 9, 2);
 }
 
-/// 机器码只允许 8 位十六进制
+/// 识别码必须是 10 位十六进制 **且** 后 2 位校验对得上。
+/// 只查长度和字符集是不够的 —— 那样 8BDAF386 / DEADBEEF 这种随手敲的值
+/// 都能过，机器人就会给它发一张真码，还占掉这个玩家的设备名额。
 /// @param {String} _hwid
 /// @returns {Bool}
 function auth_hwid_valid(_hwid) {
-    if (string_length(_hwid) != kAuthHwidLen) {
+    var _h = string_upper(string(_hwid));
+    if (string_length(_h) != kAuthHwidLen) {
         return false;
     }
     for (var i = 1; i <= kAuthHwidLen; i++) {
-        if (string_pos(string_char_at(_hwid, i), kAuthHwidChars) == 0) {
+        if (string_pos(string_char_at(_h, i), kAuthHwidChars) == 0) {
             return false;
         }
     }
-    return true;
+    var _core = string_copy(_h, 1, kAuthHwidCoreLen);
+    return string_copy(_h, kAuthHwidCoreLen + 1, kAuthHwidCheckLen) == auth_hwid_check(_core);
+}
+
+/// 公历日期 → 「1970-01-01 起第几天」。纯算术，不依赖任何 date_* 函数，
+/// 也不用 date_create_datetime（工程里没有先例，缺了要到运行期才知道）。
+/// 算法是 Howard Hinnant 的 days_from_civil，全整数运算，百年内不会差。
+/// @param {Real} _y 年
+/// @param {Real} _m 月 1..12
+/// @param {Real} _d 日 1..31
+/// @returns {Real}
+function auth_civil_days(_y, _m, _d) {
+    var _yy = _y - ((_m <= 2) ? 1 : 0);
+    var _era = floor(_yy / 400);
+    var _yoe = _yy - _era * 400;
+    var _mp = _m + ((_m > 2) ? -3 : 9);
+    var _doy = floor((153 * _mp + 2) / 5) + _d - 1;
+    var _doe = _yoe * 365 + floor(_yoe / 4) - floor(_yoe / 100) + _doy;
+    return _era * 146097 + _doe - 719468;
+}
+
+/// 今天（本机时区的日历日）是「kAuthExpEpoch 起第几天」。
+/// ⚠️ 必须用日历日而不是 (时间戳差 / 86400)：后者在本地零点附近会把
+///    N 天期算成 N-1 天或 N+1 天，玩家会觉得「怎么少了一天」。
+///    （实际期限由签发端 LICENSE_DAYS 决定，客户端只管算「今天是第几天」。）
+/// 与 tools/qq_auth.py 的 day_number() 口径一致。
+/// @returns {Real}
+function auth_day_number() {
+    var _now = date_current_datetime();
+    var _today = auth_civil_days(date_get_year(_now), date_get_month(_now), date_get_day(_now));
+    var _epoch = auth_civil_days(kAuthExpEpochYear, kAuthExpEpochMonth, kAuthExpEpochDay);
+    return _today - _epoch;
+}
+
+/// 判过期、算剩余天数时**实际采用**的「今天」。
+/// 取 max(本机日历日, 本地记录里见过的最大天数)：玩家把系统时间往回调
+/// 只会让 seen_day 更大，拿不到任何好处，也就没法靠改表续期。
+/// 反过来不会误伤：正常使用时两者相等；跨时区飞行最多差 1 天，
+/// 而这里取的是 max，只会更严格一点点，不会把有效码判死。
+/// @returns {Real}
+/// 读「见过的最大天数」全局量（不存在就当 0）
+/// @returns {Real}
+function auth_seen_day_read() {
+    if (!variable_global_exists("auth_seen_day")) {
+        global.auth_seen_day = 0;
+    }
+    return global.auth_seen_day;
+}
+
+function auth_today() {
+    var _now = auth_day_number();
+    var _eff = max(_now, auth_seen_day_read());
+    global.auth_seen_day = _eff;
+    return _eff;
+}
+
+/// 到期日段 → 天数。字符集或长度不对返回 -1（调用方一律当无效/过期）。
+/// @param {String} _exp
+/// @returns {Real}
+function auth_exp_decode(_exp) {
+    var _s = string_upper(string(_exp));
+    if (string_length(_s) != kAuthExpLen) {
+        return -1;
+    }
+    var _base = string_length(kAuthExpChars);
+    var _value = 0;
+    for (var i = 1; i <= kAuthExpLen; i++) {
+        var _pos = string_pos(string_char_at(_s, i), kAuthExpChars);
+        if (_pos == 0) {
+            return -1;
+        }
+        _value = _value * _base + (_pos - 1);
+    }
+    return _value;
+}
+
+/// 天数 → 4 位到期日段（与工具端 exp_encode 同算法，补零靠逆序累加保证定长）
+/// @param {Real} _day
+/// @returns {String}
+function auth_exp_encode(_day) {
+    var _base = string_length(kAuthExpChars);
+    var _n = max(0, floor(_day));
+    var _out = "";
+    for (var i = 1; i <= kAuthExpLen; i++) {
+        var _pos = (_n % _base) + 1;
+        _out = string_char_at(kAuthExpChars, _pos) + _out;
+        _n = floor(_n / _base);
+    }
+    return _out;
+}
+
+/// 到期日段 → "YYYY-MM-DD"（给界面显示）。解不出来返回 "?"
+/// @param {String} _exp
+/// @returns {String}
+function auth_exp_date_text(_exp) {
+    var _day = auth_exp_decode(_exp);
+    if (_day < 0) {
+        return "?";
+    }
+    // 走回 civil 反算不易，直接用天数逐段进位：先由 epoch 年 1 月 1 日起加天数
+    var _y = kAuthExpEpochYear;
+    var _m = kAuthExpEpochMonth;
+    var _d = kAuthExpEpochDay;
+    var _left = _day;
+    while (_left > 0) {
+        var _dim = auth_days_in_month(_y, _m);
+        var _step = min(_left, _dim - _d + 1);
+        _d += _step;
+        _left -= _step;
+        if (_d > _dim) {
+            _d = 1;
+            _m += 1;
+            if (_m > 12) {
+                _m = 1;
+                _y += 1;
+            }
+        }
+    }
+    return string(_y) + "-" + ((_m < 10) ? "0" : "") + string(_m)
+         + "-" + ((_d < 10) ? "0" : "") + string(_d);
+}
+
+/// 某年某月有多少天（闰年规则：4 整除且非 100 整除，或 400 整除）
+/// @param {Real} _y
+/// @param {Real} _m
+/// @returns {Real}
+function auth_days_in_month(_y, _m) {
+    if (_m == 2) {
+        var _leap = ((_y % 4 == 0) && (_y % 100 != 0)) || (_y % 400 == 0);
+        return _leap ? 29 : 28;
+    }
+    if ((_m == 4) || (_m == 6) || (_m == 9) || (_m == 11)) {
+        return 30;
+    }
+    return 31;
+}
+
+/// 这张码是否已过期。格式坏了一律当过期（宁可让玩家重领，不要放过期码）。
+/// 到期日当天仍然算有效 —— 多给玩家一天缓冲，避免「最后一天零点前后打架」。
+/// @param {String} _exp
+/// @returns {Bool}
+function auth_exp_expired(_exp) {
+    var _day = auth_exp_decode(_exp);
+    if (_day < 0) {
+        return true;
+    }
+    return (auth_today() > _day);
+}
+
+/// 还剩几天。已过期返回负数（界面按需显示）。
+/// @param {String} _exp
+/// @returns {Real}
+function auth_exp_days_left(_exp) {
+    var _day = auth_exp_decode(_exp);
+    if (_day < 0) {
+        return -6435;   // 解不出来按远超期处理（-6435 天 ≈ 17 年前）
+    }
+    return _day - auth_today();
 }
 
 /// @param {String} _code_id 池子里的码ID
 /// @param {String} _hwid 码里带的机器码（不是本机的）
+/// @param {String} _exp 码里带的到期日段
 /// @returns {String} 10 位大写签名
-function auth_expected_sig(_code_id, _hwid) {
-    var _raw = kAuthPrefix + "|" + string(_code_id) + "|" + string(_hwid) + "|" + auth_secret();
+function auth_expected_sig(_code_id, _hwid, _exp) {
+    var _raw = kAuthPrefix + "|" + string(_code_id) + "|" + string(_hwid)
+             + "|" + string(_exp) + "|" + auth_secret();
     return string_upper(string_copy(md5_string_utf8(_raw), 1, 10));
 }
 
@@ -320,19 +772,32 @@ function auth_clean(_code) {
 
 /// 校验授权码，不读写任何文件
 /// @param {String} _code
-/// @returns {Struct} {ok: Bool, code_id: String, hwid: String, reason: String}
-///   reason: "" 成功 / "format" 格式错 / "sig" 签名错 / "machine" 不是本机的码
-function auth_verify_code(_code) {
+/// @param {Bool} _check_exp 是否顺便判过期（默认 true；auth_load 想区分
+///        「签名错」与「过期了」时也用 true，因为 reason 已经把两者分开）
+/// @returns {Struct} {ok, code_id, hwid, exp, exp_text, days_left, reason}
+///   reason: "" 成功 / "format" 格式错 / "legacy" 旧版无有效期的码
+///           / "sig" 签名错 / "machine" 不是本机的码 / "expired" 已过期
+function auth_verify_code(_code, _check_exp = true) {
     var _result = {
         ok: false,
         code_id: "",
         hwid: "",
+        exp: "",
+        exp_text: "",
+        days_left: 0,
         reason: "format"
     };
 
     var _clean = auth_clean(_code);
     var _parts = string_split(_clean, "-");
-    if (array_length(_parts) != 4) {
+    // 旧版（≤ 3.0.2.15）是 4 段、没有到期日。全服统一改成带有效期后，
+    // 这类码一律不再放行 —— 但要说清楚是「旧码过期」而不是「你抄错了」，
+    // 否则玩家会反复检查连字符。
+    if (array_length(_parts) == 4 && _parts[0] == kAuthPrefix) {
+        _result.reason = "legacy";
+        return _result;
+    }
+    if (array_length(_parts) != 5) {
         return _result;
     }
     if (_parts[0] != kAuthPrefix) {
@@ -344,18 +809,31 @@ function auth_verify_code(_code) {
     if (!auth_hwid_valid(_parts[2])) {
         return _result;
     }
-    // 签名先验：确保这个码确实是你签的（含机器码）
-    if (_parts[3] != auth_expected_sig(_parts[1], _parts[2])) {
+    if (auth_exp_decode(_parts[3]) < 0) {
+        return _result;
+    }
+    // 签名先验：确保这个码确实是你签的（含机器码与到期日）
+    if (_parts[4] != auth_expected_sig(_parts[1], _parts[2], _parts[3])) {
         _result.reason = "sig";
         return _result;
     }
     _result.code_id = _parts[1];
     _result.hwid = _parts[2];
+    _result.exp = _parts[3];
+    _result.exp_text = auth_exp_date_text(_parts[3]);
 
     // 再验归属：码里绑的机器码必须就是本机
     // 这一步就是「别人拿到你的码也用不了」的落点
     if (_parts[2] != auth_hwid()) {
         _result.reason = "machine";
+        return _result;
+    }
+
+    // 判有效期放在归属之后：别人拿过期码来试，应该先告诉他「这不是你的机器」，
+    // 而不是暴露「这张码本来就过期」。顺带避免陌生码污染本机的 seen_day。
+    _result.days_left = auth_exp_days_left(_parts[3]);
+    if (_check_exp && _result.days_left < 0) {
+        _result.reason = "expired";
         return _result;
     }
 
@@ -365,12 +843,8 @@ function auth_verify_code(_code) {
 }
 
 function auth_file_path() {
-    // Android 沙盒：直接写相对路径，落到游戏自己的存档目录里。
-    // get_path_in_local_appdata 在移动端会拼到应用私有目录，用相对路径最稳。
-    if (os_type == os_android) {
-        return "auth.dat";
-    }
-    return global.native_util.get_path_in_local_appdata("\\FVM_Reborn_makk\\auth.dat");
+    // 安卓返回相对文件名 "auth.dat"，落在 GML 沙盒存档目录；其它平台走 %LOCALAPPDATA%
+    return auth_path("auth.dat");
 }
 
 /// 本地绑定记录的自校验，防止手改 auth.dat 塞一个别人的码
@@ -384,28 +858,32 @@ function auth_seal(_code_id, _code) {
 /// 把绑定记录写到 %LOCALAPPDATA%\FVM_Reborn_makk\auth.dat
 /// @param {String} _code_id
 /// @param {String} _code
+/// @param {String} _exp 到期日段（同时落盘，供离线快速判过期，省掉重新解签名）
 /// @returns {Bool} 是否写入成功
-function auth_save(_code_id, _code) {
+function auth_save(_code_id, _code, _exp = "") {
     // ⚠️ 用 json_stringify，**不要用 json_string**。
     //    这套运行时（FVM 分支）只有 json_parse / json_stringify 这一对，
     //    json_string 不存在：写成 json_string(...) 会当成读实例变量，运行期报
     //    「Variable obj_auth_gate.json_string not set before reading it」。
     //    工程里 save_file / obj_mod_menu 也都用 json_stringify。
+    //
+    // seen_day 是「这台机器见过的最大日期」，只增不减：
+    // 玩家把系统时间往回调，seen_day 不会变小，过期判定拿 max 比，
+    // 所以调表续期这条路走不通。
     var _json = json_stringify({
         code_id: _code_id,
         code: _code,
+        exp: _exp,
+        seen_day: max(auth_day_number(), auth_seen_day_read()),
         seal: auth_seal(_code_id, _code)
     });
 
     // 落盘走 file_text_*，和工程里 save_file / load_file 完全一致。
     // 不要再用 buffer_create + buffer_save：那两个函数在工程里没有其它先例，
     // 万一缺失要等到**下次启动读档**才炸，比写入时就炸难查得多。
-    // Android 用相对路径直接落在沙盒存档目录，不需要也不允许手工建目录。
-    if (os_type != os_android) {
-        var _dir = global.native_util.get_path_in_local_appdata("\\FVM_Reborn_makk");
-        if (!directory_exists(_dir)) {
-            directory_create(_dir);
-        }
+    var _dir = auth_dir();
+    if (_dir != "" && !directory_exists(_dir)) {
+        directory_create(_dir);
     }
 
     var _f = file_text_open_write(auth_file_path());
@@ -423,8 +901,10 @@ function auth_save(_code_id, _code) {
 function auth_load() {
     global.auth_code_id = "";
     global.auth_code = "";
+    global.auth_code_exp = "";
     global.auth_machine_changed = false;
     global.auth_code_legacy = false;
+    global.auth_code_expired = false;
 
     var _path = auth_file_path();
     if (!file_exists(_path)) {
@@ -474,6 +954,15 @@ function auth_load() {
         return false;
     }
 
+    // 先把见过的最大日期抬起来，再做过期判定。
+    // 顺序不能反：调表回退的玩家这里读到的大值，必须立刻参与 expiry 比较。
+    if (variable_struct_exists(_data, "seen_day")) {
+        var _saved = real(_data.seen_day);
+        if (_saved > auth_seen_day_read()) {
+            global.auth_seen_day = _saved;
+        }
+    }
+
     var _verified = auth_verify_code(_data.code);
     var _legacy_ok = false;
     if (!_verified.ok && _verified.reason == "machine") {
@@ -489,6 +978,11 @@ function auth_load() {
         // 界面据此提示「识别码变了，需要重新领码」，别让玩家以为存档坏了。
         if (_verified.reason == "machine") {
             global.auth_machine_changed = true;
+        } else if ((_verified.reason == "expired") || (_verified.reason == "legacy")) {
+            // 有效期到期 / 旧版无期码：这两种都要明说，别和「抄错了」混在一起。
+            // 玩家看到「授权已过期」就知道去群里重新领，而不是反复改连字符。
+            global.auth_code_expired = true;
+            auth_log("授权已过期或旧版码 code=" + string(_data.code));
         }
         return false;
     }
@@ -499,6 +993,7 @@ function auth_load() {
 
     global.auth_code_id = _verified.code_id;
     global.auth_code = string(_data.code);
+    global.auth_code_exp = _verified.exp;
     return true;
 }
 
@@ -506,9 +1001,17 @@ function auth_load() {
 /// @param {String} _code
 /// @returns {Real} 0 = 成功，1 = 码无效/签名错，2 = 这个码是给另一台机器的，
 ///                 3 = 本机已授权但写盘失败（下次启动可能要重输），
-///                 4 = 这个码绑的是旧版识别码（v1），需要重新领码
+///                 4 = 这个码绑的是旧版识别码（v1），需要重新领码，
+///                 5 = 这张码已经过期，需要重新领一张，
+///                 6 = 旧版（无有效期）的码，需要重新领一张
 function auth_bind(_code) {
     var _verified = auth_verify_code(_code);
+    if (_verified.reason == "legacy") {
+        return 6;
+    }
+    if (_verified.reason == "expired") {
+        return 5;
+    }
     if (_verified.reason == "machine") {
         // 旧指纹（v1）的码：签名有效，但它绑的识别码在克隆镜像里是全服同一个值，
         // 谁拿到都能用，不能再当凭证 —— 让玩家用 v2 识别码重新领。
@@ -522,10 +1025,12 @@ function auth_bind(_code) {
     }
     global.auth_code_id = _verified.code_id;
     global.auth_code = auth_clean(_code);
+    global.auth_code_exp = _verified.exp;
+    global.auth_code_expired = false;
 
     // 写盘失败也要保留会话内的授权（否则玩家这一步就白输了），
     // 但必须让 UI 说出来 —— 假装成功的话，下次启动又弹窗，玩家会以为程序坏了。
-    if (!auth_save(global.auth_code_id, global.auth_code)) {
+    if (!auth_save(global.auth_code_id, global.auth_code, global.auth_code_exp)) {
         return 3;
     }
     return 0;
@@ -534,15 +1039,27 @@ function auth_bind(_code) {
 function auth_clear() {
     global.auth_code_id = "";
     global.auth_code = "";
+    global.auth_code_exp = "";
+    global.auth_code_expired = false;
     var _path = auth_file_path();
     if (file_exists(_path)) {
         file_delete(_path);
     }
 }
 
-/// @returns {Bool}
+/// @returns {Bool} 当前是否处于「有效授权」状态。
+/// 注意这里**不只看字符串非空**：码可能在本次会话期间跨过了到期日
+/// （玩家挂机一夜），所以每次调用都要重新判一次有效期。
+/// 成本可以接受：auth_exp_decode + 一次日期差，纯整数运算。
 function auth_ok() {
-    return (global.auth_code_id != "");
+    if (global.auth_code_id == "") {
+        return false;
+    }
+    if (global.auth_code_exp == "") {
+        // 内存里没有到期日（理论上只在 auth_clear 后出现）→ 保守当未授权
+        return false;
+    }
+    return !auth_exp_expired(global.auth_code_exp);
 }
 
 /// 给 UI 用的展示串，未授权返回空字符串
@@ -552,7 +1069,9 @@ function auth_label() {
         return "";
     }
     var _tag = string_copy(global.auth_code_id, max(1, string_length(global.auth_code_id) - 3), 4);
-    return "已授权 · 凭证 " + _tag;
+    var _left = auth_exp_days_left(global.auth_code_exp);
+    return "已授权 · 凭证 " + _tag + " · " + auth_exp_date_text(global.auth_code_exp)
+         + " 到期（剩 " + string(_left) + " 天）";
 }
 
 /// 在 obj_game_init / room_menu 的 Create 里调一次
@@ -564,14 +1083,21 @@ function auth_init() {
     if (!variable_global_exists("auth_code")) {
         global.auth_code = "";
     }
+    if (!variable_global_exists("auth_code_exp")) {
+        global.auth_code_exp = "";
+    }
     if (!variable_global_exists("auth_machine_changed")) {
         global.auth_machine_changed = false;
     }
     if (!variable_global_exists("auth_code_legacy")) {
         global.auth_code_legacy = false;
     }
+    if (!variable_global_exists("auth_code_expired")) {
+        global.auth_code_expired = false;
+    }
     // 排查用：识别码与它的原始输入都落 auth.log。
     // 出「所有人识别码一样」时，看这一行就知道是原生 UUID 没拿到、还是环境量塌陷。
-    auth_log("start hwid=" + auth_hwid() + " raw=" + auth_hwid_raw() + " v1=" + auth_hwid_legacy());
+    auth_log("start hwid=" + auth_hwid() + " raw=" + auth_hwid_raw() + " v1=" + auth_hwid_legacy()
+           + " day=" + string(auth_day_number()));
     auth_load();
 }

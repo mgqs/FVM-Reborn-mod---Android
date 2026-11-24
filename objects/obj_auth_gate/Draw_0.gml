@@ -22,8 +22,13 @@ draw_set_color(make_color_rgb(62, 46, 28));
 draw_text_transformed(panel_x + panel_w * 0.5, title_y, "授权", 1.7, 1.7, 0);
 
 // ── 说明 ──
+// 文案与 PC 端（FVM-Reborn-mod objects/obj_auth_gate/Draw_0.gml:28）逐字保持一致：
+// 面板宽度 860 / pad 60 两侧完全同构、字体同为 font_yuan 16px，换行位置一致，
+// 所以这里不要为了"安卓窄一点"自行改写措辞 —— 两边说法不一致，玩家会以为是两套系统。
+// 期限天数由签发端 LICENSE_DAYS 决定（默认 3 天），客户端不知道具体值，
+// 所以只提醒「有期限、到期要重领」；具体到期日由机器人回执和下面状态行给出。
 draw_set_color(make_color_rgb(104, 88, 66));
-var _hint = "① 点下面这行复制本机识别码　② @小Makk发送  " + kAuthCommand + " 识别码";
+var _hint = "① 点下面这行复制本机识别码　② @小Makk发送  " + kAuthCommand + " 识别码　③ 码有期限，到期要重领";
 if (mandatory) {
     _hint = "未授权无法进入游戏　" + _hint;
 }
@@ -75,6 +80,13 @@ if (msg != "") {
     draw_set_color(make_color_rgb(70, 112, 80));
     draw_text_transformed(panel_x + panel_w * 0.5, status_y,
         auth_label() + "　（重新输入可换绑）", 1.0, 1.0, 0);
+} else if (variable_global_exists("auth_code_expired") && global.auth_code_expired) {
+    // 授权记录还在，但码已过有效期（或还是旧版无期码）。
+    // 这一档必须单独说：否则玩家看到的只是「未授权」，
+    // 以为是自己码抄错了 / 存档坏了，不会想到去群里重领。
+    draw_set_color(make_color_rgb(190, 62, 50));
+    draw_text_transformed(panel_x + panel_w * 0.5, status_y,
+        "授权已过期 · 请把上方识别码重新发给机器人领一张新的", 1.0, 1.0, 0);
 } else {
     draw_set_color(make_color_rgb(150, 136, 116));
     draw_text_transformed(panel_x + panel_w * 0.5, status_y,

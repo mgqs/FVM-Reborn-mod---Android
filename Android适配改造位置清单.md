@@ -204,15 +204,35 @@
 
 ## 8. 授权系统
 
-功能：启动未授权时强制弹授权窗（mandatory，不给走）。授权码 30+ 位，PC 端手打 + 复制识别码发 QQ 机器人；Android 端没有物理键盘，**全部手写适配**（源端 auth 实现无安卓分支，`NativeUtil` 也拿不到移动端稳定设备 ID，所以机器码改成首次启动随机生成）。
+功能：启动未授权时强制弹授权窗（mandatory，不给走）。授权码 = 5 段 `FVM4-<码ID>-<识别码10位>-<到期日4位>-<签名10位>`，PC 端手打 + 复制识别码发 QQ 机器人；Android 端没有物理键盘，**全部手写适配**（源端 auth 实现无安卓分支，`NativeUtil` 也拿不到移动端稳定设备 ID，所以机器码改成首次启动随机生成）。
 
-> ⚠️ 卸载重装 / 清除数据会删掉 `auth_hwid.dat`，机器码变旧授权码失效，需重新领码换绑；这是设计上的取舍（换绑成本 > 重装丢失成本），不要尝试让机器码"稳定"——移动端不存在稳定的设备指纹。
+> ⚠️ 卸载重装 / 清除数据会删掉 `auth_hwid2.dat`，机器码变旧授权码失效，需重新领码换绑；这是设计上的取舍（换绑成本 > 重装丢失成本），不要尝试让机器码"稳定"——移动端不存在稳定的设备指纹。
+>
+> ⚠️ **识别码不能再用 `irandom` 生成**。2026-11-24 现网炸过一场：全服设备识别码都是 `E52D26F9B8`。根因是本工程**从未调用 `randomize()`**，GameMaker 的 RNG 序列每次启动完全一样，于是每台设备第一次运行 `irandom(15)` 都摇出同一个正文。现在走 `auth_random_hex()`（多熵源 + md5 派生）并换了文件名 `auth_hwid2.dat`，还拉黑了撞车值。**以后任何要随机的字段都不许直接 `irandom`**，见 `scripts/auth_client/auth_client.gml:185-245` 的注释。
+>
+> ⚠️ **码有有效期**（到期日段，2020-01-01 起的天数，32 进制 4 位）。到期后 `auth_ok()` 返回 false，授权窗重新强制弹出，玩家必须把识别码重新发给机器人换新码。到期日当天仍算有效（`auth_today() > _day` 才判过期），这是故意多留一天缓冲。改系统时间没用：`auth_load()` 会把读到的最大日期写回 `seen_day`，只升不降。
+
+### 8.1 移植自 PC 3.2.x 的版本（2026-11-23）
+
+整文件用 PC 端 `scripts/auth_client/auth_client.gml`（826 行 / 32702 B）覆盖，再在安卓侧嫁接下面这些分支（覆盖后 Android 版 1104 行 / 42 个函数 / 45851 B）。
 
 | 文件 | 位置 | 说明 |
 |------|------|------|
-| `scripts/auth_client/auth_client.gml` | `auth_file_path()` | 安卓 → `"auth.dat"`（沙盒内相对路径，不能用 `get_path_in_local_appdata`）；Windows → `%LOCALAPPDATA%\FVM_Reborn_makk\auth.dat` |
-| `scripts/auth_client/auth_client.gml` | `auth_hwid()` | 安卓：读 `auth_hwid.dat`，缺失 → 随机 8 位十六进制写回；Windows：MD5(COMPUTERNAME \| PROCESSOR_IDENTIFIER \| NUMBER_OF_PROCESSORS) 取前 8 位 |
-| `scripts/auth_client/auth_client.gml` | `auth_save()` | 写入目录创建逻辑包裹 `if (os_type != os_android)`（Windows 端 `directory_exists + directory_create`，Android 端相对路径直接落沙盒） |
+| `scripts/auth_client/auth_client.gml` | 顶部（`auth_secret` 之前） | 新增 `auth_dir()` / `auth_path(_name)` 两个路径函数：安卓返回 `""` / `_name`（相对路径落 GML 沙盒存档目录），Windows 走 `global.native_util.get_path_in_local_appdata("\\FVM_Reborn_makk\\" + _name)`。**安卓上不要用 `"\\"` 拼路径** |
+| `scripts/auth_client/auth_client.gml` | `auth_entropy_mix()`（新增，`:193`） | 熵源：`get_timer()` / `current_time` / `date_current_datetime()` / `game_save_id` / `global.auth_entropy_tick` / 屏幕分辨率 / DPI / `os_get_info()` 六个键。**RNG 只借一次且用完立刻 `random_set_seed(_seed)` 还原**——本工程从没 randomize 过，留在已随机化状态会突变整局游戏的随机序列（越权改行为） |
+| `scripts/auth_client/auth_client.gml` | `auth_random_hex(_len)`（新增，`:236`） | `md5_string_utf8(熵 + "|" + 轮次)` 循环拼到达标，最多 8 轮，返回大写十六进制。**不要再用 `irandom` 拼随机串** |
+| `scripts/auth_client/auth_client.gml` | `auth_install_write()` | 建目录改用 `auth_dir()`，并加 `_dir != ""` 守卫（安卓 `""` → 跳过 `directory_create`） |
+| `scripts/auth_client/auth_client.gml` | `auth_install_id()` | 路径改 `auth_path("install.id")`；生成改 `auth_random_hex(16)`（原来 `irandom` 拼种子有同样的问题） |
+| `scripts/auth_client/auth_client.gml` | `auth_native_uuid()` 开头 | 安卓短路返回 `""`：`MachineUuid` 读 SMBIOS 主板 UUID，安卓没有该入口，`external_define` 只会抛异常被 catch 吞掉 |
+| `scripts/auth_client/auth_client.gml` | `auth_read_text` / `auth_write_text`（新增） | 读写纯文本，不存在/打不开返回 `""` 或 false，供识别码落盘用 |
+| `scripts/auth_client/auth_client.gml` | `auth_hwid_android()`（新增，`:364`） | 安卓识别码唯一实现。读 `auth_hwid2.dat` 只留 `kAuthHwidChars` 内字符：≥10 位 → 取前 8 位正文、校验位按本机重算（不一致就重写）；**8~9 位 → 直接重置重摇**（老文件里存的就是撞车的 `E52D26F9`，沿用等于没修）；否则重摇。再判撞车黑名单 `kAuthHwidBadA`/`kAuthHwidBadB`。缓存进 `global.auth_hwid_android_cache` |
+| `scripts/auth_client/auth_client.gml` | `auth_hwid()` 开头 | `if (os_type == os_android) { return auth_hwid_android(); }` |
+| `scripts/auth_client/auth_client.gml` | `auth_hwid_raw()` 开头 | 安卓返回 `"V2A\|" + 前8位`（只为 `auth.log` 可读，不参与签名） |
+| `scripts/auth_client/auth_client.gml` | `auth_hwid_legacy()` 开头 | 安卓返回 `""`：安卓上 `os_get_info` 全空，会算出全服同值的"legacy 指纹" |
+| `scripts/auth_client/auth_client.gml` | `auth_log()` | 改用 `auth_dir()` 判目录存在 + `auth_path("auth.log")` |
+| `scripts/auth_client/auth_client.gml` | `auth_file_path()` | 改为 `return auth_path("auth.dat");`（安卓落到沙盒存档目录） |
+| `scripts/auth_client/auth_client.gml` | `auth_save()` | 建目录改 `auth_dir()`，同样 `_dir != ""` 守卫 |
+| `scripts/auth_client/auth_client.gml` | 宏区 `:68` / `:72-73` | `kAuthHwidFile "auth_hwid2.dat"`（换名逼老设备重摇，老 `auth_hwid.dat` 留着当排障线索）、`kAuthHwidBadA "E52D26F9"`、`kAuthHwidBadB "00000000"` |
 | `objects/obj_auth_gate/Create_0.gml` | 顶部 | 面板高度按安卓加 72px：`panel_h = 470 + (os_type == os_android ? 72 : 0);`（粘贴按钮放在状态提示与底部按钮之间，其余版面全部用相对偏移，不影响） |
 | `objects/obj_auth_gate/Create_0.gml` | 中部 | 新增安卓粘贴按钮变量：`android_paste / paste_x / paste_y / paste_w / paste_h / hover_paste`（位置 = 状态提示行下方、`status_y + 18`，整条 860×52） |
 | `objects/obj_auth_gate/Create_0.gml` | `input_box.focus()` 之后 | 软键盘尝试：`if (os_type == os_android) try { keyboard_virtual_show(kbv_type_default, kbv_returnkey_done, kbv_autocapitalize_sentences, true); } catch(_e) {}`。**4 个参数缺一不可**（GM1020 只认 4 个，少写必编译报错）；`kbv_returnkey_done` 让回车键显示"完成"，`kbv_autocapitalize_sentences` 关自动大写（授权码要纯大写）。部分机型此函数无效，try/catch 只包软键盘这一行，粘贴按钮兜底 |
@@ -225,12 +245,36 @@
 | `objects/obj_auth_gate/Other_3.gml` | 整个文件 | Async-Dialog 事件：授权成功弹窗后 3 秒自毁 |
 | `objects/obj_auth_button/` | 整个目录 | 仅对象注册（Draw 里画"授权"按钮、Step 里 `mouse_check_button_pressed` 打开授权窗），无安卓分支，随目录整体保留即可 |
 
+### 8.2 5 段新码带来的界面改动（2026-11-23）
+
+| 文件 | 位置 | 说明 |
+|------|------|------|
+| `objects/obj_auth_gate/Create_0.gml` | 输入框占位符 | `_box.set_placeholder("FVM4-XXXXXXXX-XXXXXXXXXX-XXXX-XXXXXXXXXX")`（旧版是 4 段 `FVM4-XXXXXXXX-XXXXXXXX-XXXXXXXXXX`，不改的话玩家会照着少打一段）。新码最长约 52 字符，`SearchBox` 的 64 字符上限够用 |
+| `objects/obj_auth_gate/Step_0.gml` | `auth_bind` 返回码分支 | 从 5 档（0/1/2/3/4）扩到 7 档，新增 `_r == 5`「这张码已经过期了，请把上方本机识别码重新发给机器人领取一张新的」、`_r == 6`「这是旧版没有有效期的码，已停用，请把上方本机识别码重新发给机器人领取」。两条都 `msg_ok = false; msg_timer = 300;` |
+| `objects/obj_auth_gate/Draw_0.gml` | 顶部提示文案 `_hint` | 末尾加「③ 码有期限，到期要重领」，与 PC 端逐字一致（不要为了安卓窄一点自行改写措辞，两边不一致玩家会以为是两套系统） |
+| `objects/obj_auth_gate/Draw_0.gml` | 状态提示行分支 | 新增第 4 档 `} else if (variable_global_exists("auth_code_expired") && global.auth_code_expired) {` → 红字 `make_color_rgb(190, 62, 50)`「授权已过期 · 请把上方识别码重新发给机器人领一张新的」。缺这一档的话，过期玩家在窗口里只看到「未授权」，不知道该做什么 |
+| `tools/qq_auth.py` / `codes_pool.txt` / `auth_secret.txt` | 整个文件 | 发码工具三件套从 PC 仓库 `tools/` 复制过来（`qq_auth.py` 39939 B、`codes_pool.txt` 40142 B、`auth_secret.txt` 42 B）。**`auth_secret.txt` 必须与 GML 里 `kAuthSecretA/B/C` 三段拼接完全一致**，否则签发出的码在客户端一律 `sig` 失败 |
+
+### 8.3 发码流程（机器人与客户端同机验证）
+
+```powershell
+cd tools
+python qq_auth.py issue <QQ号或openid> A4C123B12E   # 发一张（机器码用窗口里显示的 10 位）
+python qq_auth.py verify FVM4-...                   # 校验任意码
+python qq_auth.py gml                               # 打印 GML 头部宏（核对 secret 用）
+python qq_auth.py selftest                          # 自检（hwid/exp/签名三组样本）
+```
+
+期限用环境变量控制，只影响之后新发的码：`$env:LICENSE_DAYS = 7` 再执行 `issue`。
+
+`qq_auth.py` 的 `make_code(code_id, hwid, exp=None)` 默认 `LICENSE_DAYS`（env 覆盖，默认 3 天）之后到期；识别码必须是**10 位且后 2 位校验对得上**，`8BDAF386`、`DEADBEEF` 这类手敲值会被 `hwid_valid()` 直接打回（否则等于免费发码并占掉该 QQ 的设备名额）。
+
 **同步覆盖必须重新嫁接的段**（源端 auth 实现无安卓分支，整文件覆盖会删掉下面所有 Android 专属逻辑）：
 
-1. `auth_client.gml` 三处：`auth_file_path()` 相对路径、`auth_hwid()` 随机落盘、`auth_save()` 跳过建目录
-2. `obj_auth_gate/Create_0.gml` 面板高度 + 粘贴按钮变量 + 软键盘尝试
-3. `obj_auth_gate/Step_0.gml` 粘贴按钮 hover + 点击提交流程 + `_confirm` 追加 `_paste_submit`
-4. `obj_auth_gate/Draw_0.gml` 安卓分支粘贴按钮绘制
+1. `auth_client.gml` 全部安卓分支：`auth_dir()` / `auth_path()` 两个路径函数、`auth_entropy_mix()` / `auth_random_hex()` 两个熵函数、`auth_hwid_android()`、`auth_hwid()` / `auth_hwid_raw()` / `auth_hwid_legacy()` 开头三个短路、`auth_native_uuid()` 开头短路、`auth_install_write/install_id` 路径、`auth_log()` 路径、`auth_file_path()` 返回 `auth_path("auth.dat")`、`auth_save()` 建目录守卫、三个宏 `kAuthHwidFile` / `kAuthHwidBadA` / `kAuthHwidBadB`
+2. `obj_auth_gate/Create_0.gml` 面板高度 + 粘贴按钮变量 + 软键盘尝试 + 5 段占位符
+3. `obj_auth_gate/Step_0.gml` 粘贴按钮 hover + 点击提交流程 + `_confirm` 追加 `_paste_submit` + 返回码 5/6 两档
+4. `obj_auth_gate/Draw_0.gml` 安卓分支粘贴按钮绘制 + 提示文案 ③ + `auth_code_expired` 状态档
 5. `obj_game_init/Create_0.gml` 末尾授权启动块（含 `global.auth_gate_force` 传参）
 
 ---

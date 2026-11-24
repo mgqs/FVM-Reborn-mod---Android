@@ -1,3 +1,49 @@
+# v3.2.2
+> 修一场现网事故：**所有安卓设备的识别码都是 `E52D26F9B8`**（玩家反馈「不同的设备都是同一个码」）。
+## 优化与修复
+- **识别码全服撞车的根因**：`scripts/auth_client/auth_client.gml` 用 `irandom(15)` 摇 8 位正文，但本工程**从未调用 `randomize()`**（`rg "randomize|random_set_seed" objects scripts` 零命中，只有 `__scribble_*` 的同名无关变量）。GameMaker 未 randomize 时 RNG 序列每次启动完全相同 → 每台设备第一次运行都吐出同一串 → 全服都是 `E52D26F9`，补上校验位就是 `E52D26F9B8`。
+- **光改生成算法没用**：老版本早把 `E52D26F9` 写进了每台设备的 `auth_hwid.dat`，那份文件会被原样沿用。所以这次是三层一起改，缺一层都还会撞。
+- **第一层 · 换熵源**：新增 `auth_entropy_mix()` / `auth_random_hex(_len)`。熵源取 `get_timer()` / `current_time` / `date_current_datetime()` / `game_save_id` / 自增 tick / 屏幕分辨率 / DPI / `os_get_info()` 六个键，再用 `md5_string_utf8` 逐轮派生。RNG 只借一次且**用完立刻 `random_set_seed(_seed)` 还原** —— 本工程从没 randomize 过，如果留成已随机化状态会突变整局游戏的随机序列，那是越权改行为。
+- **第二层 · 换文件名**：`#macro kAuthHwidFile "auth_hwid2.dat"`。老 `auth_hwid.dat` 不再读取（当排障线索留着），逼所有老设备重摇。
+- **第三层 · 拉黑撞车值**：`#macro kAuthHwidBadA "E52D26F9"` / `kAuthHwidBadB "00000000"`。读到这两个正文一律重置重摇，最多重试 16 次。
+- **`auth_hwid_android()` 分支改写**：≥10 位 → 正文照用、校验位按本机重算（不一致重写）；**8~9 位 → 直接重置重摇**（原来写的是「就地升级成 10 位」，但那个值八成就是撞车的 `E52D26F9`，沿用等于没修）；否则重摇。缓存仍走 `global.auth_hwid_android_cache`。
+- **`auth_install_id()` 同步换熵源**：原来 `_seed = string(irandom(...)) + "|" + string(current_time) + ...` 再 md5，同一个 RNG 定死问题，改为 `auth_random_hex(16)`。
+- **工具侧无改动**：`tools/qq_auth.py` 的 `hwid_check()` 一直是对的（`E52D26F9` → `B8` 可复现），这次不需要重新部署机器人；但**已经发出去的码全部作废**，撞车设备重摇后会拿到新识别码，必须重领。
+- **运维提醒**：`issue` 子命令会先按机器码查账本，同一台机器未过期时返回原码。撞车期间一个 `E52D26F9B8` 可能被多个 QQ 号领过码，升级后这些码全部失效；建议先 `python qq_auth.py revoke --hwid E52D26F9B8` 清一遍，再按新识别码重发。
+
+# v3.2.1
+> 授权系统升级到 PC 端 5 段码 + 有效期口径（`FVM4-<码ID>-<识别码10位>-<到期日4位>-<签名10位>`），安卓侧重新嫁接全部设备指纹与路径分支。
+## 新内容
+- **授权码改为 5 段带有效期**：`scripts/auth_client/auth_client.gml` 整文件换成 PC 端 3.2.x 版本（826 行 → 安卓侧 1104 行 / 42 个函数 / 45851 B），
+  再补回安卓专属分支。码结构 = `FVM4` + 码ID（4~20 位，字符集 `23456789ABCDEFGHJKLMNPQRSTUVWXYZ`）+ 识别码 10 位
+  + 到期日 4 位（2020-01-01 起第几天，32 进制）+ 签名 10 位（`md5("FVM4|码ID|识别码|到期日|secret")` 前 10 位）。
+  到期日进签名，改日期必然破坏签名，客户端才敢只靠它判有效期。
+- **识别码从 8 位升 10 位**：`auth_hwid_check(_core)` = `md5("HWID|前8位|FVM-HWID-CHECK-2026-11")` 前 2 位，
+  与 `tools/qq_auth.py` 的 `hwid_check()` 逐位一致。`auth_hwid_text()` 展示成 `XXXX-XXXX-XX` 三段。
+  旧存档里的 8 位裸正文由 `auth_hwid_android()` 重置重摇（v3.2.2 修正：原先写的是「就地升级」，
+  但老文件里存的值就是撞车的 `E52D26F9`，沿用等于没修，详见 v3.2.2 段）。
+- **有效期判定**：`auth_today()` 取 `max(系统日期, global.auth_seen_day)` 并回写 `seen_day`（只升不降），
+  改系统时间无法续期；`auth_exp_expired()` 用 `auth_today() > 到期天`，**到期日当天仍有效**（故意留一天缓冲）。
+- **`auth_bind()` 返回码扩到 0~6**：新增 `5` = 码已过期、`6` = 旧版（4 段无有效期）的码已停用。
+  `auth_ok()` 改为每次重判有效期（`auth_code_exp == ""` 直接 false），不再是"有 code_id 就放行"。
+- **授权窗**：`objects/obj_auth_gate/Create_0.gml` 占位符换成 5 段 `FVM4-XXXXXXXX-XXXXXXXXXX-XXXX-XXXXXXXXXX`；
+  `Step_0.gml` 补 `_r == 5` / `_r == 6` 两条提示；`Draw_0.gml` 顶部提示补「③ 码有期限，到期要重领」，
+  状态行新增 `global.auth_code_expired` 红字档（「授权已过期 · 请把上方识别码重新发给机器人领一张新的」）。
+- **发码工具入仓**：`tools/qq_auth.py`（39939 B）、`tools/codes_pool.txt`、`tools/auth_secret.txt` 从 PC 仓库复制过来。
+  `auth_secret.txt` 必须与 GML 里 `kAuthSecretA/B/C` 三段拼接完全一致，否则客户端一律 `sig` 失败。
+## 优化与修复
+- **路径统一收口**：新增 `auth_dir()` / `auth_path(_name)` 两个函数。安卓返回 `""` / `_name`（相对路径落 GML 沙盒存档目录），
+  Windows 走 `global.native_util.get_path_in_local_appdata("\\FVM_Reborn_makk\\" + _name)`。`auth_install_id()` /
+  `auth_log()` / `auth_save()` / `auth_file_path()` 全部改为走这两个函数，安卓上不再出现 `"\\"` 拼接路径。
+- **`auth_native_uuid()` 安卓短路**：`MachineUuid` 读的是 SMBIOS 主板 UUID，安卓没有该出口，`external_define` 只会抛异常被 catch 吞掉，改为直接返回 `""`。
+- **`auth_hwid_legacy()` 安卓返回 `""`**：安卓上 `os_get_info` 全量取空，继续算会得出全服同一个"legacy 指纹"。
+- **`auth_read_text` / `auth_write_text` / `auth_hwid_android` 新增**：识别码读写与分析集中到一处，写失败只 `show_debug_message`，不拦启动。
+- **超时提示文案**：`tools/qq_auth.py` 的三处「8 位十六进制」改为「10 位十六进制（8 位正文 + 2 位校验）」，跟新识别码对齐。
+- **已知取舍**（不是 bug）：
+  1. 卸载重装 / 清数据会删掉 `auth_hwid2.dat` → 识别码变 → 旧码失效，需重新领。移动端不存在稳定设备指纹，这是必然取舍；
+  2. 旧版 4 段码一律 `legacy` 拒绝，老玩家升级后必须重新领一张；
+  3. 到期后授权窗重新强制弹出（`mandatory`），不给绕过。
+
 # v3.2.0
 > 同步上游 `1e844c591c..1ec739b125`（7 个提交，主线是 v3.1.0「沙漠之旅 / 暂停滤镜 / 立绘全美术适配」）。
 > 安卓侧口径：受保护层逐块嫁接、纹理组统一 ASTC 6x6 -medium，4 项高风险改动按用户答复取舍（见「安卓适配」）。

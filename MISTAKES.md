@@ -139,6 +139,7 @@
 | 统计「谁继承了某对象」得到 0 / 某事件查不到 | `.yy` 是跨行 JSON，匹配前先 `replace('\n','')` 或用 `re.S`；凡是「0 / 空 / 全缺失」这种反常却干净的结论，换一种写法复核一次再动手 | B32 |
 | 点某个按钮却跳到别的页 / 叠层 UI 抢点击 | GMS 的 Mouse 事件**先于** Step 执行，depth 只影响绘制顺序、不影响谁收到点击；抄旧面板版式做新面板时，先给旧面板的按钮加上「新面板存在就 exit」的守卫 | B33 |
 | 合并外部 PR 后 IDE 解析报错、资源树丢项，但 yyp 的 resources/Folders 逐条都对得上 | `folders/**/*.yy` 要逐个 `json` 解析（先 `re.sub(r',(\s*[}\]])', r'\1', s)` 去尾逗号，用 `utf-8-sig` 读），解析失败必须打印，不能 `except: continue` 静默跳过 | D6 |
+| 全服设备的「随机」标识都一样（识别码 / install.id / 任何落盘指纹） | 本工程**从未 `randomize()`**，`irandom` 序列每次启动相同 → 改用 `auth_random_hex()`（多熵源 md5），且**换文件名 + 拉黑旧值**，否则老文件被原样沿用等于没修；`random_set_seed` 还原要放在 try 外面 | C37 |
 
 ## A. 工具与环境
 
@@ -889,6 +890,18 @@
   并把调用方给的缩放改成**上限**（内容超框时等比缩到刚好放得进）。
 - **证据**：2026-11-22；`tools/gen_sprite_trim.py`（扫描范围）、`scripts/sprite_clip_draw/sprite_clip_draw.gml:53-84`（三级回退 + `_fit`）、
   `objects/obj_info_island_bg/Create_0.gml:39-51`、`objects/obj_mouse_preview/Create_0.gml:7-19`。
+
+### C37 全服安卓设备识别码都是 `E52D26F9B8`：没 `randomize()` 时 `irandom` 序列是定死的
+
+- **症状**：`scripts/auth_client/auth_client.gml` 的安卓识别码（`auth_hwid.dat` 里那 8 位正文 + 2 位校验）在所有设备上都一样，玩家报「不同的设备都是同一个码 E52D26F9B8」。
+- **错路**：以为 `irandom(15)` 就是"随机"、每台设备自然不同。实际本工程**全仓一次都没调用 `randomize()`**（`rg -n "randomize|random_set_seed|random_get_seed" objects scripts` 只命中 `__scribble_*` 里的同名变量，与 RNG 无关），GameMaker 在未 randomize 时 RNG 种子固定 → 每台设备第一次运行都吐出同一串。更坑的是老代码已经把这个值写进了每台设备的 `auth_hwid.dat`，**只改生成算法不改文件名，老文件会被原样沿用，等于没修**。
+- **正确路径**：三层一起改，缺一层都还会撞。
+  1. 生成改走 `auth_random_hex(_len)`（`scripts/auth_client/auth_client.gml:248`）：熵源 `auth_entropy_mix()` 取 `get_timer()` / `current_time` / `date_current_datetime()` / `game_save_id` / 自增 tick / 分辨率 / DPI / `os_get_info()` 六键，再逐轮 `md5_string_utf8(熵 + "|" + 轮次)` 派生。**RNG 只借一次，且 `random_set_seed(_seed)` 的还原必须放在 `randomize()` 的 try 外面**——异常路径也要还原，否则游戏带着随机化后的种子继续跑，等于越权改行为。
+  2. `#macro kAuthHwidFile "auth_hwid2.dat"`（`:69`）换文件名，逼老设备重摇；老 `auth_hwid.dat` 留着当排障线索。
+  3. `#macro kAuthHwidBadA "E52D26F9"` / `kAuthHwidBadB "00000000"`（`:73-74`）拉黑撞车值，读到就重置重摇（`auth_hwid_android()` 里 `_guard < 16` 重试）。
+  另：原本写的「8 位旧正文就地升级成 10 位」必须改成**直接重置**——那个值八成就是 `E52D26F9`，升级等于把 bug 保留下来。
+- **证据**：`scripts/auth_client/auth_client.gml:185-257`（熵源与派生）、`:69-74`（宏）、`:364-429`（分支与黑名单）、`tools/qq_auth.py:120 hwid_check()`（`E52D26F9 → B8` 可复现），2026-11-24 现网反馈。
+- **连带**：任何要随机的字段都不许直接 `irandom` 拼——`auth_install_id()` 原来用 `string(irandom(...)) + "|" + string(current_time)` 做种子，同一个坑，也一并改成 `auth_random_hex(16)`。
 
 ## D. 契约与流程（自己的规矩没守）
 
